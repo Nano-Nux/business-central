@@ -1,0 +1,1 @@
+-- Marker for the catalog variant trigger fix applied by internal/database/migrations.go.

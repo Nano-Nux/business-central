@@ -1,0 +1,37 @@
+services:
+  seaweed-master:
+    image: chrislusf/seaweedfs:latest
+    command: master -ip=seaweed-master -ip.bind=0.0.0.0 -mdir=/data
+    ports:
+      - "9333:9333"
+    volumes:
+      - seaweed-master-data:/data
+    restart: unless-stopped
+
+  seaweed-volume:
+    image: chrislusf/seaweedfs:latest
+    command: volume -mserver=seaweed-master:9333 -ip=seaweed-volume -ip.bind=0.0.0.0 -port=8080 -dir=/data
+    depends_on:
+      - seaweed-master
+    ports:
+      - "8081:8080"
+    volumes:
+      - seaweed-volume-data:/data
+    restart: unless-stopped
+
+  seaweed-filer:
+    image: chrislusf/seaweedfs:latest
+    command: filer -master=seaweed-master:9333 -ip=seaweed-filer -ip.bind=0.0.0.0 -defaultStoreDir=/data
+    depends_on:
+      - seaweed-master
+      - seaweed-volume
+    ports:
+      - "8888:8888"
+    volumes:
+      - seaweed-filer-data:/data
+    restart: unless-stopped
+
+volumes:
+  seaweed-master-data:
+  seaweed-volume-data:
+  seaweed-filer-data:

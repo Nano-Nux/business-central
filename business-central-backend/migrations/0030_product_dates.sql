@@ -1,0 +1,2 @@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS manufacture_date DATE;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS expired_date DATE;

@@ -1,0 +1,15 @@
+ALTER TABLE repair_orders DROP CONSTRAINT IF EXISTS repair_orders_status_check;
+
+UPDATE repair_orders
+SET status = CASE status
+    WHEN 'DIAGNOSING' THEN 'IN_PROGRESS'
+    WHEN 'AWAITING_APPROVAL' THEN 'IN_PROGRESS'
+    WHEN 'IN_REPAIR' THEN 'IN_PROGRESS'
+    WHEN 'READY' THEN 'READY_FOR_PICKUP'
+    WHEN 'CANCELLED' THEN 'REFUNDED'
+    ELSE status
+END;
+
+ALTER TABLE repair_orders
+    ADD CONSTRAINT repair_orders_status_check
+    CHECK (status IN ('RECEIVED','IN_PROGRESS','READY_FOR_PICKUP','COMPLETED','REFUNDED'));

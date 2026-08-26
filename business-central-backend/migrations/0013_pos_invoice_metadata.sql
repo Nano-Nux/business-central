@@ -1,0 +1,8 @@
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_id UUID;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_name VARCHAR(255);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_contact VARCHAR(500);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50);
+DO $$ BEGIN
+  ALTER TABLE orders ADD CONSTRAINT orders_delivery_fk FOREIGN KEY (merchant_id, delivery_id) REFERENCES deliveries(merchant_id, id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

@@ -1,0 +1,2 @@
+-- Applied by the backend migration runner. The executable SQL is embedded in
+-- internal/database/migrations.go.

@@ -1,0 +1,3671 @@
+openapi: 3.0.3
+info:
+  title: Business Central Backend API
+  version: 0.1.0
+  description: |
+    Contract-first OpenAPI documentation for the Business Central backend.
+
+    Health, authentication, authorization, commerce, reporting, service, and
+    repair endpoints are implemented. Reusable schemas, security conventions,
+    response envelopes, required error codes, and collection query semantics
+    are documented here.
+  license:
+    name: Proprietary
+  x-business-central-status: implemented-current-scope
+servers:
+  - url: http://localhost:8080
+    description: Local backend (when the HTTP runtime is available)
+tags:
+  - name: System
+    description: Service and database health checks.
+  - name: Authentication
+    description: Credential and session management.
+  - name: Users
+    description: Merchant-scoped user memberships and role assignments.
+  - name: Merchants
+    description: Platform and merchant administration.
+  - name: Customers
+    description: Merchant-scoped customer master data.
+  - name: Catalog
+    description: Products, variants, pricing, and catalog data.
+  - name: Media
+    description: Shared image URL normalization and SeaweedFS upload.
+  - name: Orders
+    description: Canonical orders, payments, refunds, and fulfillment.
+  - name: Inventory
+    description: Locations, movements, balances, and costing.
+  - name: Reports
+    description: Sales analysis, profit, refunds, and inventory cost reporting.
+  - name: Services
+    description: Merchant service catalog, work orders, scheduling, notes, and billing.
+  - name: Repairs
+    description: Repair devices, repair lifecycle, diagnostics, parts, approvals, and warranties.
+  - name: Synchronization
+    description: Online mobile synchronization and conflict handling.
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Check API health
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: The API process is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /health/db:
+    get:
+      tags: [System]
+      summary: Check API and database health
+      operationId: databaseHealth
+      security: []
+      responses:
+        '200':
+          description: The API can reach PostgreSQL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseHealthResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/currencies:
+    get:
+      tags: [System]
+      summary: List supported currencies
+      operationId: listCurrencies
+      security: []
+      responses:
+        '200':
+          description: Supported currencies usable when creating a merchant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrencyCollectionEnvelope'
+  /api/v1/admin/currencies:
+    get:
+      tags: [Merchants]
+      summary: List platform currencies as an administrator
+      operationId: adminListCurrencies
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Platform currencies.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrencyCollectionEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Merchants]
+      summary: Create a platform currency
+      operationId: createCurrency
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCurrencyRequest'
+      responses:
+        '201':
+          description: Platform currency created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrencyEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/admin/currencies/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: '^[A-Za-z]{3}$'
+    get:
+      tags: [Merchants]
+      summary: Get a platform currency
+      operationId: getCurrency
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Platform currency.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrencyEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Merchants]
+      summary: Update a platform currency
+      operationId: updateCurrency
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCurrencyRequest'
+      responses:
+        '200':
+          description: Platform currency updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrencyEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Merchants]
+      summary: Delete a platform currency
+      operationId: deleteCurrency
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Platform currency deleted.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in with email and password
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Access and refresh tokens were issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Rotate a refresh token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: A new access and refresh token were issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get the authenticated user
+      operationId: currentUser
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: The authenticated user and active membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke the current refresh token
+      operationId: logout
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: The refresh token was revoked.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/admin/merchants:
+    get:
+      tags: [Merchants]
+      summary: List merchants
+      operationId: listMerchants
+      security: [{ bearerAuth: [] }]
+      description: Only a platform-admin identity may call this operation.
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Filter'
+        - $ref: '#/components/parameters/PageIndex'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A paginated list of merchants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantCollectionEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Merchants]
+      summary: Create a merchant and default roles
+      operationId: createMerchantAccount
+      security: [{ bearerAuth: [] }]
+      description: Only a platform-admin identity may call this operation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMerchantAccountRequest'
+      responses:
+        '201':
+          description: The merchant and default Manager and Staff roles were created. No user account is created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantAccountEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/admin/merchant-users:
+    post:
+      tags: [Merchants, Users]
+      summary: Create a merchant and its owner user
+      operationId: createMerchantUser
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Only a platform-admin identity may call this operation. It atomically
+        creates the merchant, system roles, owner user, membership, and owner
+        role assignment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMerchantUserRequest'
+      responses:
+        '201':
+          description: The merchant and owner user were created together.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantUserProvisioningEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/admin/merchants/{id}:
+    patch:
+      tags: [Merchants]
+      summary: Update merchant settings or active state
+      operationId: updateMerchant
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMerchantRequest'
+      responses:
+        '200':
+          description: The merchant was updated. Setting is_active false deactivates access without deleting the merchant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/admin/merchants/{id}/roles:
+    get:
+      tags: [Users]
+      summary: List roles for a merchant
+      operationId: listMerchantRoles
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Roles available for user membership assignment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleCollectionEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Users]
+      summary: Create a role for a merchant
+      operationId: createMerchantRole
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Merchant role created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/admin/merchants/{id}/roles/{roleId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/UUID'
+    get:
+      tags: [Users]
+      summary: Get a merchant role
+      operationId: getMerchantRole
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Merchant role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Users]
+      summary: Update a merchant role
+      operationId: updateMerchantRole
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Merchant role updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Users]
+      summary: Delete a custom merchant role
+      operationId: deleteMerchantRole
+      description: System roles cannot be deleted. Removing a custom role also removes its membership assignments.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Merchant role deleted.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/admin/permissions:
+    get:
+      tags: [Users]
+      summary: List permissions available for role assignment
+      operationId: listPermissions
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Platform permission catalogue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionCollectionEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: List users in the current merchant
+      operationId: listUsers
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantIDHeader'
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Filter'
+        - $ref: '#/components/parameters/PageIndex'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A paginated list of merchant memberships.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCollectionEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Users]
+      summary: Create a Manager or Staff user in a merchant
+      description: Platform administrators select the target merchant with X-Merchant-ID. Merchant managers create users within their authenticated merchant; users cannot be created across merchant boundaries.
+      operationId: createUser
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantIDHeader'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: The user membership was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UserID'
+      - $ref: '#/components/parameters/MerchantIDHeader'
+    get:
+      tags: [Users]
+      summary: Get a user membership
+      operationId: getUser
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: The requested user membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Users]
+      summary: Update a user membership
+      operationId: updateUser
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: The user membership was updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Users]
+      summary: Deactivate a user membership
+      operationId: deleteUser
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: The membership was deactivated.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/catalog/products:
+    get:
+      tags: [Catalog]
+      summary: List products in the current merchant
+      operationId: listCatalogProducts
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Merchant products, content: { application/json: { schema: { $ref: '#/components/schemas/ProductCollectionEnvelope' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Catalog]
+      summary: Create a product for the current merchant
+      operationId: createCatalogProduct
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProductRequest' } } } }
+      responses:
+        '201': { description: Product created, content: { application/json: { schema: { $ref: '#/components/schemas/ProductEnvelope' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/catalog/products/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Catalog]
+      summary: Get a merchant product
+      operationId: getCatalogProduct
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Product, content: { application/json: { schema: { $ref: '#/components/schemas/ProductEnvelope' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Catalog]
+      summary: Update a merchant product
+      operationId: updateCatalogProduct
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProductRequest' } } } }
+      responses:
+        '200': { description: Product updated, content: { application/json: { schema: { $ref: '#/components/schemas/ProductEnvelope' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Catalog]
+      summary: Delete an unused merchant product and its variant aggregate
+      operationId: deleteCatalogProduct
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Product deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/units:
+    get:
+      tags: [Catalog]
+      summary: List units in the current merchant
+      operationId: listUnits
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Merchant units, content: { application/json: { schema: { $ref: '#/components/schemas/UnitCollectionEnvelope' } } } }
+    post:
+      tags: [Catalog]
+      summary: Create a unit for the current merchant
+      operationId: createUnit
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UnitRequest' } } } }
+      responses:
+        '201': { description: Unit created, content: { application/json: { schema: { $ref: '#/components/schemas/UnitEnvelope' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/catalog/products/{productId}/variants:
+    parameters: [{ $ref: '#/components/parameters/ProductID' }]
+    get:
+      tags: [Catalog]
+      summary: List variants for a merchant product
+      operationId: listProductVariants
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Product variants, content: { application/json: { schema: { $ref: '#/components/schemas/VariantCollectionEnvelope' } } } } }
+    post:
+      tags: [Catalog]
+      summary: Create a variant for a merchant product
+      operationId: createProductVariant
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/VariantRequest' } } } }
+      responses: { '201': { description: Product variant created, content: { application/json: { schema: { $ref: '#/components/schemas/VariantEnvelope' } } } }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/catalog/variants/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Catalog]
+      summary: Get a merchant product variant
+      operationId: getProductVariant
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Product variant, content: { application/json: { schema: { $ref: '#/components/schemas/VariantEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Catalog]
+      summary: Update a merchant product variant
+      operationId: updateProductVariant
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/VariantRequest' } } } }
+      responses: { '200': { description: Product variant updated, content: { application/json: { schema: { $ref: '#/components/schemas/VariantEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Catalog]
+      summary: Delete a merchant product variant
+      operationId: deleteProductVariant
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Product variant deleted }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/catalog/attributes:
+    get:
+      tags: [Catalog]
+      summary: List configured product variant attributes
+      operationId: listCatalogAttributeDefinitions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Merchant attribute definitions and reusable values, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeDefinitionCollectionEnvelope' } } } } }
+    post:
+      tags: [Catalog]
+      summary: Create a product variant attribute definition
+      operationId: createCatalogAttributeDefinition
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeDefinitionRequest' } } } }
+      responses: { '201': { description: Attribute definition created, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeDefinitionEnvelope' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/catalog/attributes/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Catalog]
+      summary: Get a product variant attribute definition
+      operationId: getCatalogAttributeDefinition
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Attribute definition, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeDefinitionEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Catalog]
+      summary: Update a product variant attribute definition
+      operationId: updateCatalogAttributeDefinition
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeDefinitionRequest' } } } }
+      responses: { '200': { description: Attribute definition updated, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeDefinitionEnvelope' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Catalog]
+      summary: Delete a product variant attribute definition
+      operationId: deleteCatalogAttributeDefinition
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Attribute definition deleted }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/catalog/attributes/{definitionId}/options:
+    parameters: [{ name: definitionId, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [Catalog]
+      summary: List reusable values for a variant attribute
+      operationId: listCatalogAttributeOptions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Reusable attribute values, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeOptionCollectionEnvelope' } } } } }
+    post:
+      tags: [Catalog]
+      summary: Create a reusable variant attribute value
+      operationId: createCatalogAttributeOption
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeOptionRequest' } } } }
+      responses: { '201': { description: Reusable attribute value created, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeOptionEnvelope' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/catalog/attribute-options/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Catalog]
+      summary: Update a reusable variant attribute value
+      operationId: updateCatalogAttributeOption
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeOptionRequest' } } } }
+      responses: { '200': { description: Reusable attribute value updated, content: { application/json: { schema: { $ref: '#/components/schemas/AttributeOptionEnvelope' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Catalog]
+      summary: Delete a reusable variant attribute value
+      operationId: deleteCatalogAttributeOption
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Reusable attribute value deleted }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/units/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Catalog]
+      summary: Get a merchant unit
+      operationId: getUnit
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Unit, content: { application/json: { schema: { $ref: '#/components/schemas/UnitEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Catalog]
+      summary: Update a merchant unit
+      operationId: updateUnit
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UnitRequest' } } } }
+      responses: { '200': { description: Unit updated, content: { application/json: { schema: { $ref: '#/components/schemas/UnitEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Catalog]
+      summary: Delete a merchant unit
+      operationId: deleteUnit
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Unit deleted }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/unit-conversions:
+    get:
+      tags: [Catalog]
+      summary: List unit conversions in the current merchant
+      operationId: listUnitConversions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Merchant unit conversions, content: { application/json: { schema: { $ref: '#/components/schemas/ConversionCollectionEnvelope' } } } } }
+    post:
+      tags: [Catalog]
+      summary: Create a unit conversion for the current merchant
+      operationId: createUnitConversion
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ConversionRequest' } } } }
+      responses: { '201': { description: Conversion created, content: { application/json: { schema: { $ref: '#/components/schemas/ConversionEnvelope' } } } }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/unit-conversions/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Catalog]
+      summary: Get a merchant unit conversion
+      operationId: getUnitConversion
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Unit conversion, content: { application/json: { schema: { $ref: '#/components/schemas/ConversionEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Catalog]
+      summary: Update a merchant unit conversion
+      operationId: updateUnitConversion
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ConversionRequest' } } } }
+      responses: { '200': { description: Conversion updated, content: { application/json: { schema: { $ref: '#/components/schemas/ConversionEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Catalog]
+      summary: Delete a merchant unit conversion
+      operationId: deleteUnitConversion
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Conversion deleted }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/merchant:
+    get: { tags: [Merchants], summary: Get the authenticated merchant profile, operationId: getCurrentMerchant, security: [{ bearerAuth: [] }], responses: { '200': { description: Merchant profile, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    patch: { tags: [Merchants], summary: Update the authenticated merchant profile, operationId: updateCurrentMerchant, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object } } } }, responses: { '200': { description: Merchant updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/pos/catalog:
+    get: { tags: [Catalog], summary: List sellable variants with current price and shop stock, operationId: listPOSCatalog, security: [{ bearerAuth: [] }], parameters: [{ name: shop_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: POS catalog, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+  /api/v1/pos/quote:
+    post: { tags: [Catalog], summary: Calculate an authoritative sale quote, operationId: quotePOSSale, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [lines], properties: { shop_id: { type: string, format: uuid }, customer_name: { type: string }, customer_phone: { type: string }, delivery_id: { type: string, format: uuid }, delivery_fee: { type: string }, manual_promotion: { type: string }, note: { type: string }, payment_method: { type: string }, promotion_id: { type: string, format: uuid }, lines: { type: array, items: { type: object, required: [variant_id, quantity], properties: { variant_id: { type: string, format: uuid }, quantity: { type: string } } } } } } } } }, responses: { '200': { description: "Server-calculated subtotal, discount, tax, delivery, and total", content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/pos/orders:
+    post: { tags: [Catalog], summary: Complete an authoritative POS sale, operationId: createPOSSale, security: [{ bearerAuth: [] }], description: "Prices, promotion eligibility, customer creation, delivery fee, cash payment, fulfillment, inventory movements, audit, and ordered synchronization publication are committed atomically. The idempotency key prevents duplicate business effects. External payment methods are rejected until verified provider authorization is supplied through a dedicated provider flow.", requestBody: { required: true, content: { application/json: { schema: { type: object, required: [shop_id, lines, payment_method, idempotency_key], properties: { shop_id: { type: string, format: uuid }, customer_name: { type: string }, customer_phone: { type: string }, delivery_id: { type: string, format: uuid }, delivery_fee: { type: string }, manual_promotion: { type: string }, note: { type: string }, promotion_id: { type: string, format: uuid }, payment_method: { type: string, enum: [CASH] }, idempotency_key: { type: string }, lines: { type: array, items: { type: object, required: [variant_id, quantity], properties: { variant_id: { type: string, format: uuid }, quantity: { type: string } } } } } } } } }, responses: { '201': { description: Fulfilled order, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '409': { description: External payment authorization required or idempotency conflict } } }
+  /api/v1/pos/orders/{orderId}/refunds:
+    post:
+      tags: [Catalog]
+      summary: Record a canonical POS payment refund
+      operationId: createPOSRefund
+      security: [{ bearerAuth: [] }]
+      description: >-
+        Records a successful refund against a captured payment after validating
+        merchant and assigned-shop scope. The command is idempotent, cannot
+        refund more than the payment's remaining captured amount, and updates
+        payment/order status through the canonical database lifecycle triggers.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment_id, amount, idempotency_key]
+              properties:
+                payment_id: { type: string, format: uuid }
+                amount: { type: string }
+                reason: { type: string }
+                refund_id: { type: string, format: uuid }
+                idempotency_key: { type: string }
+      responses:
+        '201':
+          description: Canonical refund created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RefundEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/invoices:
+    get: { tags: [Catalog], summary: List canonical sales and service invoices, operationId: listInvoices, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: "Invoices with printable line items, projection kind, repair ticket status/payment status, merchant, shop identity and optional shop logo/print preference, all service work items/devices, and printable ticket fields", content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+  /api/v1/inventory/locations:
+    get: { tags: [Inventory], summary: List active tenant locations scoped to the staff shop, operationId: listInventoryLocations, security: [{ bearerAuth: [] }], responses: { '200': { description: Inventory locations, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+  /api/v1/inventory/receivable-lines:
+    get: { tags: [Inventory], summary: List issued purchase-order lines with quantities remaining, operationId: listReceivableLines, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Purchase-order lines available for stock receipt, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+  /api/v1/inventory/storage:
+    get:
+      tags: [Inventory]
+      summary: List the view-only stock storage table
+      operationId: listInventoryStorage
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Query' }
+        - { $ref: '#/components/parameters/Filter' }
+        - { $ref: '#/components/parameters/PageIndex' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: sort, in: query, required: false, schema: { type: string, example: stock_count:desc } }
+      responses:
+        '200': { description: 'Tenant-scoped stock rows, restricted to the assigned shop for staff. RETAIL sell price is available to merchant and staff users; original price and profit are returned only for merchant-role users', content: { application/json: { schema: { $ref: '#/components/schemas/StorageCollectionEnvelope' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/shops:
+    get:
+      tags: [Merchants]
+      summary: List shops for the current merchant
+      operationId: listShops
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Merchant shops, content: { application/json: { schema: { $ref: '#/components/schemas/ShopCollectionEnvelope' } } } } }
+    post:
+      tags: [Merchants]
+      summary: Create a shop for the current merchant
+      operationId: createShop
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ShopRequest' } } } }
+      responses: { '201': { description: Shop created, content: { application/json: { schema: { $ref: '#/components/schemas/ShopEnvelope' } } } }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/shops/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Merchants]
+      summary: Get a merchant shop
+      operationId: getShop
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Shop, content: { application/json: { schema: { $ref: '#/components/schemas/ShopEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Merchants]
+      summary: Update a merchant shop
+      operationId: updateShop
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ShopRequest' } } } }
+      responses: { '200': { description: Shop updated, content: { application/json: { schema: { $ref: '#/components/schemas/ShopEnvelope' } } } } }
+    delete:
+      tags: [Merchants]
+      summary: Delete a merchant shop
+      operationId: deleteShop
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Shop deleted } }
+  /api/v1/shops/{shopId}/deliveries:
+    parameters: [{ $ref: '#/components/parameters/ShopID' }]
+    get:
+      tags: [Merchants]
+      summary: List active delivery options for a shop
+      operationId: listShopDeliveries
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Shop deliveries, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+  /api/v1/customers:
+    get:
+      tags: [Customers]
+      summary: List customers visible to the authenticated membership
+      operationId: listCustomers
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Tenant- and shop-scoped customers, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+  /api/v1/customers/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Customers]
+      summary: Get a customer
+      operationId: getCustomer
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Customer, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Customers]
+      summary: Update a customer as the merchant owner
+      operationId: updateCustomer
+      security: [{ bearerAuth: [] }]
+      description: Requires the system `owner` or `merchant` role. Staff and manager memberships receive `FORBIDDEN` even if they otherwise have tenant write permission.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [display_name, customer_type], properties: { display_name: { type: string }, customer_type: { type: string, enum: [RETAIL, WHOLESALE, GUEST] }, email: { type: string, format: email, nullable: true }, phone: { type: string, nullable: true }, loyalty_identifier: { type: string, nullable: true } } } } } }
+      responses: { '200': { description: Customer updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/deliveries:
+    post:
+      tags: [Merchants]
+      summary: Create a shop delivery option
+      operationId: createDelivery
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [shop_id, name, contact_info], properties: { shop_id: { type: string, format: uuid }, name: { type: string }, contact_info: { type: string } } } } } }
+      responses: { '201': { description: Delivery created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/deliveries/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Merchants]
+      summary: Get an active delivery option
+      operationId: getDelivery
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Delivery option, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Merchants]
+      summary: Update a shop delivery option
+      operationId: updateDelivery
+      security: [{ bearerAuth: [] }]
+      description: Requires the system `owner` or `merchant` role; staff and managers cannot edit delivery options.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [shop_id, name, contact_info], properties: { shop_id: { type: string, format: uuid }, name: { type: string }, contact_info: { type: string }, is_active: { type: boolean } } } } } }
+      responses: { '200': { description: Delivery updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Merchants]
+      summary: Delete a shop delivery option
+      operationId: deleteDelivery
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Delivery deleted } }
+  /api/v1/pos/shops/{shopId}/terminals:
+    parameters: [{ $ref: '#/components/parameters/ShopID' }]
+    get:
+      tags: [Catalog]
+      summary: List POS terminals for a shop
+      operationId: listPOSTerminals
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Shop terminals, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalCollectionEnvelope' } } } } }
+  /api/v1/pos/terminals:
+    post:
+      tags: [Catalog]
+      summary: Create a POS terminal for a shop
+      operationId: createPOSTerminal
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalRequest' } } } }
+      responses: { '201': { description: POS terminal created, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalEnvelope' } } } } }
+  /api/v1/pos/terminals/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Catalog]
+      summary: Get a POS terminal
+      operationId: getPOSTerminal
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: POS terminal, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalEnvelope' } } } } }
+    patch:
+      tags: [Catalog]
+      summary: Update a POS terminal
+      operationId: updatePOSTerminal
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalRequest' } } } }
+      responses: { '200': { description: POS terminal updated, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalEnvelope' } } } } }
+    delete:
+      tags: [Catalog]
+      summary: Delete a POS terminal
+      operationId: deletePOSTerminal
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: POS terminal deleted } }
+  /api/v1/pos/shops/{shopId}/sessions:
+    parameters: [{ $ref: '#/components/parameters/ShopID' }]
+    get:
+      tags: [Catalog]
+      summary: List POS sessions for a shop
+      operationId: listPOSSessions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Shop POS sessions, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+  /api/v1/pos/sessions:
+    post:
+      tags: [Catalog]
+      summary: Open a POS session
+      operationId: createPOSSession
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shop_id]
+              properties:
+                shop_id: { type: string, format: uuid }
+                terminal_id: { type: string, format: uuid }
+                membership_id: { type: string, format: uuid }
+                opening_cash: { type: string }
+      responses: { '201': { description: POS session opened, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/pos/sessions/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Catalog]
+      summary: Get a POS session
+      operationId: getPOSSession
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: POS session, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    patch:
+      tags: [Catalog]
+      summary: Close or update a POS session
+      operationId: updatePOSSession
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [OPEN, CLOSED, ABANDONED] }
+                expected_cash: { type: string }
+                counted_cash: { type: string }
+      responses: { '200': { description: POS session updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Catalog]
+      summary: Delete a POS session
+      operationId: deletePOSSession
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: POS session deleted } }
+  /api/v1/media/images/resolve:
+    post:
+      tags: [Media]
+      summary: Validate and normalize an image URL
+      description: Google Drive sharing URLs are converted to browser-viewable URLs. Ordinary HTTP(S) image URLs are retained.
+      operationId: resolveImageURL
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImageURLRequest' }
+      responses:
+        '200': { description: Resolved image URL, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }
+  /api/v1/media/images/upload:
+    post:
+      tags: [Media]
+      summary: Upload an image to SeaweedFS
+      operationId: uploadImage
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/ImageUploadRequest' }
+      responses:
+        '201': { description: Viewable SeaweedFS image URL, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }
+  /api/v1/catalog/brands:
+    get: { tags: [Catalog], summary: List merchant brands, operationId: listBrands, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Brands, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post: { tags: [Catalog], summary: Create a merchant brand, operationId: createBrand, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, slug], properties: { name: { type: string }, slug: { type: string }, description: { type: string }, image_url: { type: string }, is_active: { type: boolean } } } } } }, responses: { '201': { description: Brand created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/catalog/brands/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Catalog], summary: Update a merchant brand, operationId: updateBrand, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object } } } }, responses: { '200': { description: Brand updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Catalog], summary: Delete a merchant brand, operationId: deleteBrand, security: [{ bearerAuth: [] }], responses: { '204': { description: Brand deleted } } }
+  /api/v1/catalog/categories:
+    get: { tags: [Catalog], summary: List merchant categories, operationId: listCategories, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Categories, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post: { tags: [Catalog], summary: Create a merchant category, operationId: createCategory, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, slug], properties: { parent_category_id: { type: string, format: uuid }, name: { type: string }, slug: { type: string }, description: { type: string }, image_url: { type: string }, sort_order: { type: integer } } } } } }, responses: { '201': { description: Category created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/catalog/categories/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Catalog], summary: Update a merchant category, operationId: updateCategory, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object } } } }, responses: { '200': { description: Category updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Catalog], summary: Delete a merchant category, operationId: deleteCategory, security: [{ bearerAuth: [] }], responses: { '204': { description: Category deleted } } }
+  /api/v1/catalog/products/{productId}/categories/{categoryId}:
+    parameters: [{ $ref: '#/components/parameters/ProductID' }, { $ref: '#/components/parameters/CategoryID' }]
+    post: { tags: [Catalog], summary: Assign a category to a product, operationId: assignProductCategory, security: [{ bearerAuth: [] }], responses: { '204': { description: Category assigned } } }
+    delete: { tags: [Catalog], summary: Remove a product category assignment, operationId: removeProductCategory, security: [{ bearerAuth: [] }], responses: { '204': { description: Assignment removed } } }
+  /api/v1/catalog/products/{productId}/images:
+    parameters: [{ $ref: '#/components/parameters/ProductID' }]
+    get: { tags: [Catalog], summary: List product images, operationId: listProductImages, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Product images, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post: { tags: [Catalog], summary: Add a product image URL, operationId: createProductImage, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CatalogImageURLRequest' } } } }, responses: { '201': { description: Product image created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/catalog/products/{productId}/images/upload:
+    parameters: [{ $ref: '#/components/parameters/ProductID' }]
+    post: { tags: [Catalog], summary: Upload a product image to SeaweedFS, operationId: uploadProductImage, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { multipart/form-data: { schema: { $ref: '#/components/schemas/CatalogImageUploadRequest' } } } }, responses: { '201': { description: Product image uploaded, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/catalog/variants/{variantId}/images:
+    parameters: [{ $ref: '#/components/parameters/VariantID' }]
+    get: { tags: [Catalog], summary: List variant images, operationId: listVariantImages, security: [{ bearerAuth: [] }], responses: { '200': { description: Variant images, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post: { tags: [Catalog], summary: Add a variant image URL, operationId: createVariantImage, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CatalogImageURLRequest' } } } }, responses: { '201': { description: Variant image created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/catalog/variants/{variantId}/images/upload:
+    parameters: [{ $ref: '#/components/parameters/VariantID' }]
+    post: { tags: [Catalog], summary: Upload a variant image to SeaweedFS, operationId: uploadVariantImage, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { multipart/form-data: { schema: { $ref: '#/components/schemas/CatalogImageUploadRequest' } } } }, responses: { '201': { description: Variant image uploaded, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/catalog/images/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Catalog], summary: Update a product or variant image URL, operationId: updateCatalogImage, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CatalogImageURLRequest' } } } }, responses: { '200': { description: Image updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Catalog], summary: Delete a product or variant image, operationId: deleteCatalogImage, security: [{ bearerAuth: [] }], responses: { '204': { description: Image deleted } } }
+  /api/v1/catalog/images/{id}/upload:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    post: { tags: [Catalog], summary: Replace a catalog image with a SeaweedFS upload, operationId: uploadCatalogImage, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { multipart/form-data: { schema: { $ref: '#/components/schemas/CatalogImageUploadRequest' } } } }, responses: { '201': { description: Image replaced, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/catalog/variants/{variantId}/inventory-policy:
+    parameters: [{ $ref: '#/components/parameters/VariantID' }]
+    get: { tags: [Catalog], summary: Get variant inventory policy, operationId: getVariantInventoryPolicy, security: [{ bearerAuth: [] }], responses: { '200': { description: Inventory policy, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    put: { tags: [Catalog], summary: Create or replace variant inventory policy, operationId: upsertVariantInventoryPolicy, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object } } } }, responses: { '200': { description: Inventory policy saved, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Catalog], summary: Delete variant inventory policy, operationId: deleteVariantInventoryPolicy, security: [{ bearerAuth: [] }], responses: { '204': { description: Inventory policy deleted } } }
+  /api/v1/inventory/movements:
+    get: { tags: [Inventory], summary: List merchant stock movement history, operationId: listInventoryMovements, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Inventory movement history, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+  /api/v1/inventory/movements/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Inventory]
+      summary: Get complete stock movement detail
+      operationId: getInventoryMovementDetail
+      description: Returns the tenant- and shop-scoped immutable movement with resolved product, variant, unit, locations, current balances, linked receipt/purchase order or checkout order, and FIFO cost allocations.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Complete stock movement detail.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockMovementDetailEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/transaction-history:
+    get:
+      tags: [Operations]
+      summary: List all operational transactions for the selected shop
+      operationId: listTransactionHistory
+      description: Combines stock-in, stock-out, returns, adjustments, canonical orders from every channel, successful refunds, and repair deposit/final checkout payments. This is intentionally separate from the stock movement ledger and financial report aggregates.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Filter'
+        - $ref: '#/components/parameters/PageIndex'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Shop-scoped operational transaction history.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionHistoryCollectionEnvelope' }
+  /api/v1/transaction-history/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Operations]
+      summary: Get complete transaction and canonical order detail
+      operationId: getTransactionHistoryDetail
+      description: Resolves an accessible history event to its canonical order and returns line item identity, quantity, selling price, FIFO cost, profit, totals, payments, and refunds. Stock events without an order return the event with empty order collections.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Tenant- and shop-scoped transaction detail.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionHistoryDetailEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/inventory/stock-in:
+    post: { tags: [Inventory], summary: Receive stock into a location, operationId: stockIn, security: [{ bearerAuth: [] }], description: "Creates a canonical receipt and FIFO cost layer. When unit_cost is omitted, the latest receipt cost for the merchant-owned variant is reused; the first receipt requires an explicit cost. For direct stock-in, omit purchase_order_id, purchase_order_line_id, and receipt_number. When receiving a purchase order, both IDs and receipt_number are required.", requestBody: { required: true, content: { application/json: { schema: { type: object, required: [variant_id, destination_location_id, quantity, event_key], properties: { purchase_order_id: { type: string, format: uuid }, purchase_order_line_id: { type: string, format: uuid }, variant_id: { type: string, format: uuid }, destination_location_id: { type: string, format: uuid }, unit_id: { type: string, format: uuid }, receipt_number: { type: string }, batch_number: { type: string }, expires_at: { type: string, format: date-time }, quantity: { type: string }, unit_cost: { type: string, description: "Optional after the first receipt; defaults to the variant's latest receipt cost." }, event_key: { type: string } } } } } }, responses: { '201': { description: Stock received and FIFO cost layer created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/inventory/stock-checkout:
+    post: { tags: [Inventory], summary: Check stock out for a sale, operationId: stockCheckout, security: [{ bearerAuth: [] }], description: Requires an existing order_line_id., requestBody: { required: true, content: { application/json: { schema: { type: object, required: [order_line_id, variant_id, source_location_id, quantity, event_key], properties: { order_line_id: { type: string, format: uuid }, variant_id: { type: string, format: uuid }, source_location_id: { type: string, format: uuid }, quantity: { type: string }, event_key: { type: string } } } } } }, responses: { '201': { description: Stock checked out, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/pricing/price-lists:
+    get: { tags: [Catalog], summary: List merchant price lists, operationId: listPriceLists, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Price lists, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post: { tags: [Catalog], summary: Create a price list, operationId: createPriceList, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code, currency_code], properties: { code: { type: string }, currency_code: { type: string }, is_default: { type: boolean } } } } } }, responses: { '201': { description: Price list created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/pricing/price-lists/{id}/prices:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get: { tags: [Catalog], summary: List prices in a price list, operationId: listPrices, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Product prices, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+  /api/v1/pricing/prices:
+    post: { tags: [Catalog], summary: Create or replace a product price, operationId: upsertPrice, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [price_list_id, variant_id, amount], properties: { price_list_id: { type: string, format: uuid }, variant_id: { type: string, format: uuid }, amount: { type: string }, valid_from: { type: string, format: date-time }, valid_until: { type: string, format: date-time } } } } } }, responses: { '200': { description: Product price saved, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/promotions:
+    get: { tags: [Catalog], summary: List merchant promotions, operationId: listPromotions, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Promotions, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post: { tags: [Catalog], summary: Create a promotion, operationId: createPromotion, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, promotion_type, value], properties: { name: { type: string }, promotion_type: { type: string, enum: [PERCENTAGE, FIXED_AMOUNT] }, value: { type: string }, minimum_subtotal: { type: string }, usage_limit: { type: integer } } } } } }, responses: { '201': { description: Promotion created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/promotions/codes:
+    post: { tags: [Catalog], summary: Create a promotion code, operationId: createPromotionCode, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [promotion_id, code], properties: { promotion_id: { type: string, format: uuid }, code: { type: string }, usage_limit: { type: integer } } } } } }, responses: { '201': { description: Promotion code created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/promotions/{id}/codes:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get: { tags: [Catalog], summary: List codes for a promotion, operationId: listPromotionCodes, security: [{ bearerAuth: [] }], responses: { '200': { description: Promotion codes, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+  /api/v1/promotions/{id}/products:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get: { tags: [Catalog], summary: List product and variant scopes for a promotion, operationId: listPromotionProducts, security: [{ bearerAuth: [] }], responses: { '200': { description: Promotion product scopes, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+  /api/v1/reports/sales-summary:
+    get:
+      tags: [Reports]
+      summary: Get sales and profit summary
+      operationId: getSalesSummary
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Filter'
+      responses:
+        '200':
+          description: Sales totals, refunds, cost of goods sold, and gross profit.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SalesSummaryEnvelope' }
+  /api/v1/reports/profit-summary:
+    get:
+      tags: [Reports]
+      summary: Get profit summary
+      operationId: getProfitSummary
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Filter'
+      responses:
+        '200':
+          description: Profit summary using canonical sales and inventory costs.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SalesSummaryEnvelope' }
+  /api/v1/reports/sales-by-day:
+    get:
+      tags: [Reports]
+      summary: Analyze sales by UTC day
+      operationId: listSalesByDay
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Filter'
+        - $ref: '#/components/parameters/PageIndex'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated daily sales and profit analysis.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SalesByDayCollectionEnvelope' }
+  /api/v1/reports/top-products:
+    get:
+      tags: [Reports]
+      summary: Analyze top-selling products
+      operationId: listTopProducts
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Filter'
+        - $ref: '#/components/parameters/PageIndex'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated product sales, cost, and profit analysis.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TopProductCollectionEnvelope' }
+  /api/v1/services/categories:
+    get:
+      tags: [Services]
+      summary: List service categories
+      operationId: listServiceCategories
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Service categories, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Services]
+      summary: Create a service category
+      operationId: createServiceCategory
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '201': { description: Category created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/services/categories/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Services]
+      summary: Update a service category
+      operationId: updateServiceCategory
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '200': { description: Category updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Services]
+      summary: Delete a service category
+      operationId: deleteServiceCategory
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Category deleted } }
+  /api/v1/services/catalog:
+    get:
+      tags: [Services]
+      summary: List service catalog entries
+      operationId: listServiceCatalog
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Service catalog, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Services]
+      summary: Create a service catalog entry
+      operationId: createServiceCatalog
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '201': { description: Service created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/services/catalog/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Services]
+      summary: Update a service catalog entry
+      operationId: updateServiceCatalog
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '200': { description: Service updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Services]
+      summary: Delete a service catalog entry
+      operationId: deleteServiceCatalog
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Service deleted } }
+  /api/v1/services/prices:
+    get:
+      tags: [Services]
+      summary: List service prices
+      operationId: listServicePrices
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Service prices, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Services]
+      summary: Create a service price
+      operationId: upsertServicePrice
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '201': { description: Service price saved, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Services]
+      summary: Delete a service price
+      operationId: deleteServicePrice
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: service_id, in: query, required: true, schema: { $ref: '#/components/schemas/UUID' } }, { name: valid_from, in: query, required: true, schema: { type: string, format: date-time } }]
+      responses: { '204': { description: Service price deleted } }
+  /api/v1/services/orders:
+    get:
+      tags: [Services]
+      summary: List service orders
+      operationId: listServiceOrders
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Service orders, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Services]
+      summary: Create a service order
+      operationId: createServiceOrder
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '201': { description: Service order created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/services/orders/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Services]
+      summary: Get a service order
+      operationId: getServiceOrder
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Service order, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    patch:
+      tags: [Services]
+      summary: Update a service order
+      operationId: updateServiceOrder
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '200': { description: Service order updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Services]
+      summary: Delete a service order
+      operationId: deleteServiceOrder
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Service order deleted } }
+  /api/v1/services/orders/{orderId}/items:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get:
+      tags: [Services]
+      summary: List service order items
+      operationId: listServiceOrderItems
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Service order items, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Services]
+      summary: Add a service order item
+      operationId: createServiceOrderItem
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '201': { description: Service order item created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/services/items/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Services], summary: Update a service order item, operationId: updateServiceOrderItem, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '200': { description: Item updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Services], summary: Delete a service order item, operationId: deleteServiceOrderItem, security: [{ bearerAuth: [] }], responses: { '204': { description: Item deleted } } }
+  /api/v1/services/orders/{orderId}/appointments:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get:
+      tags: [Services]
+      summary: List service appointments
+      operationId: listServiceAppointments
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Appointments, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post: { tags: [Services], summary: Create a service appointment, operationId: createServiceAppointment, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '201': { description: Appointment created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/services/appointments/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Services], summary: Update a service appointment, operationId: updateServiceAppointment, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '200': { description: Appointment updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Services], summary: Delete a service appointment, operationId: deleteServiceAppointment, security: [{ bearerAuth: [] }], responses: { '204': { description: Appointment deleted } } }
+  /api/v1/services/orders/{orderId}/notes:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get:
+      tags: [Services]
+      summary: List service order notes
+      operationId: listServiceNotes
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Notes, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post: { tags: [Services], summary: Add a service order note, operationId: createServiceNote, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '201': { description: Note created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/services/notes/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    delete: { tags: [Services], summary: Delete a service order note, operationId: deleteServiceNote, security: [{ bearerAuth: [] }], responses: { '204': { description: Note deleted } } }
+  /api/v1/services/orders/{orderId}/billings:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get:
+      tags: [Services]
+      summary: List service billings
+      operationId: listServiceBillings
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Service billings, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post: { tags: [Services], summary: Create a service billing, operationId: createServiceBilling, security: [{ bearerAuth: [] }], description: An optional unscoped promotion_id reduces the service amount and updates the canonical SERVICE order totals; product-scoped promotions are rejected for service-only totals., requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '201': { description: Billing created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/services/billings/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Services], summary: Update a service billing, operationId: updateServiceBilling, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '200': { description: Billing updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Services], summary: Delete a service billing, operationId: deleteServiceBilling, security: [{ bearerAuth: [] }], responses: { '204': { description: Billing deleted } } }
+  /api/v1/services/forms/definitions:
+    get:
+      tags: [Services]
+      summary: List versioned service form fields
+      operationId: listCustomFieldDefinitions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Service form definitions, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Services]
+      summary: Create a service form field
+      operationId: createCustomFieldDefinition
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CustomFieldDefinitionRequest' } } } }
+      responses: { '201': { description: Form field created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/services/forms/definitions/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Services]
+      summary: Update a service form field and advance its version
+      operationId: updateCustomFieldDefinition
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CustomFieldDefinitionRequest' } } } }
+      responses: { '200': { description: Form field updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Services]
+      summary: Retire a service form field
+      operationId: deleteCustomFieldDefinition
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Form field retired } }
+  /api/v1/services/forms/values/{entityType}/{entityId}:
+    parameters:
+      - name: entityType
+        in: path
+        required: true
+        schema: { type: string }
+      - name: entityId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Services]
+      summary: List saved dynamic form values
+      operationId: listCustomFieldValues
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Form values, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Services]
+      summary: Upsert a dynamic form value
+      operationId: upsertCustomFieldValue
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CustomFieldValueRequest' } } } }
+      responses: { '200': { description: Form value saved, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/services/forms/values/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    delete:
+      tags: [Services]
+      summary: Delete a saved dynamic form value
+      operationId: deleteCustomFieldValue
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Form value deleted } }
+  /api/v1/repairs/devices:
+    get:
+      tags: [Repairs]
+      summary: List repair devices
+      operationId: listRepairDevices
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Repair devices, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Repairs]
+      summary: Create a repair device
+      operationId: createRepairDevice
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '201': { description: Device created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/repairs/devices/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Repairs]
+      summary: Update a repair device
+      operationId: updateRepairDevice
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '200': { description: Device updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Repairs]
+      summary: Delete a repair device
+      operationId: deleteRepairDevice
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Device deleted } }
+  /api/v1/repairs/orders:
+    get:
+      tags: [Repairs]
+      summary: List repair orders
+      operationId: listRepairOrders
+      security: [{ bearerAuth: [] }]
+      description: Optionally filter with `filter=shop_id:{shop UUID}` for a selected-shop view. Without it, merchant users receive their merchant-wide list; staff remain limited to their assigned shop.
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Repair orders, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Repairs]
+      summary: Create a repair order
+      operationId: createRepairOrder
+      security: [{ bearerAuth: [] }]
+      description: A repair order must reference an existing service order and repair device. An optional unscoped promotion_id reduces the repair balance before deposit and final checkout; product-scoped promotions remain available for repair stock parts.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '201': { description: Repair order created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/repairs/tickets:
+    post:
+      tags: [Repairs]
+      summary: Atomically create a complete repair ticket
+      operationId: createRepairTicket
+      security: [{ bearerAuth: [] }]
+      description: Creates the canonical SERVICE order, service order, repair order, one or more device work items, independently quantified replacement parts, optional deposit or final payment, and images in one database transaction. Catalog labor is backend-authoritative. Parts and images may include `work_item_id` for device assignment; omitting it keeps the record ticket-level. The idempotency key prevents duplicate tickets on retries. Any failure rolls back the entire ticket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRepairTicketRequest' }
+      responses:
+        '201':
+          description: Complete repair ticket created atomically.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RepairTicketEnvelope' }
+        '409': { description: Idempotency key conflict. }
+  /api/v1/repairs/orders/{orderId}/work-items:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Repairs]
+      summary: List device work items for a repair ticket
+      operationId: listRepairWorkItems
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Work items and their device-specific intake data, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+  /api/v1/repairs/presets:
+    get:
+      tags: [Repairs]
+      summary: List shop-scoped issue and condition presets
+      operationId: listRepairPresets
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: shop_id, in: query, schema: { type: string, format: uuid } }
+        - { name: preset_type, in: query, schema: { type: string, enum: [ISSUE, CONDITION] } }
+        - { $ref: '#/components/parameters/Query' }
+        - { $ref: '#/components/parameters/PageIndex' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses: { '200': { description: Repair presets, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post:
+      tags: [Repairs]
+      summary: Create a shop-scoped repair preset as the merchant owner
+      operationId: createRepairPreset
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RepairPresetRequest' } } } }
+      responses: { '201': { description: Repair preset created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/repairs/presets/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Repairs]
+      summary: Update a repair preset as the merchant owner
+      operationId: updateRepairPreset
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RepairPresetRequest' } } } }
+      responses: { '200': { description: Repair preset updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Repairs]
+      summary: Delete a repair preset as the merchant owner
+      operationId: deleteRepairPreset
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Repair preset deleted } }
+  /api/v1/repairs/work-items/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Repairs]
+      summary: Update a repair work item
+      operationId: updateRepairWorkItem
+      security: [{ bearerAuth: [] }]
+      description: Updates the child lifecycle status, assignment, device-specific issue, device data, notes, or validated dynamic fields without changing the ticket-level billing or payment boundary.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RepairWorkItemUpdateRequest' } } } }
+      responses: { '200': { description: Work item updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+  /api/v1/repairs/orders/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    get:
+      tags: [Repairs]
+      summary: Get a shop-scoped repair order
+      operationId: getRepairOrder
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Repair order, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Repairs]
+      summary: Update a repair order
+      operationId: updateRepairOrder
+      security: [{ bearerAuth: [] }]
+      description: Repair status is one of `RECEIVED`, `IN_PROGRESS`, `READY_FOR_PICKUP`, `COMPLETED` (displayed as Complete and closed), or `REFUNDED` (displayed as Refund). Completing is allowed with an outstanding balance; the final payment remains optional and can be recorded later. Completing the parent atomically marks all of its work items as `COMPLETED`. An unpaid canonical order remains `PENDING_PAYMENT` until payment is captured. A repair refund moves the ticket to `REFUNDED` when the captured balance reaches zero.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }
+      responses: { '200': { description: Repair order updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } }
+    delete:
+      tags: [Repairs]
+      summary: Delete a repair order
+      operationId: deleteRepairOrder
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Repair order deleted } }
+  /api/v1/repairs/orders/{id}/details:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Repairs]
+      summary: Update repair ticket intake details as the merchant owner
+      operationId: updateRepairTicketDetails
+      security: [{ bearerAuth: [] }]
+      description: Requires the system `owner` or `merchant` role. This command changes the customer snapshot, ticket note, reported issue, and device waiting-time details only; it does not change status, payments, parts, or totals. When `work_items` is supplied, each existing child work item's device identifiers, issue, note, and waiting end are updated atomically. Waiting time may be supplied as waiting_days or waiting_end_date; the backend preserves the automatic start date and derives the other representation. The parent issue summary follows the first child, while the ticket waiting period is derived from the earliest child start and latest child end.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customer_name: { type: string, nullable: true }
+                customer_phone: { type: string, nullable: true }
+                issue_description: { type: string }
+                note: { type: string, nullable: true }
+                work_items:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [id, issue_description]
+                    properties:
+                      id: { type: string, format: uuid }
+                      issue_description: { type: string }
+                      issues: { type: array, maxItems: 20, items: { type: string, maxLength: 500 } }
+                      conditions: { type: array, maxItems: 20, items: { type: string, maxLength: 500 } }
+                      note: { type: string, nullable: true }
+                      waiting_days: { type: integer, minimum: 0 }
+                      waiting_end_date: { type: string, format: date }
+                      device:
+                        type: object
+                        required: [device_type]
+                        properties:
+                          device_type: { type: string }
+                          manufacturer: { type: string, nullable: true }
+                          model: { type: string, nullable: true }
+                          serial_number: { type: string, nullable: true }
+      responses: { '200': { description: Repair ticket details updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/repairs/orders/{id}/billing:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch:
+      tags: [Repairs]
+      summary: Replace editable repair ticket billing as the merchant owner
+      operationId: updateRepairTicketBilling
+      security: [{ bearerAuth: [] }]
+      description: Requires the system owner or merchant role. Replaces catalog service lines, labor fee, per-work-item prices (represented by the compatibility field additional_fee), and the current service promotion. The backend recalculates canonical subtotal, discount, tax, total, and work-item financial projections while preserving replacement-part order lines. Payment status is derived from captured payments and refunds and is changed through the payment and refund endpoints.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_items, work_items, labor_fee]
+              properties:
+                service_items:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [service_id, quantity]
+                    properties:
+                      service_id: { type: string, format: uuid }
+                      quantity: { type: string }
+                      work_item_id: { type: string, format: uuid }
+                work_items:
+                  type: array
+                  items:
+                    type: object
+                    required: [id, additional_fee]
+                    properties:
+                      id: { type: string, format: uuid }
+                      additional_fee: { type: string }
+                labor_fee: { type: string, description: Ticket-level labor total override. }
+                promotion_id: { type: string, format: uuid, nullable: true }
+      responses: { '200': { description: Repair ticket billing updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/repairs/orders/{orderId}/payments:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get: { tags: [Repairs], summary: List repair deposits and payments, operationId: listRepairPayments, security: [{ bearerAuth: [] }], responses: { '200': { description: Repair payments, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post: { tags: [Repairs], summary: Record a repair deposit or final payment, operationId: createRepairPayment, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RepairPaymentRequest' } } } }, responses: { '201': { description: "Payment captured, allocated to work items, and repair balance updated. A full final payment completes the parent ticket, every work item, and the service order; it may also be recorded after manual ticket completion. The linked canonical order advances through CONFIRMED, PROCESSING, and FULFILLED using legal state transitions.", content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/repairs/orders/{orderId}/refunds:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get: { tags: [Repairs], summary: List repair payment refunds, operationId: listRepairRefunds, security: [{ bearerAuth: [] }], responses: { '200': { description: Repair refunds, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post:
+      tags: [Repairs]
+      summary: Record a repair payment refund
+      operationId: createRepairRefund
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment_id, amount, idempotency_key]
+              properties:
+                payment_id: { type: string, format: uuid }
+                amount: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,2})?$' }
+                reason: { type: string }
+                refund_id: { type: string, format: uuid }
+                idempotency_key: { type: string }
+      responses:
+        '201':
+          description: Refund recorded and repair payment balance recalculated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResourceEnvelope' }
+  /api/v1/repairs/orders/{orderId}/images:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get: { tags: [Repairs], summary: List repair device images, operationId: listRepairImages, security: [{ bearerAuth: [] }], responses: { '200': { description: Repair images, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    post: { tags: [Repairs], summary: Attach a repair device image, operationId: createRepairImage, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RepairImageRequest' } } } }, responses: { '201': { description: Image attached, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/repairs/images/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    delete: { tags: [Repairs], summary: Delete a repair image, operationId: deleteRepairImage, security: [{ bearerAuth: [] }], responses: { '204': { description: Image deleted } } }
+  /api/v1/repairs/orders/{orderId}/diagnostics:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get:
+      tags: [Repairs]
+      summary: List repair diagnostics
+      operationId: listRepairDiagnostics
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Diagnostics, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post: { tags: [Repairs], summary: Add a repair diagnostic, operationId: createRepairDiagnostic, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '201': { description: Diagnostic created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/repairs/diagnostics/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Repairs], summary: Update a repair diagnostic, operationId: updateRepairDiagnostic, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '200': { description: Diagnostic updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Repairs], summary: Delete a repair diagnostic, operationId: deleteRepairDiagnostic, security: [{ bearerAuth: [] }], responses: { '204': { description: Diagnostic deleted } } }
+  /api/v1/repairs/orders/{orderId}/parts:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get:
+      tags: [Repairs]
+      summary: List repair parts
+      operationId: listRepairParts
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Repair parts, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post: { tags: [Repairs], summary: Add a repair part, operationId: createRepairPart, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '201': { description: Part created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/repairs/parts/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Repairs], summary: Update a repair part, operationId: updateRepairPart, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '200': { description: Part updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Repairs], summary: Delete a repair part, operationId: deleteRepairPart, security: [{ bearerAuth: [] }], responses: { '204': { description: Part deleted } } }
+  /api/v1/repairs/orders/{orderId}/approvals:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get:
+      tags: [Repairs]
+      summary: List repair approvals
+      operationId: listRepairApprovals
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Repair approvals, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post: { tags: [Repairs], summary: Create a repair approval, operationId: createRepairApproval, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '201': { description: Approval created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/repairs/approvals/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Repairs], summary: Update a repair approval, operationId: updateRepairApproval, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '200': { description: Approval updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Repairs], summary: Delete a repair approval, operationId: deleteRepairApproval, security: [{ bearerAuth: [] }], responses: { '204': { description: Approval deleted } } }
+  /api/v1/repairs/orders/{orderId}/warranties:
+    parameters: [{ $ref: '#/components/parameters/OrderID' }]
+    get:
+      tags: [Repairs]
+      summary: List repair warranties
+      operationId: listRepairWarranties
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/Filter' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { description: Repair warranties, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } }
+    post: { tags: [Repairs], summary: Create a repair warranty, operationId: createRepairWarranty, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '201': { description: Warranty created, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/repairs/warranties/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Repairs], summary: Update a repair warranty, operationId: updateRepairWarranty, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/JsonObject' } } } }, responses: { '200': { description: Warranty updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+    delete: { tags: [Repairs], summary: Delete a repair warranty, operationId: deleteRepairWarranty, security: [{ bearerAuth: [] }], responses: { '204': { description: Warranty deleted } } }
+  /api/v1/sync/handshake:
+    post:
+      tags: [Synchronization]
+      summary: Register a client device and open a synchronization session
+      operationId: synchronizationHandshake
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncHandshakeRequest' }
+      responses:
+        '200':
+          description: Synchronization protocol and session information.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncHandshakeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/sync/push:
+    post:
+      tags: [Synchronization]
+      summary: Upload idempotent client operations
+      description: Tenant-scoped settings, catalog, measurement, delivery, repair, and POS synchronization operations are accepted according to their domain policies. Repair aggregate REPAIR_TICKET CREATE is atomic across all work items and preserves supplied work-item UUIDs. REPAIR_DIAGNOSTIC, REPAIR_IMAGE, REPAIR_PART, REPAIR_APPROVAL, REPAIR_WARRANTY, and cash-only REPAIR_PAYMENT CREATE operations are dependency-ordered behind the parent and validate tenant, shop, repair-order, and optional work-item scope. Catalog-part promotions and external payment methods remain online-only; unsupported mutations return visible rejection results.
+      operationId: synchronizationPush
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncPushRequest' }
+      responses:
+        '200':
+          description: Per-operation results, including accepted, rejected, and conflict outcomes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncPushEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/sync/conflicts/{operationId}/resolve:
+    post:
+      tags: [Synchronization]
+      summary: Resolve an open synchronization conflict
+      description: SHOP_SETTINGS conflicts can keep the authoritative server copy or explicitly rebase and apply the validated client change. Resolution is tenant-scoped and idempotent.
+      operationId: resolveSynchronizationConflict
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: operationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncConflictResolutionRequest' }
+      responses:
+        '200':
+          description: Authoritative conflict resolution result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncConflictResolutionEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/sync/pull:
+    post:
+      tags: [Synchronization]
+      summary: Download merchant changes after a durable checkpoint
+      operationId: synchronizationPull
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncPullRequest' }
+      responses:
+        '200':
+          description: Ordered synchronization changes and checkpoint information.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncPullEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Send the access token returned by login or refresh as
+        Authorization: Bearer <access-token>. Refresh tokens are rotated by
+        POST /api/v1/auth/refresh.
+  parameters:
+    UserID:
+      name: id
+      in: path
+      required: true
+      description: User membership UUID.
+      schema:
+        type: string
+        format: uuid
+    ResourceID:
+      name: id
+      in: path
+      required: true
+      description: Merchant resource UUID.
+      schema:
+        type: string
+        format: uuid
+    OrderID:
+      name: orderId
+      in: path
+      required: true
+      description: Parent service or repair order UUID.
+      schema:
+        type: string
+        format: uuid
+    ProductID:
+      name: productId
+      in: path
+      required: true
+      description: Merchant product UUID.
+      schema:
+        type: string
+        format: uuid
+    ShopID:
+      name: shopId
+      in: path
+      required: true
+      description: Merchant shop UUID.
+      schema:
+        type: string
+        format: uuid
+    CategoryID:
+      name: categoryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VariantID:
+      name: variantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MerchantIDHeader:
+      name: X-Merchant-ID
+      in: header
+      required: false
+      description: Merchant scope selected by a platform administrator for tenant-scoped operations. Merchant users use the merchant from their authenticated session and should omit this header.
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      required: false
+      deprecated: true
+      description: Legacy one-based page number. Prefer page_index.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Query:
+      name: query
+      in: query
+      required: false
+      description: Case-insensitive text search over the endpoint's searchable fields.
+      schema: { type: string }
+    Filter:
+      name: filter
+      in: query
+      required: false
+      description: Comma- or semicolon-separated equality filters, for example status:OPEN,is_active:true.
+      schema: { type: string }
+    PageIndex:
+      name: page_index
+      in: query
+      required: false
+      description: Zero-based page index.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    PageSize:
+      name: page_size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+      description: Optional client-supplied correlation identifier.
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Client-generated key for retry-safe commands. Reusing a key with the
+        same request returns the original result; reusing it with a different
+        request returns `IDEMPOTENCY_CONFLICT`.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+  responses:
+    BadRequest:
+      description: The request failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation:
+              $ref: '#/components/examples/ValidationError'
+    Unauthorized:
+      description: Authentication is required or the credentials are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: The authenticated principal lacks the required permission.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: The requested resource does not exist in the authorized tenant context.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: The command conflicts with the current resource state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    IdempotencyConflict:
+      description: The idempotency key was already used with a different request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ModuleDisabled:
+      description: The requested capability is not enabled for the merchant.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    OfflineOperationRejected:
+      description: The operation is not valid for the current online/offline mode.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: An unexpected server error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: A dependency is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, timestamp]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: business-central-backend
+        timestamp:
+          $ref: '#/components/schemas/Timestamp'
+    DatabaseHealthResponse:
+      type: object
+      required: [status, database, timestamp]
+      properties:
+        status:
+          type: string
+          example: ok
+        database:
+          type: string
+          example: ok
+        timestamp:
+          $ref: '#/components/schemas/Timestamp'
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        merchant_id:
+          $ref: '#/components/schemas/UUID'
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    Session:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_at, user]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_at:
+          $ref: '#/components/schemas/Timestamp'
+        user:
+          $ref: '#/components/schemas/User'
+    SessionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Session'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    Role:
+      type: object
+      required: [id, code, name, is_system, permission_codes]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        code:
+          type: string
+        name:
+          type: string
+        is_system:
+          type: boolean
+        permission_codes:
+          type: array
+          items:
+            type: string
+    CreateRoleRequest:
+      type: object
+      required: [code, name, permission_codes]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-z0-9][a-z0-9._-]*$'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        permission_codes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+    UpdateRoleRequest:
+      type: object
+      minProperties: 1
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-z0-9][a-z0-9._-]*$'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        permission_codes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+    Permission:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+    RoleEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Role'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    RoleCollectionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    PermissionCollectionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    Currency:
+      type: object
+      required: [code, name, decimal_places]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        symbol:
+          type: string
+          nullable: true
+        decimal_places:
+          type: integer
+          minimum: 0
+          maximum: 6
+    CreateCurrencyRequest:
+      type: object
+      required: [code, name, decimal_places]
+      properties:
+        code:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: '^[A-Za-z]{3}$'
+        name:
+          type: string
+          minLength: 1
+        symbol:
+          type: string
+          nullable: true
+        decimal_places:
+          type: integer
+          minimum: 0
+          maximum: 6
+    UpdateCurrencyRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+        symbol:
+          type: string
+          nullable: true
+        decimal_places:
+          type: integer
+          minimum: 0
+          maximum: 6
+    CurrencyEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    CurrencyCollectionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Currency'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    User:
+      type: object
+      required: [id, membership_id, merchant_id, email, display_name, is_active, roles, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        membership_id:
+          $ref: '#/components/schemas/UUID'
+        merchant_id:
+          $ref: '#/components/schemas/UUID'
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        platform_admin:
+          type: boolean
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+    UserEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    UserCollectionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        meta:
+          $ref: '#/components/schemas/CollectionMeta'
+    ProductRequest:
+      type: object
+      required: [name]
+      properties:
+        brand_id: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        product_type: { type: string, enum: [PHYSICAL, DIGITAL, SERVICE], default: PHYSICAL }
+        manufacture_date: { type: string, format: date, nullable: true, description: Optional product manufacture date in YYYY-MM-DD format. }
+        expired_date: { type: string, format: date, nullable: true, description: Optional product expiration date in YYYY-MM-DD format. }
+        is_active: { type: boolean }
+        category_ids:
+          type: array
+          description: Complete category selection to apply atomically. Omit during update to preserve existing assignments; send an empty array to remove all assignments.
+          items: { $ref: '#/components/schemas/UUID' }
+        standard_variant:
+          type: object
+          description: Required when a POS SIMPLE merchant creates a product. The backend creates the sole sellable and stock-tracked variant atomically.
+          required: [base_unit_id]
+          properties:
+            base_unit_id: { $ref: '#/components/schemas/UUID' }
+            attributes: { type: object, additionalProperties: true }
+            is_stock_tracked: { type: boolean, default: true }
+    Product:
+      type: object
+      required: [id, merchant_id, name, product_type, is_active, category_ids, category_names, images, created_at, updated_at]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        brand_id: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        product_type: { type: string }
+        manufacture_date: { type: string, format: date, nullable: true }
+        expired_date: { type: string, format: date, nullable: true }
+        is_active: { type: boolean }
+        category_ids:
+          type: array
+          items: { $ref: '#/components/schemas/UUID' }
+        category_names:
+          type: array
+          items: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/CatalogImage' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ProductEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    ProductCollectionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/CollectionEnvelope' }]
+    StorageItem:
+      type: object
+      required: [id, catalog, product_name, variant_name, unit, stock_count]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        catalog: { type: string, description: Parent/child category paths joined with an arrow. }
+        product_name: { type: string }
+        variant_name: { type: string }
+        brand: { type: string }
+        unit: { type: string }
+        stock_count: { type: string }
+        sell_price: { type: string, description: 'Current RETAIL price, visible to merchant and staff users.' }
+        original_price: { type: string, description: Blank for non-merchant users. }
+        profit: { type: string, description: Blank for non-merchant users. }
+        expired_date: { type: string, format: date, nullable: true }
+        manufacture_date: { type: string, format: date, nullable: true }
+    StorageCollectionEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/CollectionEnvelope'
+    VariantRequest:
+      type: object
+      required: [sku, name, base_unit_id]
+      properties:
+        sku: { type: string }
+        barcode: { type: string, nullable: true }
+        name: { type: string }
+        attributes: { type: object, additionalProperties: true }
+        unit_of_measure: { type: string, default: EA }
+        base_unit_id: { type: string, format: uuid }
+        is_stock_tracked: { type: boolean }
+    Variant:
+      type: object
+      required: [id, merchant_id, product_id, sku, name, attributes, unit_of_measure, base_unit_id, is_stock_tracked, images, created_at, updated_at]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        product_id: { $ref: '#/components/schemas/UUID' }
+        sku: { type: string }
+        barcode: { type: string, nullable: true }
+        name: { type: string }
+        attributes: { type: object, additionalProperties: true }
+        unit_of_measure: { type: string }
+        base_unit_id: { $ref: '#/components/schemas/UUID' }
+        is_stock_tracked: { type: boolean }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/CatalogImage' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    VariantEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    VariantCollectionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/CollectionEnvelope' }]
+    CatalogImage:
+      type: object
+      required: [id, merchant_id, image_url, source_type, position, created_at]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        product_id: { type: string, format: uuid }
+        variant_id: { type: string, format: uuid }
+        image_url: { type: string, format: uri }
+        source_type: { type: string, enum: [URL, GOOGLE_DRIVE, UPLOAD] }
+        alt_text: { type: string }
+        position: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+    CatalogImageURLRequest:
+      type: object
+      required: [image_url]
+      properties:
+        image_url: { type: string, format: uri }
+        source_type: { type: string, enum: [URL, GOOGLE_DRIVE], default: URL }
+        alt_text: { type: string }
+        position: { type: integer, minimum: 0 }
+    CatalogImageUploadRequest:
+      type: object
+      required: [file]
+      properties:
+        file: { type: string, format: binary, description: 'JPEG, PNG, WebP, or GIF up to 500 KB; decoded dimensions must fit within 240 by 240 pixels.' }
+        alt_text: { type: string }
+        position: { type: integer, minimum: 0 }
+    ImageURLRequest:
+      type: object
+      required: [image_url]
+      properties:
+        image_url: { type: string, format: uri }
+        source_type: { type: string, enum: [URL, GOOGLE_DRIVE], default: URL }
+    ImageUploadRequest:
+      type: object
+      required: [file]
+      properties:
+        file: { type: string, format: binary, description: 'JPEG, PNG, WebP, or GIF up to 500 KB; decoded dimensions must fit within 240 by 240 pixels.' }
+    RepairImageRequest:
+      type: object
+      required: [filename, content_type]
+      properties:
+        work_item_id: { type: string, format: uuid }
+        filename: { type: string }
+        content_type: { type: string }
+        image_url: { type: string, format: uri }
+        source_type: { type: string, enum: [URL, GOOGLE_DRIVE, UPLOAD] }
+        data_base64: { type: string, format: byte, deprecated: true, description: Legacy mobile/offline compatibility; new clients use image_url. }
+    AttributeDefinitionRequest:
+      type: object
+      required: [code, name, value_type]
+      properties:
+        code: { type: string, pattern: '^[A-Za-z][A-Za-z0-9_-]{0,99}$' }
+        name: { type: string }
+        value_type: { type: string, enum: [TEXT, NUMBER, BOOLEAN, SELECT, DATE, JSON] }
+    AttributeOptionRequest:
+      type: object
+      required: [value, label]
+      properties:
+        value: { type: string }
+        label: { type: string }
+        position: { type: integer, minimum: 0, default: 0 }
+    AttributeOption:
+      type: object
+      required: [id, merchant_id, definition_id, value, label, position]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        definition_id: { $ref: '#/components/schemas/UUID' }
+        value: { type: string }
+        label: { type: string }
+        position: { type: integer, minimum: 0 }
+        sync_version: { type: integer, format: int64 }
+    AttributeDefinition:
+      type: object
+      required: [id, merchant_id, code, name, value_type, options, created_at, updated_at]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        code: { type: string }
+        name: { type: string }
+        value_type: { type: string, enum: [TEXT, NUMBER, BOOLEAN, SELECT, DATE, JSON] }
+        options:
+          type: array
+          items: { $ref: '#/components/schemas/AttributeOption' }
+        sync_version: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    AttributeDefinitionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    AttributeDefinitionCollectionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/CollectionEnvelope' }]
+    AttributeOptionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    AttributeOptionCollectionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/CollectionEnvelope' }]
+    UnitRequest:
+      type: object
+      required: [code, name]
+      properties:
+        measurement_group_id: { type: string, format: uuid, nullable: true }
+        code: { type: string }
+        name: { type: string }
+        symbol: { type: string, nullable: true }
+        dimension_code: { type: string, default: CUSTOM }
+        allows_decimal: { type: boolean }
+        is_active: { type: boolean }
+    Unit:
+      type: object
+      required: [id, merchant_id, code, name, dimension_code, allows_decimal, is_active, created_at, updated_at]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        measurement_group_id: { type: string, format: uuid, nullable: true }
+        code: { type: string }
+        name: { type: string }
+        symbol: { type: string, nullable: true }
+        dimension_code: { type: string }
+        allows_decimal: { type: boolean }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    UnitEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    UnitCollectionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/CollectionEnvelope' }]
+    ConversionRequest:
+      type: object
+      required: [from_unit_id, to_unit_id, multiplier]
+      properties:
+        from_unit_id: { type: string, format: uuid }
+        to_unit_id: { type: string, format: uuid }
+        multiplier: { type: string, pattern: '^[0-9]+(\\.[0-9]+)?$' }
+        additive_offset: { type: string, default: '0' }
+        is_active: { type: boolean }
+    Conversion:
+      type: object
+      required: [id, merchant_id, from_unit_id, to_unit_id, multiplier, additive_offset, is_active, created_at, updated_at]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        from_unit_id: { $ref: '#/components/schemas/UUID' }
+        to_unit_id: { $ref: '#/components/schemas/UUID' }
+        multiplier: { type: string }
+        additive_offset: { type: string }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ConversionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    ConversionCollectionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/CollectionEnvelope' }]
+    ShopRequest:
+      type: object
+      required: [name, code]
+      properties:
+        name: { type: string }
+        code: { type: string }
+        address: { type: object, additionalProperties: true }
+        timezone: { type: string, nullable: true }
+        is_active: { type: boolean }
+        module_codes: { type: array, items: { type: string }, description: "Enabled shop services/modules such as sales, repair, clinic, and services." }
+    Shop:
+      type: object
+      required: [id, merchant_id, name, code, address, is_active, module_codes]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        name: { type: string }
+        code: { type: string }
+        address: { type: object, additionalProperties: true }
+        timezone: { type: string, nullable: true }
+        is_active: { type: boolean }
+        module_codes: { type: array, items: { type: string } }
+    ShopEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    ShopCollectionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/CollectionEnvelope' }]
+    TerminalRequest:
+      type: object
+      required: [shop_id, name]
+      properties:
+        shop_id: { type: string, format: uuid }
+        name: { type: string }
+        device_identifier: { type: string, nullable: true }
+        is_active: { type: boolean }
+    Terminal:
+      type: object
+      required: [id, merchant_id, shop_id, name, is_active, created_at]
+      properties:
+        id: { $ref: '#/components/schemas/UUID' }
+        merchant_id: { $ref: '#/components/schemas/UUID' }
+        shop_id: { $ref: '#/components/schemas/UUID' }
+        name: { type: string }
+        device_identifier: { type: string, nullable: true }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+    TerminalEnvelope:
+      allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }]
+    TerminalCollectionEnvelope:
+      allOf: [{ $ref: '#/components/schemas/CollectionEnvelope' }]
+    CreateUserRequest:
+      type: object
+      required: [email, password, display_name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        display_name:
+          type: string
+          minLength: 1
+        phone:
+          type: string
+        role_ids:
+          type: array
+          items:
+            $ref: '#/components/schemas/UUID'
+    Merchant:
+      type: object
+      required: [id, name, slug, default_currency_code, pos_complexity_level, is_active, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+        slug:
+          type: string
+        legal_name:
+          type: string
+          nullable: true
+        default_currency_code:
+          type: string
+          minLength: 3
+          maxLength: 3
+        country_code:
+          type: string
+          nullable: true
+        pos_complexity_level:
+          type: string
+          enum: [SIMPLE, COMPLEX]
+        is_active:
+          type: boolean
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+    CreateMerchantAccountRequest:
+      type: object
+      required: [name, slug, default_currency_code]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        legal_name:
+          type: string
+        default_currency_code:
+          type: string
+          minLength: 3
+          maxLength: 3
+        country_code:
+          type: string
+        pos_complexity_level:
+          type: string
+          enum: [SIMPLE, COMPLEX]
+          default: SIMPLE
+    CreateMerchantUserRequest:
+      type: object
+      required: [merchant_name, merchant_slug, default_currency_code, email, password, display_name]
+      properties:
+        merchant_name:
+          type: string
+        merchant_slug:
+          type: string
+        merchant_legal_name:
+          type: string
+          nullable: true
+        default_currency_code:
+          type: string
+          minLength: 3
+          maxLength: 3
+        merchant_country_code:
+          type: string
+          nullable: true
+        pos_complexity_level:
+          type: string
+          enum: [SIMPLE, COMPLEX]
+          default: SIMPLE
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        display_name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+    MerchantUserProvisioning:
+      type: object
+      required: [merchant, user, role]
+      properties:
+        merchant:
+          $ref: '#/components/schemas/Merchant'
+        user:
+          $ref: '#/components/schemas/User'
+        role:
+          $ref: '#/components/schemas/Role'
+    MerchantUserProvisioningEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/MerchantUserProvisioning'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    MerchantAccount:
+      type: object
+      description: Merchant provisioned with default manager and staff roles. It does not create a user account.
+      required: [merchant, roles]
+      properties:
+        merchant:
+          $ref: '#/components/schemas/Merchant'
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+    MerchantAccountEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/MerchantAccount'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    MerchantEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Merchant'
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+    MerchantCollectionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Merchant'
+        meta:
+          $ref: '#/components/schemas/CollectionMeta'
+    UpdateMerchantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        legal_name:
+          type: string
+          nullable: true
+        country_code:
+          type: string
+          nullable: true
+        pos_complexity_level:
+          type: string
+          enum: [SIMPLE, COMPLEX]
+        is_active:
+          type: boolean
+    UpdateUserRequest:
+      type: object
+      minProperties: 1
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        display_name:
+          type: string
+        phone:
+          type: string
+        is_active:
+          type: boolean
+        role_ids:
+          type: array
+          items:
+            $ref: '#/components/schemas/UUID'
+    UUID:
+      type: string
+      format: uuid
+      description: UUID identifier.
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 timestamp in UTC.
+    ResourceMeta:
+      type: object
+      description: Optional metadata for a single-resource response.
+      additionalProperties: true
+    CollectionMeta:
+      type: object
+      required:
+        - page
+        - page_size
+        - total
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ResourceEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          description: Concrete endpoint resource payload.
+          additionalProperties: true
+        meta:
+          $ref: '#/components/schemas/ResourceMeta'
+      additionalProperties: false
+    CollectionEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          description: Concrete endpoint resource collection.
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          $ref: '#/components/schemas/CollectionMeta'
+      additionalProperties: false
+    JsonObject:
+      type: object
+      additionalProperties: true
+    SyncHandshakeRequest:
+      type: object
+      required: [device_identifier, client_session_key]
+      properties:
+        device_identifier: { type: string, minLength: 1, maxLength: 255 }
+        device_name: { type: string, maxLength: 255 }
+        client_session_key: { type: string, minLength: 1, maxLength: 255 }
+        scope: { type: string, default: merchant, maxLength: 100 }
+    SyncHandshakeEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ResourceEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SyncHandshake'
+    SyncHandshake:
+      type: object
+      required: [protocol_version, schema_version, device, session, server_sequence]
+      properties:
+        protocol_version: { type: string }
+        schema_version: { type: string }
+        server_sequence: { type: integer, format: int64, minimum: 0 }
+        device: { $ref: '#/components/schemas/SyncDevice' }
+        session: { $ref: '#/components/schemas/SyncSession' }
+    SyncDevice:
+      type: object
+      required: [id, merchant_id, device_identifier, last_seen_at, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        merchant_id: { type: string, format: uuid }
+        membership_id: { type: string, format: uuid, nullable: true }
+        device_identifier: { type: string }
+        device_name: { type: string, nullable: true }
+        last_seen_at: { type: string, format: date-time }
+        is_active: { type: boolean }
+    SyncSession:
+      type: object
+      required: [id, client_session_key, status, scope, last_server_sequence, started_at]
+      properties:
+        id: { type: string, format: uuid }
+        client_session_key: { type: string }
+        status: { type: string, enum: [OPEN, COMPLETED, FAILED, CANCELLED] }
+        scope: { type: string }
+        last_server_sequence: { type: integer, format: int64, minimum: 0 }
+        started_at: { type: string, format: date-time }
+    SyncOperation:
+      type: object
+      required: [operation_id, entity_type, entity_id, operation_type, payload]
+      properties:
+        operation_id: { type: string, maxLength: 255 }
+        entity_type: { type: string, maxLength: 100 }
+        entity_id: { type: string, format: uuid }
+        shop_id: { type: string, format: uuid, nullable: true }
+        operation_type: { type: string, enum: [CREATE, UPDATE, DELETE] }
+        base_version: { type: integer, format: int64, minimum: 0, nullable: true }
+        payload_hash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: Optional canonical JSON SHA-256 integrity value; the server verifies it when supplied.
+        dependency_operation_id:
+          type: string
+          maxLength: 255
+          description: Client operation identifier that must already be applied on the same tenant-scoped device.
+        client_created_at: { type: string, format: date-time, nullable: true }
+        payload: { type: object, additionalProperties: true }
+    SyncPushRequest:
+      type: object
+      required: [session_id, operations]
+      properties:
+        session_id: { type: string, format: uuid }
+        operations:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/SyncOperation' }
+    SyncOperationResult:
+      type: object
+      required: [operation_id, status]
+      properties:
+        operation_id: { type: string }
+        server_operation_id: { type: string, format: uuid }
+        status: { type: string, enum: [APPLIED, REJECTED, CONFLICT] }
+        code: { type: string }
+        message: { type: string }
+        server_sequence: { type: integer, format: int64, nullable: true }
+        entity_version: { type: integer, format: int64, nullable: true }
+        server_payload: { type: object, additionalProperties: true, nullable: true }
+    SyncPushResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/SyncOperationResult' }
+    SyncPushEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ResourceEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/SyncPushResponse' }
+    SyncConflictResolutionRequest:
+      type: object
+      required: [strategy]
+      properties:
+        strategy: { type: string, enum: [KEEP_SERVER, APPLY_CLIENT] }
+    SyncConflictResolution:
+      type: object
+      required: [operation_id, strategy, status, entity_version, server_payload]
+      properties:
+        operation_id: { type: string, format: uuid }
+        strategy: { type: string, enum: [KEEP_SERVER, APPLY_CLIENT] }
+        status: { type: string, enum: [IGNORED, RESOLVED] }
+        entity_version: { type: integer, format: int64, minimum: 0 }
+        server_sequence: { type: integer, format: int64, nullable: true }
+        server_payload: { type: object, additionalProperties: true }
+    SyncConflictResolutionEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ResourceEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/SyncConflictResolution' }
+    SyncPullRequest:
+      type: object
+      required: [session_id, after_sequence]
+      properties:
+        session_id: { type: string, format: uuid }
+        scope: { type: string, default: merchant }
+        after_sequence: { type: integer, format: int64, minimum: 0 }
+        limit: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    SyncChange:
+      type: object
+      required: [server_sequence, entity_type, entity_id, entity_version, operation_type, payload, created_at]
+      properties:
+        server_sequence: { type: integer, format: int64 }
+        entity_type: { type: string }
+        entity_id: { type: string, format: uuid }
+        entity_version: { type: integer, format: int64 }
+        operation_type: { type: string, enum: [CREATE, UPDATE, DELETE] }
+        operation_id: { type: string, format: uuid, nullable: true }
+        payload: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    SyncPullResponse:
+      type: object
+      required: [scope, changes, next_sequence, current_sequence, has_more]
+      properties:
+        scope: { type: string }
+        changes: { type: array, items: { $ref: '#/components/schemas/SyncChange' } }
+        next_sequence: { type: integer, format: int64 }
+        current_sequence: { type: integer, format: int64 }
+        has_more: { type: boolean }
+    SyncPullEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ResourceEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/SyncPullResponse' }
+    SalesSummary:
+      type: object
+      properties:
+        from: { type: string, format: date-time, nullable: true }
+        to: { type: string, format: date-time, nullable: true }
+        order_count: { type: integer, format: int64 }
+        pos_order_count: { type: integer, format: int64 }
+        repair_count: { type: integer, format: int64 }
+        item_quantity: { type: string }
+        gross_sales: { type: string }
+        discounts: { type: string }
+        tax: { type: string }
+        net_sales: { type: string }
+        refunds: { type: string }
+        cost_of_goods_sold: { type: string }
+        gross_profit: { type: string }
+        gross_margin_percent: { type: string }
+    SalesSummaryEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/SalesSummary' }
+        meta: { $ref: '#/components/schemas/ResourceMeta' }
+    SalesByDay:
+      type: object
+      properties:
+        day: { type: string, format: date-time }
+        order_count: { type: integer, format: int64 }
+        item_quantity: { type: string }
+        net_sales: { type: string }
+        refunds: { type: string }
+        cost_of_goods_sold: { type: string }
+        gross_profit: { type: string }
+    SalesByDayCollectionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/SalesByDay' } }
+        meta: { $ref: '#/components/schemas/CollectionMeta' }
+    TopProduct:
+      type: object
+      properties:
+        product_id: { $ref: '#/components/schemas/UUID' }
+        variant_id: { $ref: '#/components/schemas/UUID' }
+        product_name: { type: string }
+        variant_name: { type: string }
+        sku: { type: string }
+        item_quantity: { type: string }
+        net_sales: { type: string }
+        cost_of_goods_sold: { type: string }
+        gross_profit: { type: string }
+    TopProductCollectionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/TopProduct' } }
+        meta: { $ref: '#/components/schemas/CollectionMeta' }
+    TransactionHistoryEntry:
+      type: object
+      properties:
+        id: { type: string }
+        event_type: { type: string, enum: [TRANSACTION, REFUND, STOCK_IN, STOCK_OUT, STOCK_RETURN, STOCK_TRANSFER, STOCK_ADJUSTMENT, REPAIR_CHECKOUT] }
+        reference: { type: string }
+        occurred_at: { type: string, format: date-time }
+        status: { type: string }
+        channel: { type: string }
+        customer_name: { type: string, nullable: true }
+        customer_phone: { type: string, nullable: true }
+        payment_method: { type: string }
+        amount: { type: string }
+        currency_code: { type: string }
+        shop_id: { type: string }
+        shop_name: { type: string }
+        quantity: { type: string }
+        product_name: { type: string }
+        variant_name: { type: string }
+        sku: { type: string }
+        details: { type: string }
+    TransactionHistoryCollectionEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/TransactionHistoryEntry' } }
+        meta: { $ref: '#/components/schemas/CollectionMeta' }
+    TransactionOrderDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        order_number: { type: string }
+        channel: { type: string }
+        status: { type: string }
+        currency_code: { type: string }
+        subtotal: { type: string }
+        discount_total: { type: string }
+        tax_total: { type: string }
+        shipping_total: { type: string }
+        grand_total: { type: string }
+        customer_name: { type: string }
+        customer_phone: { type: string }
+        shop_id: { type: string }
+        shop_name: { type: string }
+        delivery_name: { type: string }
+        delivery_contact: { type: string }
+        note: { type: string }
+        payment_type: { type: string }
+        created_at: { type: string, format: date-time }
+        placed_at: { type: string, format: date-time, nullable: true }
+    TransactionOrderLine:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        description: { type: string }
+        product_name: { type: string }
+        variant_name: { type: string }
+        sku: { type: string }
+        quantity: { type: string }
+        unit_price: { type: string, description: Selling unit price recorded at checkout. }
+        original_unit_cost: { type: string, description: FIFO unit cost allocated to this sale. }
+        original_cost: { type: string, description: Total FIFO cost allocated to this line. }
+        cost_posted: { type: boolean, description: Whether inventory fulfillment and its FIFO cost allocation have been posted for this line. }
+        discount_amount: { type: string }
+        tax_amount: { type: string }
+        line_total: { type: string }
+        gross_profit: { type: string }
+        gross_margin: { type: string }
+    TransactionPayment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        method: { type: string }
+        status: { type: string }
+        amount: { type: string }
+        captured_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    TransactionRefund:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        payment_id: { type: string, format: uuid }
+        status: { type: string }
+        amount: { type: string }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
+    Refund:
+      type: object
+      required: [id, payment_id, order_id, status, amount, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        payment_id: { type: string, format: uuid }
+        order_id: { type: string, format: uuid }
+        status: { type: string, enum: [PENDING, SUCCEEDED, FAILED, CANCELLED] }
+        amount: { type: string }
+        reason: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    RefundEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Refund' }
+        meta: { type: object }
+    TransactionHistoryDetail:
+      type: object
+      required: [entry, lines, payments, refunds, total_cost, gross_profit, gross_margin]
+      properties:
+        entry: { $ref: '#/components/schemas/TransactionHistoryEntry' }
+        order: { $ref: '#/components/schemas/TransactionOrderDetail' }
+        lines: { type: array, items: { $ref: '#/components/schemas/TransactionOrderLine' } }
+        payments: { type: array, items: { $ref: '#/components/schemas/TransactionPayment' } }
+        refunds: { type: array, items: { $ref: '#/components/schemas/TransactionRefund' } }
+        total_cost: { type: string }
+        gross_profit: { type: string }
+        gross_margin: { type: string }
+    TransactionHistoryDetailEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/TransactionHistoryDetail' }
+        meta: { type: object }
+    StockMovementDetail:
+      type: object
+      required: [movement, product_name, variant_name, sku, total_cost, cost_allocations]
+      properties:
+        movement: { type: object, description: "Immutable canonical inventory movement including IDs, quantity, unit cost, event key, and timestamps." }
+        product_name: { type: string }
+        product_description: { type: string }
+        variant_name: { type: string }
+        sku: { type: string }
+        barcode: { type: string }
+        unit_name: { type: string }
+        unit_symbol: { type: string }
+        source_location_name: { type: string }
+        source_location_code: { type: string }
+        destination_location_name: { type: string }
+        destination_location_code: { type: string }
+        total_cost: { type: string }
+        source_quantity_on_hand: { type: string, nullable: true }
+        source_quantity_reserved: { type: string, nullable: true }
+        destination_quantity_on_hand: { type: string, nullable: true }
+        destination_quantity_reserved: { type: string, nullable: true }
+        receipt: { type: object, description: "Goods receipt, purchase order, supplier, batch, expiry, quantity, and original cost when this is a receipt." }
+        order: { type: object, description: Canonical checkout order and line pricing when this movement is linked to an order. }
+        cost_allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              cost_layer_id: { type: string, format: uuid }
+              quantity: { type: string }
+              unit_cost: { type: string }
+              total_cost: { type: string }
+              layer_quantity_received: { type: string }
+              layer_quantity_remaining: { type: string }
+              source_receipt_number: { type: string }
+    StockMovementDetailEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/StockMovementDetail' }
+        meta: { type: object }
+    CreateRepairTicketRequest:
+      type: object
+      required: [idempotency_key, order_number, shop_id]
+      properties:
+        idempotency_key: { type: string }
+        order_number: { type: string }
+        shop_id: { type: string, format: uuid }
+        priority: { type: string }
+        device:
+          type: object
+          required: [device_type]
+          properties:
+            device_type: { type: string }
+            manufacturer: { type: string }
+            model: { type: string }
+            serial_number: { type: string }
+            metadata: { type: object }
+        issue_description: { type: string, description: Legacy alias for the first work item issue. }
+        work_items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Repeatable service subjects. When omitted, the legacy device and issue fields are normalized into one DEVICE work item.
+          items:
+            $ref: '#/components/schemas/RepairWorkItemRequest'
+        customer_id: { type: string, format: uuid }
+        customer_name: { type: string }
+        customer_phone: { type: string }
+        service_id: { type: string, format: uuid, description: Active repair catalog item; its labor fee is loaded by the backend. }
+        service_items:
+          type: array
+          maxItems: 100
+          description: Billable services or product variants. Prices are resolved by the backend.
+          items:
+            oneOf:
+              - type: object
+                required: [service_id, quantity]
+                properties:
+                  service_id: { type: string, format: uuid }
+                  work_item_id: { type: string, format: uuid, description: Required when the ticket contains multiple work items. }
+                  quantity: { type: string }
+              - type: object
+                required: [variant_id, quantity]
+                properties:
+                  variant_id: { type: string, format: uuid }
+                  work_item_id: { type: string, format: uuid, description: Required when the ticket contains multiple work items. }
+                  quantity: { type: string }
+        promotion_id: { type: string, format: uuid }
+        additional_fee: { type: string }
+        note: { type: string }
+        payment_status: { type: string, enum: [UNPAID, DEPOSIT_PAID, PAID] }
+        deposit_amount: { type: string }
+        payment_method: { type: string, enum: [CASH, CARD, BANK_TRANSFER, ONLINE, WALLET, OTHER] }
+        parts:
+          type: array
+          items:
+            type: object
+            required: [variant_id, quantity]
+            properties:
+              work_item_id: { type: string, format: uuid, description: Work item receiving this part; required for billable parts on multi-work-item tickets. }
+              variant_id: { type: string, format: uuid }
+              quantity: { type: string }
+              promotion_id: { type: string, format: uuid }
+        images:
+          type: array
+          items:
+            type: object
+            required: [filename, content_type]
+            properties:
+              work_item_id: { type: string, format: uuid, description: Work item receiving this image; omit for a ticket-level image. }
+              filename: { type: string }
+              content_type: { type: string }
+              image_url: { type: string, format: uri }
+              source_type: { type: string, enum: [URL, GOOGLE_DRIVE, UPLOAD] }
+              data_base64: { type: string, format: byte, deprecated: true, description: Legacy mobile/offline compatibility. }
+    RepairWorkItemRequest:
+      type: object
+      required: [device, issue_description]
+      properties:
+        id: { type: string, format: uuid, description: Optional client-generated ID retained for offline reconciliation. }
+        type: { type: string, enum: [DEVICE, VEHICLE, PATIENT, OTHER], default: DEVICE }
+        device:
+          type: object
+          required: [device_type]
+          properties:
+            device_type: { type: string }
+            manufacturer: { type: string }
+            model: { type: string }
+            serial_number: { type: string }
+            metadata: { type: object }
+        issue_description: { type: string }
+        issues: { type: array, minItems: 1, maxItems: 20, items: { type: string, maxLength: 500 }, description: Canonical issue list; issue_description remains the first-item compatibility alias. }
+        conditions: { type: array, maxItems: 20, items: { type: string, maxLength: 500 } }
+        note: { type: string }
+        additional_fee: { type: string, description: Device-specific price. The additional_fee name is retained for API and database compatibility; ticket-level additional_fee remains a legacy single-work-item alias. }
+        waiting_days: { type: integer, minimum: 0, description: Number of calendar days from the automatic device waiting start. May be supplied instead of waiting_end_date. }
+        waiting_end_date: { type: string, format: date, description: Expected device waiting end. May be supplied instead of waiting_days. }
+        fields: { type: object, additionalProperties: true }
+    RepairTicketEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [device, work_items, service_items, service_order, repair_order, parts, diagnostics, approvals, warranties, images]
+          properties:
+            device: { type: object }
+            work_items: { type: array, items: { $ref: '#/components/schemas/RepairWorkItem' } }
+            service_items: { type: array, items: { type: object }, description: Billable service/product/part projections attached to the parent service order. }
+            service_order: { type: object }
+            repair_order: { type: object }
+            parts: { type: array, items: { type: object } }
+            diagnostics: { type: array, items: { type: object } }
+            approvals: { type: array, items: { type: object } }
+            warranties: { type: array, items: { type: object } }
+            payment: { type: object }
+            images: { type: array, items: { type: object } }
+            custom_fields: { type: object, additionalProperties: true }
+            form_version: { type: integer, minimum: 1 }
+        meta: { type: object }
+    RepairWorkItem:
+      type: object
+      required: [id, service_order_id, sequence_number, type, status, device, issue_description]
+      properties:
+        id: { type: string, format: uuid }
+        service_order_id: { type: string, format: uuid }
+        sequence_number: { type: integer, minimum: 1 }
+        type: { type: string, enum: [DEVICE, VEHICLE, PATIENT, OTHER] }
+        status: { type: string, enum: [OPEN, IN_PROGRESS, COMPLETED, CANCELLED] }
+        summary: { type: string, nullable: true }
+        device: { type: object }
+        issue_description: { type: string }
+        issues: { type: array, items: { type: string } }
+        conditions: { type: array, items: { type: string } }
+        note: { type: string, nullable: true }
+        fields: { type: object, additionalProperties: true }
+        form_version: { type: integer, minimum: 1 }
+        additional_fee: { type: string }
+        waiting_start_date: { type: string, format: date, readOnly: true }
+        waiting_end_date: { type: string, format: date }
+        waiting_days: { type: integer, minimum: 0, readOnly: true }
+        financials:
+          type: object
+          required: [subtotal, discount_total, tax_amount, total, paid, balance]
+          properties:
+            subtotal: { type: string }
+            discount_total: { type: string }
+            tax_amount: { type: string }
+            total: { type: string }
+            paid: { type: string }
+            balance: { type: string }
+    RepairWorkItemUpdateRequest:
+      type: object
+      properties:
+        status: { type: string, enum: [OPEN, IN_PROGRESS, COMPLETED, CANCELLED] }
+        summary: { type: string, nullable: true }
+        assigned_membership_id: { type: string, format: uuid, nullable: true }
+        issue_description: { type: string }
+        issues: { type: array, minItems: 1, maxItems: 20, items: { type: string, maxLength: 500 } }
+        conditions: { type: array, maxItems: 20, items: { type: string, maxLength: 500 } }
+        note: { type: string, nullable: true }
+        waiting_days: { type: integer, minimum: 0 }
+        waiting_end_date: { type: string, format: date }
+        device:
+          type: object
+          properties:
+            customer_id: { type: string, format: uuid, nullable: true }
+            device_type: { type: string }
+            manufacturer: { type: string, nullable: true }
+            model: { type: string, nullable: true }
+            serial_number: { type: string, nullable: true }
+            metadata: { type: object }
+        fields: { type: object, additionalProperties: true }
+    RepairPresetRequest:
+      type: object
+      required: [shop_id, preset_type, value]
+      properties:
+        shop_id: { type: string, format: uuid }
+        preset_type: { type: string, enum: [ISSUE, CONDITION] }
+        value: { type: string, minLength: 1, maxLength: 500 }
+    RepairPaymentRequest:
+      type: object
+      required: [kind, method, amount, idempotency_key]
+      properties:
+        kind: { type: string, enum: [DEPOSIT, FINAL, ADJUSTMENT] }
+        method: { type: string }
+        amount: { type: string }
+        idempotency_key: { type: string }
+        allocations:
+          type: array
+          description: Optional for a single work item; required for multi-work-item offline synchronization. Online requests without allocations are allocated deterministically by outstanding balance.
+          items:
+            type: object
+            required: [work_item_id, amount]
+            properties:
+              work_item_id: { type: string, format: uuid }
+              amount: { type: string }
+    CustomFieldDefinitionRequest:
+      type: object
+      required: [entity_type, field_scope, field_code, label, value_type]
+      properties:
+        entity_type: { type: string, enum: [SERVICE_TICKET, SERVICE_WORK_ITEM, REPAIR_TICKET, REPAIR_WORK_ITEM], example: REPAIR_WORK_ITEM }
+        module_code: { type: string, default: SERVICE }
+        service_type: { type: string, enum: [GENERAL, REPAIR, CLINICAL], nullable: true }
+        field_scope: { type: string, enum: [TICKET, WORK_ITEM] }
+        field_code: { type: string }
+        label: { type: string }
+        value_type: { type: string, enum: [TEXT, NUMBER, BOOLEAN, DATE, SELECT, JSON] }
+        is_required: { type: boolean }
+        options: { type: array, items: {} }
+        validation_rules: { type: object, additionalProperties: true }
+        visibility_rules: { type: object, additionalProperties: true }
+        display_order: { type: integer }
+        section: { type: string, nullable: true }
+        printable: { type: boolean }
+        is_active: { type: boolean, nullable: true }
+    CustomFieldValueRequest:
+      type: object
+      required: [definition_id, value]
+      properties:
+        definition_id: { type: string, format: uuid }
+        form_version: { type: integer, minimum: 1 }
+        value: {}
+    CustomFieldValue:
+      type: object
+      required: [id, merchant_id, definition_id, entity_type, entity_id, form_version, value]
+      properties:
+        id: { type: string, format: uuid }
+        merchant_id: { type: string, format: uuid }
+        definition_id: { type: string, format: uuid }
+        entity_type: { type: string }
+        entity_id: { type: string, format: uuid }
+        form_version: { type: integer, minimum: 1 }
+        value: {}
+    CustomFieldDefinition:
+      allOf:
+        - $ref: '#/components/schemas/CustomFieldDefinitionRequest'
+        - type: object
+          required: [id, merchant_id, form_version, is_active, created_at, updated_at]
+          properties:
+            id: { type: string, format: uuid }
+            merchant_id: { type: string, format: uuid }
+            form_version: { type: integer, minimum: 1 }
+            is_active: { type: boolean }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    ErrorFields:
+      type: object
+      description: Field-level validation details keyed by request field name.
+      additionalProperties:
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - UNAUTHENTICATED
+            - FORBIDDEN
+            - NOT_FOUND
+            - CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - MODULE_DISABLED
+            - OFFLINE_OPERATION_REJECTED
+            - INTERNAL_ERROR
+        message:
+          type: string
+        fields:
+          $ref: '#/components/schemas/ErrorFields'
+      additionalProperties: false
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - request_id
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'
+        request_id:
+          $ref: '#/components/schemas/UUID'
+      additionalProperties: false
+  examples:
+    ValidationError:
+      summary: Validation failure
+      value:
+        error:
+          code: VALIDATION_ERROR
+          message: The request is invalid.
+          fields:
+            name: Name is required.
+        request_id: 00000000-0000-0000-0000-000000000000

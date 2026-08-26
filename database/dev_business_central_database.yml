@@ -1,0 +1,41 @@
+version: "3.8"
+
+# ==============================================================================
+# Business Central — Database Service Configuration
+# ==============================================================================
+# Database Engine : PostgreSQL 15+
+# Backend Service : business-central-backend (Go Fiber)
+# Schema Manager  : Handled automatically by backend on startup:
+#                   - AUTO_INIT_SCHEMA=true (applies backend schema.sql on fresh DB)
+#                   - AUTO_MIGRATE=true     (applies versioned incremental migrations)
+# ==============================================================================
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: business-central-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: business_central
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d business_central"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - business-central-net
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  business-central-net:
+    driver: bridge
