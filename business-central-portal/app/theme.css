@@ -1,0 +1,71 @@
+/*
+ * Portal theme controls
+ * ---------------------
+ * Change these palette values to recolor the entire portal. Components and
+ * pages consume the semantic aliases below instead of defining colors locally.
+ */
+:root {
+  --theme-black: #000000;
+  --theme-gray-950: #111111;
+  --theme-gray-900: #1c1c1c;
+  --theme-gray-800: #2f2f2f;
+  --theme-gray-700: #474747;
+  --theme-gray-600: #626262;
+  --theme-gray-500: #7a7a7a;
+  --theme-gray-400: #9b9b9b;
+  --theme-gray-300: #bdbdbd;
+  --theme-gray-200: #d8d8d8;
+  --theme-gray-100: #ececec;
+  --theme-gray-50: #f7f7f7;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 0 0 0;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: grayscale(1) contrast(1.08);
+
+  /* Status colors stay semantic and intentionally sit outside the
+     monochrome visual theme. Every status surface consumes these tokens. */
+  --status-success: #15803d;
+  --status-success-soft: #dcfce7;
+  --status-success-border: #86efac;
+  --status-warning: #b45309;
+  --status-warning-soft: #fef3c7;
+  --status-warning-border: #fbbf24;
+  --status-danger: #b91c1c;
+  --status-danger-soft: #fee2e2;
+  --status-danger-border: #fca5a5;
+  --status-info: #0369a1;
+  --status-info-soft: #e0f2fe;
+  --status-info-border: #7dd3fc;
+  --status-neutral: #475569;
+  --status-neutral-soft: #f1f5f9;
+  --status-neutral-border: #cbd5e1;
+  --status-conflict: #7e22ce;
+  --status-conflict-soft: #f3e8ff;
+  --status-conflict-border: #d8b4fe;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 27 42 35;
+
+  --ink: var(--theme-gray-950);
+  --muted: var(--theme-gray-600);
+  --line: var(--theme-gray-200);
+  --paper: var(--theme-white);
+  --canvas: var(--theme-gray-50);
+  --green: var(--theme-black);
+  --green-dark: var(--theme-gray-950);
+  --green-soft: var(--theme-gray-100);
+  --amber: var(--theme-gray-700);
+  --red: var(--theme-gray-900);
+  --blue: var(--theme-gray-600);
+  --shadow: 0 8px 30px rgb(var(--theme-black-rgb) / 7%);
+  --border: var(--line);
+  --card: var(--paper);
+  --mint: var(--green-soft);
+  --text: var(--ink);
+  --surface: var(--paper);
+  --surface-muted: var(--theme-gray-50);
+  --accent: var(--green);
+}
