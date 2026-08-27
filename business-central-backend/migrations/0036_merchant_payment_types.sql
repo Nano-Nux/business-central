@@ -47,6 +47,10 @@ UPDATE orders o SET payment_type_id=pt.id FROM payment_types pt WHERE pt.merchan
 
 ALTER TABLE payment_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_types FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_select ON payment_types;
+DROP POLICY IF EXISTS tenant_insert ON payment_types;
+DROP POLICY IF EXISTS tenant_update ON payment_types;
+DROP POLICY IF EXISTS tenant_delete ON payment_types;
 CREATE POLICY tenant_select ON payment_types FOR SELECT USING (app_can_read_tenant(merchant_id));
 CREATE POLICY tenant_insert ON payment_types FOR INSERT WITH CHECK (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
 CREATE POLICY tenant_update ON payment_types FOR UPDATE USING (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage')) WITH CHECK (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
