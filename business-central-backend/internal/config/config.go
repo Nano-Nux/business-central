@@ -3,8 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"net"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -18,7 +16,6 @@ type Config struct {
 	PublicBaseURL         string
 	CORSOrigin            string
 	SeaweedFSFilerURL     string
-	SeaweedFSPublicURL    string
 	JWTSecret             []byte
 	AccessTokenTTL        time.Duration
 	RefreshTokenTTL       time.Duration
@@ -75,10 +72,6 @@ func Load() (Config, error) {
 	environment := envOr("APP_ENV", "development")
 	publicBaseURL := envOr("PUBLIC_BASE_URL", fmt.Sprintf("http://localhost:%s", port))
 	corsOrigin := envOr("CORS_ORIGIN", "*")
-	seaweedFSPublicURL, err := seaweedFSPublicURL(environment)
-	if err != nil {
-		return Config{}, err
-	}
 	return Config{
 		DatabaseURL:           databaseURL,
 		Host:                  envOr("HOST", "0.0.0.0"),
@@ -86,7 +79,6 @@ func Load() (Config, error) {
 		PublicBaseURL:         strings.TrimRight(publicBaseURL, "/"),
 		CORSOrigin:            corsOrigin,
 		SeaweedFSFilerURL:     envOr("SEAWEEDFS_FILER_URL", "http://localhost:8888"),
-		SeaweedFSPublicURL:    seaweedFSPublicURL,
 		JWTSecret:             []byte(secret),
 		AccessTokenTTL:        accessTTL,
 		RefreshTokenTTL:       refreshTTL,
@@ -99,32 +91,6 @@ func Load() (Config, error) {
 		PlatformAdminEmail:    platformAdminEmail,
 		PlatformAdminPassword: platformAdminPassword,
 	}, nil
-}
-
-func seaweedFSPublicURL(environment string) (string, error) {
-	raw := strings.TrimSpace(os.Getenv("SEAWEEDFS_PUBLIC_URL"))
-	production := strings.EqualFold(strings.TrimSpace(environment), "production")
-	if raw == "" {
-		if production {
-			return "", errors.New("SEAWEEDFS_PUBLIC_URL is required in production and must be browser-accessible")
-		}
-		raw = "http://localhost:8888"
-	}
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return "", errors.New("SEAWEEDFS_PUBLIC_URL must be an absolute HTTP(S) URL")
-	}
-	if production {
-		hostname := strings.ToLower(parsed.Hostname())
-		address := net.ParseIP(hostname)
-		if parsed.Scheme != "https" {
-			return "", errors.New("SEAWEEDFS_PUBLIC_URL must use HTTPS in production")
-		}
-		if hostname == "localhost" || (address != nil && (address.IsLoopback() || address.IsPrivate())) {
-			return "", errors.New("SEAWEEDFS_PUBLIC_URL must be publicly reachable in production")
-		}
-	}
-	return strings.TrimRight(raw, "/"), nil
 }
 
 func loadDotEnvFile(path string) {

@@ -34,6 +34,42 @@ func TestNormalizeURLRetainsOrdinaryURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeURLKeepsUploadedMediaPathRelative(t *testing.T) {
+	image, err := NormalizeURL(URLRequest{
+		ImageURL:   "/media/merchant-1/image.png",
+		SourceType: "UPLOAD",
+	}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if image.ImageURL != "/media/merchant-1/image.png" || image.SourceType != "UPLOAD" {
+		t.Fatalf("unexpected uploaded image: %#v", image)
+	}
+}
+
+func TestNormalizeURLReducesLegacyUploadedURLToPath(t *testing.T) {
+	image, err := NormalizeURL(URLRequest{
+		ImageURL:   "https://old.example/media/merchant-1/image.png",
+		SourceType: "UPLOAD",
+	}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if image.ImageURL != "/media/merchant-1/image.png" {
+		t.Fatalf("unexpected normalized uploaded image: %s", image.ImageURL)
+	}
+}
+
+func TestNormalizeURLRejectsUploadedPathOutsideMediaRoot(t *testing.T) {
+	_, err := NormalizeURL(URLRequest{
+		ImageURL:   "/private/image.png",
+		SourceType: "UPLOAD",
+	}, true)
+	if err == nil {
+		t.Fatal("expected an uploaded media path validation error")
+	}
+}
+
 func TestValidateUploadRejectsUnsupportedContentType(t *testing.T) {
 	upload := Upload{
 		FileName: "payload.svg", ContentType: "image/svg+xml", Size: 4,

@@ -19,6 +19,7 @@ Create `.env` (or override it with `.env.local`) and point the portal at the can
 
 ```dotenv
 NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+NEXT_PUBLIC_FILE_SERVER_URL=http://localhost:8888
 ```
 
 Then install, validate, and run the portal:
@@ -89,9 +90,12 @@ All direct image files follow the shop-logo rule, including product, variant,
 and repair images. The portal resizes the selected file and stores it in the
 scoped IndexedDB outbox while disconnected. On reconnect, the portal uploads
 the file through `/media/images/upload` to the backend's SeaweedFS-backed media
-service, replaces the queued marker with the returned public URL, and then
-synchronizes the resource update. Rendering uses that public image-server URL
-directly; image reads do not pass through the Business Central backend.
+service, replaces the queued marker with the returned relative `/media/...`
+path, and then synchronizes the resource update. The database never stores the
+file-server hostname or port. The portal prefixes relative media paths only at
+render time using `NEXT_PUBLIC_FILE_SERVER_URL`; external image URLs and data
+URLs remain unchanged. In production, set that value to the stable public file
+hostname, for example `https://business-central-file.nanonux.com`.
 
 ## Bluetooth receipt printing
 

@@ -11,14 +11,17 @@ quote_for_shell() {
 }
 
 [ "$(id -u)" -eq 0 ] || die "run as root"
-: "${API_HOSTNAME:?set API_HOSTNAME, for example api.business-central.example.com}"
-: "${FILES_HOSTNAME:?set FILES_HOSTNAME, for example files.business-central.example.com}"
 : "${CORS_ORIGIN:?set CORS_ORIGIN to the comma-separated portal/admin origins}"
 
 HDD_MOUNT_POINT=${HDD_MOUNT_POINT:-/data}
 POSTGRES_MAJOR=${POSTGRES_MAJOR:-17}
 SEAWEEDFS_VERSION=${SEAWEEDFS_VERSION:-4.29}
 CLOUDFLARED_VERSION=${CLOUDFLARED_VERSION:-latest}
+PUBLIC_HTTP_BIND=${PUBLIC_HTTP_BIND:-0.0.0.0}
+PUBLIC_HTTP_PORT=${PUBLIC_HTTP_PORT:-5000}
+PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://127.0.0.1:$PUBLIC_HTTP_PORT}
+API_HOSTNAME=${API_HOSTNAME:-}
+FILES_HOSTNAME=${FILES_HOSTNAME:-}
 HDD_ROOT="$HDD_MOUNT_POINT/business-central"
 APP_ROOT=/opt/business-central
 CONFIG_ROOT=/etc/business-central
@@ -26,6 +29,22 @@ CLOUDFLARED_ROOT=/etc/cloudflared
 DB_PASSWORD_FILE="$CONFIG_ROOT/postgres.password"
 BACKEND_ENV="$CONFIG_ROOT/backend.env"
 STORAGE_ENV="$CONFIG_ROOT/storage.env"
+
+case "$PUBLIC_HTTP_PORT" in
+  ""|*[!0-9]*) die "PUBLIC_HTTP_PORT must be a numeric port" ;;
+esac
+case "$PUBLIC_HTTP_BIND" in
+  "") die "PUBLIC_HTTP_BIND must be an IP address or hostname" ;;
+  *[!A-Za-z0-9:.-]*) die "PUBLIC_HTTP_BIND must be an IP address or hostname" ;;
+esac
+case "$API_HOSTNAME" in
+  "") ;;
+  *[!A-Za-z0-9.-]*) die "API_HOSTNAME contains unsupported characters" ;;
+esac
+case "$FILES_HOSTNAME" in
+  "") ;;
+  *[!A-Za-z0-9.-]*) die "FILES_HOSTNAME contains unsupported characters" ;;
+esac
 
 case "$(uname -m)" in
   x86_64|amd64) ;;
@@ -40,7 +59,7 @@ if [ -f "$STORAGE_ENV" ]; then
 fi
 
 apk add --no-cache \
-  ca-certificates curl e2fsprogs gzip jq openssl tar util-linux \
+  ca-certificates curl e2fsprogs gzip jq nginx openssl tar util-linux \
   "postgresql${POSTGRES_MAJOR}" \
   "postgresql${POSTGRES_MAJOR}-client" \
   "postgresql${POSTGRES_MAJOR}-contrib" \
@@ -74,10 +93,83 @@ chmod 0750 "$CONFIG_ROOT"
 chown root:cloudflared "$CLOUDFLARED_ROOT"
 chmod 0750 "$CLOUDFLARED_ROOT"
 
-# The package's OpenRC service reads PGDATA from this file. PostgreSQL data and
+# Nginx is the single HTTP entry point. The current NAT VPS forwards public
+# port 5000 to VPS port 5000, so this listener supports direct IP access now.
+# The default server routes API and media paths without requiring DNS.
+# Optional hostname-specific servers preserve clean API/files host separation
+# when Cloudflare is configured later.
+mkdir -p /etc/nginx/http.d
+cat > /etc/nginx/http.d/business-central.conf <<EOF
+server {
+  listen ${PUBLIC_HTTP_BIND}:${PUBLIC_HTTP_PORT} default_server;
+  server_name _;
+  client_max_body_size 50m;
+
+  location /media/ {
+    proxy_pass http://127.0.0.1:8889;
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+  }
+
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+  }
+}
+EOF
+
+if [ -n "$API_HOSTNAME" ]; then
+  cat >> /etc/nginx/http.d/business-central.conf <<EOF
+server {
+  listen ${PUBLIC_HTTP_BIND}:${PUBLIC_HTTP_PORT};
+  server_name $API_HOSTNAME;
+  client_max_body_size 50m;
+
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+  }
+}
+EOF
+fi
+
+if [ -n "$FILES_HOSTNAME" ]; then
+  cat >> /etc/nginx/http.d/business-central.conf <<EOF
+server {
+  listen ${PUBLIC_HTTP_BIND}:${PUBLIC_HTTP_PORT};
+  server_name $FILES_HOSTNAME;
+  client_max_body_size 50m;
+
+  location / {
+    proxy_pass http://127.0.0.1:8889;
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+  }
+}
+EOF
+fi
+nginx -t
+rc-update add nginx default >/dev/null
+
+# Alpine's OpenRC service reads data_dir from this file. PostgreSQL data and
 # WAL therefore remain on the HDD rather than using the 2 GB fast disk.
 cat > /etc/conf.d/postgresql <<EOF
-PGDATA="$HDD_ROOT/postgresql/data"
+data_dir="$HDD_ROOT/postgresql/data"
+auto_setup="no"
 EOF
 
 if [ ! -f "$HDD_ROOT/postgresql/data/PG_VERSION" ]; then
@@ -108,6 +200,7 @@ EOF
 fi
 
 rc-update add postgresql default >/dev/null
+rc-service postgresql stop >/dev/null 2>&1 || true
 rc-service postgresql start
 ready=0
 for _ in $(seq 1 30); do
@@ -156,10 +249,9 @@ if [ ! -f "$BACKEND_ENV" ]; then
     printf 'export HOST=%s\n' "$(quote_for_shell 127.0.0.1)"
     printf 'export PORT=%s\n' "$(quote_for_shell 8080)"
     printf 'export APP_ENV=%s\n' "$(quote_for_shell production)"
-    printf 'export PUBLIC_BASE_URL=%s\n' "$(quote_for_shell "https://$API_HOSTNAME")"
+    printf 'export PUBLIC_BASE_URL=%s\n' "$(quote_for_shell "$PUBLIC_BASE_URL")"
     printf 'export CORS_ORIGIN=%s\n' "$(quote_for_shell "$CORS_ORIGIN")"
     printf 'export SEAWEEDFS_FILER_URL=%s\n' "$(quote_for_shell http://127.0.0.1:8888)"
-    printf 'export SEAWEEDFS_PUBLIC_URL=%s\n' "$(quote_for_shell "https://$FILES_HOSTNAME")"
     printf 'export JWT_SECRET=%s\n' "$(quote_for_shell "$jwt_secret")"
     printf 'export ACCESS_TOKEN_TTL=%s\n' "$(quote_for_shell 24h)"
     printf 'export REFRESH_TOKEN_TTL=%s\n' "$(quote_for_shell 336h)"
@@ -192,7 +284,9 @@ if [ ! -x /usr/local/bin/weed ]; then
   seaweed_url="https://github.com/seaweedfs/seaweedfs/releases/download/$SEAWEEDFS_VERSION/linux_amd64.tar.gz"
   curl -fsSL --retry 3 "$seaweed_url" -o "$temp_dir/seaweedfs.tar.gz"
   if curl -fsSL --retry 3 "$seaweed_url.md5" -o "$temp_dir/seaweedfs.md5"; then
-    (cd "$temp_dir" && md5sum -c seaweedfs.md5)
+    expected_md5=$(awk 'NR == 1 {print $1}' "$temp_dir/seaweedfs.md5")
+    actual_md5=$(md5sum "$temp_dir/seaweedfs.tar.gz" | awk '{print $1}')
+    [ "$expected_md5" = "$actual_md5" ] || die "SeaweedFS download checksum mismatch"
   fi
   tar -xzf "$temp_dir/seaweedfs.tar.gz" -C "$temp_dir"
   install -m 0755 "$temp_dir/weed" /usr/local/bin/weed
@@ -233,6 +327,7 @@ chmod 0640 /var/log/business-central-backend* /var/log/seaweedfs* /var/log/cloud
 rc-update add postgresql default >/dev/null
 rc-update add seaweedfs default >/dev/null
 rc-update add business-central-backend default >/dev/null
+rc-service nginx start || rc-service nginx restart
 rc-service seaweedfs start
 
 if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then

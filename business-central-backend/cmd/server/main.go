@@ -73,7 +73,7 @@ func main() {
 		}
 		log.Printf("platform admin bootstrap ready for %s", cfg.PlatformAdminEmail)
 	}
-	imageStorage := catalogseaweedfs.New(cfg.SeaweedFSFilerURL, cfg.SeaweedFSPublicURL)
+	imageStorage := catalogseaweedfs.New(cfg.SeaweedFSFilerURL)
 	api := httpadapter.New(pool, httpadapter.Dependencies{
 		Authentication:  authapp.NewService(authService),
 		Catalog:         catalogapp.NewService(catalogpostgres.NewRepository(pool), imageStorage),
