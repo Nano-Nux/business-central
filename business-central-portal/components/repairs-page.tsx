@@ -26,6 +26,7 @@ import { queueRepairDiagnostic } from "@/lib/offline-repair-diagnostics";
 import {
   addPendingRepairChild,
   queueRepairPart,
+  queueRepairImage,
   queueRepairPayment,
   queueRepairStatusUpdate,
   queueRepairWorkItemStatus,
@@ -52,7 +53,8 @@ import { InvoiceReceipt } from "./invoice-receipt";
 import { RepairWaitingFields } from "./repair-waiting-fields";
 import { BarcodeScanner } from "./barcode-scanner";
 import { formatShopAddress } from "@/lib/shop-address";
-import { ImageSourceField, imageAction, prepareImageSubmissions } from "./image-source-input";
+import { ImageSourceField, prepareImageSubmissions } from "./image-source-input";
+import { imageUploadMarker } from "@/lib/offline-images";
 import type {
   Invoice,
   Promotion,
@@ -465,20 +467,52 @@ function TicketDetails({
     setImageBusy(true);
     setPaymentError("");
     try {
-      if (offline.status === "offline") {
-        throw new Error("Adding repair images requires an internet connection.");
+      if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
+        throw new Error("Offline storage is required to save repair images while disconnected.");
       }
       const values = new FormData(event.currentTarget);
-      const submissions = await prepareImageSubmissions(values, "repair_image");
+      const submissions = await prepareImageSubmissions(values, "repair_image", {
+        deferUploads: offline.status === "offline" || !navigator.onLine,
+      });
       if (!submissions.length) throw new Error("Choose an image source before adding an image.");
       for (const image of submissions) {
+        const imageURL = image.offline_upload
+          ? imageUploadMarker(image.offline_upload.id)
+          : image.image_url;
         const body = {
           work_item_id: activeWorkItemId || undefined,
-          ...image,
+          image_url: imageURL,
+          source_type: image.source_type,
+          filename: image.filename,
+          content_type: image.content_type,
         };
-        await post(`/repairs/orders/${repair.id}/images`, body);
+        if (offline.scope && offline.storageAvailable) {
+          const localImageUrl = image.offline_upload
+            ? `data:${image.offline_upload.content_type};base64,${image.offline_upload.data_base64}`
+            : image.image_url;
+          const operation = await queueRepairImage(offline.scope, repair, body, {
+            offlineImageUpload: image.offline_upload,
+            localImageUrl,
+          });
+          const localImage: RepairImage = {
+            id: operation.entityId,
+            repair_order_id: repair.id,
+            work_item_id: activeWorkItemId || undefined,
+            filename: image.filename,
+            content_type: image.content_type,
+            image_url: localImageUrl,
+            source_type: image.source_type,
+            created_at: new Date().toISOString(),
+          };
+          await addPendingRepairChild(offline.scope, repair, "images", localImage);
+          images.updateLocal((items) => [...items, localImage]);
+        } else {
+          await post(`/repairs/orders/${repair.id}/images`, body);
+        }
       }
-      await images.reload();
+      if (offline.scope && offline.storageAvailable) {
+        if (navigator.onLine) await offline.syncNow();
+      } else await images.reload();
     } catch (reason) {
       setPaymentError(reason instanceof Error ? reason.message : "Image upload failed.");
     } finally {
@@ -1251,8 +1285,16 @@ function TicketDetails({
             />
           </Field>
           <Field label="Payment type">
-            <select name="payment_type_id" defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id} required>
-              {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
+            <select
+              name="payment_type_id"
+              defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id}
+              required
+            >
+              {usablePaymentTypes.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name} · {item.category_code}
+                </option>
+              ))}
             </select>
           </Field>
           <div className="modal-actions">
@@ -1476,22 +1518,45 @@ export function RepairsPage() {
       const requestedPaymentStatus = String(form.get("payment_status") || "UNPAID");
       const requestedDeposit = paymentStatus === "DEPOSIT_PAID" ? depositAmount : "0";
       const requestedPaymentTypeId = String(form.get("deposit_payment_type_id") || "");
-      const requestedPaymentType = usablePaymentTypes.find((item) => item.id === requestedPaymentTypeId);
+      const requestedPaymentType = usablePaymentTypes.find(
+        (item) => item.id === requestedPaymentTypeId,
+      );
       const workItemIds = [crypto.randomUUID(), ...additionalWorkItems.map((item) => item.id)];
       const imageNames = ["images-ticket", ...workItemIds.map((_, index) => `images-${index}`)];
-      const hasImages = imageNames.some((name) => imageAction(form, name) !== "KEEP");
-      if (hasImages && offline.status === "offline") {
-        throw new Error("Adding repair images requires an internet connection.");
-      }
       const imageGroups = await Promise.all(
-        imageNames.map((name) => prepareImageSubmissions(form, name)),
+        imageNames.map((name) =>
+          prepareImageSubmissions(form, name, {
+            deferUploads: offline.status === "offline" || !navigator.onLine,
+          }),
+        ),
       );
-      const images = imageGroups.flatMap((group, index) =>
+      const preparedImages = imageGroups.flatMap((group, index) =>
         group.map((image) => ({
           work_item_id: index === 0 ? undefined : workItemIds[index - 1],
           ...image,
         })),
       );
+      const images = preparedImages.map((image) => ({
+        work_item_id: image.work_item_id,
+        image_url: image.offline_upload
+          ? imageUploadMarker(image.offline_upload.id)
+          : image.image_url,
+        source_type: image.source_type,
+        filename: image.filename,
+        content_type: image.content_type,
+      }));
+      const offlineImageUploads = preparedImages.flatMap((image) =>
+        image.offline_upload ? [image.offline_upload] : [],
+      );
+      const localImages = preparedImages.map((image) => ({
+        work_item_id: image.work_item_id,
+        image_url: image.offline_upload
+          ? `data:${image.offline_upload.content_type};base64,${image.offline_upload.data_base64}`
+          : image.image_url,
+        source_type: image.source_type,
+        filename: image.filename,
+        content_type: image.content_type,
+      }));
       const body = {
         idempotency_key: `repair-ticket:${number}`,
         order_number: number,
@@ -1580,10 +1645,14 @@ export function RepairsPage() {
       if (requestedPaymentStatus !== "UNPAID" && !requestedPaymentType) {
         throw new Error("Select an active payment type.");
       }
-      if (requestedPaymentStatus !== "UNPAID" && requestedPaymentType?.category_code !== "CASH" && offline.status === "offline") {
+      if (
+        requestedPaymentStatus !== "UNPAID" &&
+        requestedPaymentType?.category_code !== "CASH" &&
+        offline.status === "offline"
+      ) {
         throw new Error("External repair payment authorization requires a connection.");
       }
-      if (offline.scope && offline.storageAvailable && images.length === 0) {
+      if (offline.scope && offline.storageAvailable) {
         const repairID = crypto.randomUUID();
         const receivedAt = new Date().toISOString();
         const service = services.data.find(
@@ -1594,31 +1663,37 @@ export function RepairsPage() {
           return sum + Number(catalogItem?.labor_fee ?? 0) * Number(line.quantity || 1);
         }, 0);
         const projectedTotal = estimatedFinalTotal.toFixed(2);
-        const queued = await queueRepairTicketCreate(offline.scope, currentShop.id, body, {
-          id: repairID,
-          service_order_id: `offline-service-${repairID}`,
-          shop_id: currentShop.id,
-          device_id: `offline-device-${repairID}`,
-          order_number: number,
-          status: "RECEIVED",
-          issue_description: issueDescription,
-          received_at: receivedAt,
-          customer_name: String(form.get("customer_name") || "") || undefined,
-          customer_phone: String(form.get("customer_phone") || "") || undefined,
-          service_id: service?.id,
-          labor_fee: serviceLabor.toFixed(2),
-          additional_fee: (
-            Number(laborFee || 0) +
-            additionalWorkItems.reduce((sum, item) => sum + Number(item.additionalFee || 0), 0)
-          ).toFixed(2),
-          subtotal: estimatedNet.toFixed(2),
-          discount_total: estimatedDiscount.toFixed(2),
-          tax_amount: estimatedTax.toFixed(2),
-          total_cost: projectedTotal,
-          deposit_paid: requestedDeposit,
-          payment_status: requestedPaymentStatus,
-          note: String(form.get("note") || "") || undefined,
-        });
+        const queued = await queueRepairTicketCreate(
+          offline.scope,
+          currentShop.id,
+          body,
+          {
+            id: repairID,
+            service_order_id: `offline-service-${repairID}`,
+            shop_id: currentShop.id,
+            device_id: `offline-device-${repairID}`,
+            order_number: number,
+            status: "RECEIVED",
+            issue_description: issueDescription,
+            received_at: receivedAt,
+            customer_name: String(form.get("customer_name") || "") || undefined,
+            customer_phone: String(form.get("customer_phone") || "") || undefined,
+            service_id: service?.id,
+            labor_fee: serviceLabor.toFixed(2),
+            additional_fee: (
+              Number(laborFee || 0) +
+              additionalWorkItems.reduce((sum, item) => sum + Number(item.additionalFee || 0), 0)
+            ).toFixed(2),
+            subtotal: estimatedNet.toFixed(2),
+            discount_total: estimatedDiscount.toFixed(2),
+            tax_amount: estimatedTax.toFixed(2),
+            total_cost: projectedTotal,
+            deposit_paid: requestedDeposit,
+            payment_status: requestedPaymentStatus,
+            note: String(form.get("note") || "") || undefined,
+          },
+          { offlineImageUploads, localImages },
+        );
         repairs.updateLocal((items) => [
           queued.projectedRepair,
           ...items.filter((item) => item.id !== queued.projectedRepair.id),
@@ -2705,11 +2780,23 @@ export function RepairsPage() {
                   />
                 </Field>
               )}
-              {paymentStatus !== "UNPAID" && <Field label="Payment type">
-                <select name="deposit_payment_type_id" defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id} required>
-                  {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
-                </select>
-              </Field>}
+              {paymentStatus !== "UNPAID" && (
+                <Field label="Payment type">
+                  <select
+                    name="deposit_payment_type_id"
+                    defaultValue={
+                      usablePaymentTypes.find((item) => item.category_code === "CASH")?.id
+                    }
+                    required
+                  >
+                    {usablePaymentTypes.map((item) => (
+                      <option value={item.id} key={item.id}>
+                        {item.name} · {item.category_code}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
             </div>
           </section>
           <section className="configuration-section">

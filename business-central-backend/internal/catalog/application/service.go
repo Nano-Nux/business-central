@@ -234,7 +234,7 @@ func normalizeImageRequest(request catalogdto.ImageRequest) (catalogdto.ImageReq
 	if err := domaincatalog.Image(request.ImageURL); err != nil {
 		return catalogdto.ImageRequest{}, invalid("Image URL is required.")
 	}
-	resolved, err := media.NormalizeURL(media.URLRequest{ImageURL: request.ImageURL, SourceType: request.SourceType}, false)
+	resolved, err := media.NormalizeURL(media.URLRequest{ImageURL: request.ImageURL, SourceType: request.SourceType}, true)
 	if err != nil {
 		return catalogdto.ImageRequest{}, err
 	}

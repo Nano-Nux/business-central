@@ -323,13 +323,14 @@ async function runDeferredOperations(scope: OfflineScope, operations: OfflineOpe
   let conflicts = 0;
   let rejected = 0;
   for (const operation of operations) {
-    const request = deferredRequestFromPayload(operation.payload);
-    if (!request) continue;
     await updateOperation(operation.operationId, {
       status: "SYNCING",
       lastError: undefined,
     });
     try {
+      const materialized = await materializeOfflineImageUploads(operation);
+      const request = deferredRequestFromPayload(materialized.payload);
+      if (!request) continue;
       const body = request.body
         ? (replaceMappedIds(request.body, mappings) as Record<string, unknown>)
         : undefined;
@@ -634,6 +635,18 @@ async function runSync(scope: OfflineScope): Promise<SyncSummary> {
       await markTransportFailure(hashedReady, error);
       throw error;
     }
+  }
+
+  // A deferred child (for example a new product image) can depend on a typed
+  // product or variant created by the push above. Replay those newly-ready
+  // children in the same synchronization run.
+  deferredReady = (await pendingOperations(scope)).filter(isDeferred).slice(0, 100);
+  while (deferredReady.length > 0) {
+    const result = await runDeferredOperations(scope, deferredReady);
+    pushed += result.pushed;
+    conflicts += result.conflicts;
+    rejected += result.rejected;
+    deferredReady = (await pendingOperations(scope)).filter(isDeferred).slice(0, 100);
   }
 
   let checkpoint = (await getMetadata<number>(scope, "checkpoint:merchant")) ?? 0;

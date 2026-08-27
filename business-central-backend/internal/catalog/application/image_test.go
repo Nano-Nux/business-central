@@ -28,3 +28,16 @@ func TestNormalizeImageURLRejectsNonHTTPURL(t *testing.T) {
 		t.Fatal("expected a validation error")
 	}
 }
+
+func TestNormalizeImageURLAllowsStoredUpload(t *testing.T) {
+	request, err := normalizeImageRequest(catalogdto.ImageRequest{
+		ImageURL:   "https://images.example.com/media/merchant/product.png",
+		SourceType: "UPLOAD",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.SourceType != "UPLOAD" {
+		t.Fatalf("unexpected source type: %s", request.SourceType)
+	}
+}

@@ -2572,7 +2572,7 @@ components:
       required: [image_url]
       properties:
         image_url: { type: string, format: uri }
-        source_type: { type: string, enum: [URL, GOOGLE_DRIVE], default: URL }
+        source_type: { type: string, enum: [URL, GOOGLE_DRIVE, UPLOAD], default: URL }
         alt_text: { type: string }
         position: { type: integer, minimum: 0 }
     CatalogImageUploadRequest:

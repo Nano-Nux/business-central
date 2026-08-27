@@ -119,7 +119,7 @@ export async function prepareImageSubmissions(
   values: FormData,
   name = "image",
   options: ImagePreparationOptions = {},
-) {
+): Promise<ImageSubmission[]> {
   const action = imageAction(values, name);
   if (action === "KEEP" || action === "REMOVE") return [];
   if (action === "URL" || action === "GOOGLE_DRIVE") {

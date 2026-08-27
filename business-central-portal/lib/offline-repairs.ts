@@ -9,6 +9,7 @@ import {
   type OfflineOperation,
 } from "./offline-db";
 import { queueDeferredMutation } from "./offline-deferred";
+import { PORTAL_IMAGE_UPLOADS, type OfflineImageUpload } from "./offline-images";
 import type { RepairDevice, RepairOrder, RepairWorkItem } from "./types";
 import { addDateOnlyDays, dateOnlyDaysBetween } from "./date-time";
 
@@ -108,6 +109,7 @@ export async function queueRepairTicketCreate(
   shopId: string,
   body: Record<string, unknown>,
   projection: RepairOrder,
+  options: { offlineImageUploads?: OfflineImageUpload[]; localImages?: unknown[] } = {},
 ) {
   const id = projection.id;
   const requestedWorkItems = Array.isArray(body.work_items) ? body.work_items : [];
@@ -185,6 +187,14 @@ export async function queueRepairTicketCreate(
       entityId: id,
       operationType: "CREATE",
       request: { path: "/repairs/tickets", method: "POST", body: requestBody },
+      ...(options.offlineImageUploads?.length
+        ? {
+            payload: {
+              ...requestBody,
+              [PORTAL_IMAGE_UPLOADS]: options.offlineImageUploads,
+            },
+          }
+        : {}),
     },
     projectedRepair,
   );
@@ -200,7 +210,7 @@ export async function queueRepairTicketCreate(
       await reserveCatalogStock(scope, shopId, item.variant_id, String(item.quantity ?? "0"));
     }
   }
-  const images = Array.isArray(body.images) ? body.images : [];
+  const images = options.localImages ?? (Array.isArray(body.images) ? body.images : []);
   if (images.length) {
     await updateResource<Record<string, unknown>>(
       scope,
@@ -500,6 +510,7 @@ export async function queueRepairImage(
   scope: OfflineScope,
   repair: RepairOrder,
   body: Record<string, unknown>,
+  options: { offlineImageUpload?: OfflineImageUpload; localImageUrl?: string } = {},
 ) {
   const id = crypto.randomUUID();
   const dependency = await pendingRepairCreate(scope, repair.id);
@@ -516,8 +527,21 @@ export async function queueRepairImage(
         method: "POST",
         body,
       },
+      ...(options.offlineImageUpload
+        ? {
+            payload: {
+              ...body,
+              [PORTAL_IMAGE_UPLOADS]: [options.offlineImageUpload],
+            },
+          }
+        : {}),
     },
-    { id, repair_order_id: repair.id, ...body },
+    {
+      id,
+      repair_order_id: repair.id,
+      ...body,
+      ...(options.localImageUrl ? { image_url: options.localImageUrl } : {}),
+    },
   );
 }
 

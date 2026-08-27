@@ -15,7 +15,7 @@ import {
   Pagination,
   useListPagination,
 } from "./ui";
-import { patch, post, remove, upload } from "@/lib/api";
+import { patch, post, remove } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import { useOffline } from "@/lib/offline";
 import { useAuth } from "@/lib/auth";
@@ -25,6 +25,8 @@ import {
   queueProductMetadataUpdate,
 } from "@/lib/offline-catalog";
 import { queueVariantCreate, queueVariantDelete, queueVariantUpdate } from "@/lib/offline-variants";
+import { queueCatalogImageChange } from "@/lib/offline-catalog-images";
+import type { OfflineScope } from "@/lib/offline-db";
 import { queueAttributeOptionCreate } from "@/lib/offline-attributes";
 import type { AttributeOptionMutation } from "@/lib/offline-attributes";
 import type {
@@ -37,8 +39,7 @@ import type {
   Variant,
 } from "@/lib/types";
 import { BarcodeScanner } from "./barcode-scanner";
-import { ImageSourceField, type ImageAction } from "./image-source-input";
-import { resizeImageFile } from "@/lib/image";
+import { ImageSourceField, imageAction, prepareImageSubmissions } from "./image-source-input";
 
 function categoryPath(category: Category, byID: Map<string, Category>): string {
   const names = [category.name];
@@ -60,32 +61,40 @@ async function saveSingleImage(
   ownerID: string,
   current: CatalogImage | undefined,
   values: FormData,
+  options: {
+    offlineScope?: OfflineScope;
+    dependencyOperationId?: string;
+    deferUploads?: boolean;
+  } = {},
 ) {
-  const action = String(values.get("image_action") ?? "KEEP") as ImageAction;
+  const action = imageAction(values);
   if (action === "KEEP") return;
+  if (options.offlineScope) {
+    const submissions = await prepareImageSubmissions(values, "image", {
+      deferUploads: options.deferUploads,
+    });
+    await queueCatalogImageChange(options.offlineScope, {
+      owner,
+      ownerID,
+      current,
+      image: submissions[0],
+      dependencyOperationId: options.dependencyOperationId,
+    });
+    return;
+  }
   if (action === "REMOVE") {
     if (current) await remove(`/catalog/images/${current.id}`);
     return;
   }
+  const [image] = await prepareImageSubmissions(values);
+  if (!image) return;
   const basePath =
     owner === "product"
       ? `/catalog/products/${ownerID}/images`
       : `/catalog/variants/${ownerID}/images`;
-  if (action === "UPLOAD") {
-    const file = values.get("image_file");
-    if (!(file instanceof File) || file.size === 0) throw new Error("Select an image to upload.");
-    const resized = await resizeImageFile(file);
-    const data = new FormData();
-    data.set("file", resized);
-    await upload<CatalogImage>(
-      current ? `/catalog/images/${current.id}/upload` : `${basePath}/upload`,
-      data,
-    );
-    return;
-  }
   const body = {
-    image_url: String(values.get("image_url") ?? "").trim(),
-    source_type: action,
+    image_url: image.image_url,
+    source_type: image.source_type,
     position: 0,
   };
   if (current) await patch(`/catalog/images/${current.id}`, body);
@@ -162,19 +171,23 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
       ),
       is_stock_tracked: values.get("tracked") === "on",
     };
-    const imageAction = String(values.get("image_action") ?? "KEEP") as ImageAction;
-    const imageChanged = imageAction !== "KEEP";
+    const imageChanged = imageAction(values) !== "KEEP";
     let saved: Variant | undefined;
     try {
-      if (imageChanged && !navigator.onLine) {
-        throw new Error("Changing a variant image requires an internet connection.");
-      }
       if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
         throw new Error("Offline storage is required to save variants while disconnected.");
       }
-      if (offline.scope && offline.storageAvailable && !imageChanged) {
-        if (editing) await queueVariantUpdate(offline.scope, editing, body);
-        else await queueVariantCreate(offline.scope, product.id, body);
+      if (offline.scope && offline.storageAvailable) {
+        const operation = editing
+          ? await queueVariantUpdate(offline.scope, editing, body)
+          : await queueVariantCreate(offline.scope, product.id, body);
+        if (imageChanged) {
+          await saveSingleImage("variant", operation.entityId, editing?.images?.[0], values, {
+            offlineScope: offline.scope,
+            dependencyOperationId: operation.operationId,
+            deferUploads: offline.status === "offline" || !navigator.onLine,
+          });
+        }
         if (navigator.onLine) await offline.syncNow();
       } else if (editing) saved = await patch<Variant>(`/catalog/variants/${editing.id}`, body);
       else saved = await post<Variant>(`/catalog/products/${product.id}/variants`, body);
@@ -619,13 +632,9 @@ export function ProductManager() {
           }
         : {}),
     };
-    const imageAction = String(values.get("image_action") ?? "KEEP") as ImageAction;
-    const imageChanged = imageAction !== "KEEP";
+    const imageChanged = imageAction(values) !== "KEEP";
     let saved: Product | undefined;
     try {
-      if (imageChanged && !navigator.onLine) {
-        throw new Error("Changing a product image requires an internet connection.");
-      }
       if (simple && offline.status === "offline") {
         throw new Error(
           "POS simple product creation requires a connection so the backend can create its standard variant atomically.",
@@ -634,17 +643,23 @@ export function ProductManager() {
       if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
         throw new Error("Offline storage is required to save products while disconnected.");
       }
-      if (!simple && offline.scope && offline.storageAvailable && !imageChanged) {
-        if (editing)
-          await queueProductMetadataUpdate(offline.scope, editing, {
-            ...body,
-            category_ids: editing.category_ids,
+      if (!simple && offline.scope && offline.storageAvailable) {
+        const operation = editing
+          ? await queueProductMetadataUpdate(offline.scope, editing, {
+              ...body,
+              category_ids: editing.category_ids,
+            })
+          : await queueProductCreate(offline.scope, {
+              ...body,
+              category_ids: [],
+            });
+        if (imageChanged) {
+          await saveSingleImage("product", operation.entityId, editing?.images?.[0], values, {
+            offlineScope: offline.scope,
+            dependencyOperationId: operation.operationId,
+            deferUploads: offline.status === "offline" || !navigator.onLine,
           });
-        else
-          await queueProductCreate(offline.scope, {
-            ...body,
-            category_ids: [],
-          });
+        }
         if (navigator.onLine) await offline.syncNow();
       } else if (editing) saved = await patch<Product>(`/catalog/products/${editing.id}`, body);
       else saved = await post<Product>("/catalog/products", body);

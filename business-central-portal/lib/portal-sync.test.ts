@@ -49,6 +49,73 @@ beforeEach(async () => {
 });
 
 describe("portal synchronization", () => {
+  it("uploads an offline image before replaying a deferred image mutation", async () => {
+    const uploadID = "offline-repair-image";
+    const queued = await queueDeferredMutation(
+      scope,
+      {
+        entityType: "REPAIR_IMAGE",
+        entityId: "local-image",
+        operationType: "CREATE",
+        request: {
+          path: "/repairs/orders/repair-1/images",
+          method: "POST",
+          body: {
+            image_url: imageUploadMarker(uploadID),
+            source_type: "UPLOAD",
+            filename: "repair.png",
+            content_type: "image/png",
+          },
+        },
+        payload: {
+          image_url: imageUploadMarker(uploadID),
+          source_type: "UPLOAD",
+          filename: "repair.png",
+          content_type: "image/png",
+          [PORTAL_IMAGE_UPLOADS]: [
+            {
+              id: uploadID,
+              filename: "repair.png",
+              content_type: "image/png",
+              data_base64: "aW1hZ2U=",
+            },
+          ],
+        },
+      },
+      { id: "local-image" },
+    );
+    mockedUpload.mockResolvedValue({
+      image_url: "https://images.example.com/media/merchant/repair.png",
+      source_type: "UPLOAD",
+    });
+    mockedApi.mockImplementation(async (path, options) => {
+      expect(path).toBe("/repairs/orders/repair-1/images");
+      expect(JSON.parse(String(options?.body))).toMatchObject({
+        image_url: "https://images.example.com/media/merchant/repair.png",
+        source_type: "UPLOAD",
+      });
+      return { id: "canonical-image" };
+    });
+    mockedPost.mockImplementation(async (path) => {
+      if (path === "/sync/handshake") {
+        return {
+          protocol_version: "1",
+          schema_version: "1",
+          server_sequence: 1,
+          device: { id: "device-id" },
+          session: { id: "session-id", scope: "merchant" },
+        };
+      }
+      return { changes: [], next_sequence: 1, current_sequence: 1, has_more: false };
+    });
+
+    await expect(synchronizePortal(scope)).resolves.toMatchObject({ pushed: 1 });
+    expect(mockedUpload).toHaveBeenCalledTimes(1);
+    await expect(listOperations(scope)).resolves.toMatchObject([
+      { operationId: queued.operationId, status: "SYNCED" },
+    ]);
+  });
+
   it("uploads an offline image to SeaweedFS before pushing typed shop settings", async () => {
     const uploadID = "offline-logo-upload";
     const queued = await queueOperationWithEntity(

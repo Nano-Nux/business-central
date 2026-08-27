@@ -85,11 +85,13 @@ payments, and POS checkout—persist locally first and synchronize later. They
 never enter a client-wins queue: API conflicts and validation failures remain
 durable and visible for review.
 
-Shop-logo files follow the same rule. The portal resizes the selected file and
-stores it in the scoped IndexedDB outbox while disconnected. On reconnect, the
-portal uploads the file through `/media/images/upload` to the backend's
-SeaweedFS-backed media service, persists the returned public URL in the queued
-`SHOP_SETTINGS` operation, and then synchronizes the shop update.
+All direct image files follow the shop-logo rule, including product, variant,
+and repair images. The portal resizes the selected file and stores it in the
+scoped IndexedDB outbox while disconnected. On reconnect, the portal uploads
+the file through `/media/images/upload` to the backend's SeaweedFS-backed media
+service, replaces the queued marker with the returned public URL, and then
+synchronizes the resource update. Rendering uses that public image-server URL
+directly; image reads do not pass through the Business Central backend.
 
 ## Bluetooth receipt printing
 
