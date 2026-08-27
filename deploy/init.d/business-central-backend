@@ -1,0 +1,29 @@
+#!/sbin/openrc-run
+
+name="business-central-backend"
+description="Business Central Go backend"
+command="/opt/business-central/current/business-central-backend"
+command_user="business-central:business-central"
+directory="/opt/business-central/current"
+command_background="true"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/business-central-backend.log"
+error_log="/var/log/business-central-backend.error.log"
+
+depend() {
+  need net
+  after postgresql seaweedfs
+}
+
+start_pre() {
+  [ -x "$command" ] || { eerror "missing executable $command"; return 1; }
+  checkpath -f -m 0640 -o business-central:business-central "$output_log"
+  checkpath -f -m 0640 -o business-central:business-central "$error_log"
+  [ -r /etc/business-central/backend.env ] || { eerror "missing /etc/business-central/backend.env"; return 1; }
+  . /etc/business-central/backend.env
+  export DATABASE_URL HOST PORT PUBLIC_BASE_URL CORS_ORIGIN
+  export SEAWEEDFS_FILER_URL SEAWEEDFS_PUBLIC_URL JWT_SECRET
+  export ACCESS_TOKEN_TTL REFRESH_TOKEN_TTL APP_ENV AUTO_MIGRATE AUTO_INIT_SCHEMA
+  export BCRYPT_COST ADMIN_EMAIL ADMIN_PASSWORD
+  export PLATFORM_ADMIN_EMAIL PLATFORM_ADMIN_PASSWORD
+}

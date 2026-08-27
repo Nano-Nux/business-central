@@ -1,6 +1,7 @@
 # Environments
 
-The environment model is defined before deployment. Deployment procedures are intentionally deferred.
+The environment model is defined before deployment. The current production
+procedure is implemented in [`deploy/README.md`](deploy/README.md).
 
 ## Required environments
 

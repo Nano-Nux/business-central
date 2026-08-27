@@ -1,0 +1,24 @@
+#!/sbin/openrc-run
+
+name="cloudflared"
+description="Cloudflare Tunnel connector"
+command="/usr/local/bin/cloudflared"
+command_user="cloudflared:cloudflared"
+command_args="tunnel --no-autoupdate run --token-file /etc/cloudflared/business-central.token"
+command_background="true"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/cloudflared.log"
+error_log="/var/log/cloudflared.error.log"
+
+depend() {
+  need net
+  use dns logger
+  after net firewall
+}
+
+start_pre() {
+  [ -s /etc/cloudflared/business-central.token ] || { eerror "missing /etc/cloudflared/business-central.token"; return 1; }
+  checkpath -f -m 0640 -o root:cloudflared /etc/cloudflared/business-central.token
+  checkpath -f -m 0640 -o cloudflared:cloudflared "$output_log"
+  checkpath -f -m 0640 -o cloudflared:cloudflared "$error_log"
+}
