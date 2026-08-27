@@ -1,2 +1,4 @@
 .gocache
 .tmp-go-cache
+
+.env
