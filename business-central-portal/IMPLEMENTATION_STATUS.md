@@ -1,10 +1,12 @@
 # Portal Implementation Status
 
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-27
 
 The portal is a responsive Next.js 16.3 PWA connected only to `business-central-backend`. It contains no embedded business records or client-side invoice store. Prices, promotions, permissions, stock, reports, repair consumption, orders, and invoices are backend-authoritative and tenant-scoped.
 
 Implemented areas:
+
+- merchant-wide payment-type CRUD under Settings and shared active payment-type selection across POS checkout, repair intake, repair final payments, and repair billing edits; DIGITAL is marked as future improvement and excluded from operational selectors;
 
 - merchant/staff login, role redirect, refresh rotation, and protected navigation;
 - shop-scoped merchant/staff dashboards and POS;
@@ -89,8 +91,8 @@ Implemented areas:
   immediately with a pending-sync indicator; foreground synchronization does
   not block form dismissal or replace that projection with an older server
   list. Stock quantities are reserved locally and dependent child
-  operations replay after a ticket create succeeds. External repair payment
-  methods remain pending authorization.
+  operations replay after a ticket create succeeds. Non-cash repair payment
+  types remain pending while offline.
 - inventory-backed repair parts reduce the local stock projection immediately
   and the backend posts the canonical stock-out/FIFO allocation when the Used
   part transaction succeeds; stock consumption is independent of final payment.
@@ -112,10 +114,10 @@ Implemented areas:
 - append-only repair diagnostics can be queued offline against an existing
   shop-scoped repair order; the backend validates the order, membership scope,
   and stable diagnostic identifier before applying it.
-- POS cash checkout can be completed provisionally offline. IndexedDB commits
+- POS CASH-category checkout can be completed provisionally offline. IndexedDB commits
   the complete receipt projection and typed operation together, reserves
   device-local stock across page/browser restart, and links an accepted result
-  to the canonical order. External methods remain pending authorization and
+  to the canonical order. ONLINE types remain pending while offline and
   are never shown as captured. Price/tax/promotion/stock differences remain a
   durable rejected review item.
 - direct non-batch stock receiving can be queued offline for an assigned shop;
@@ -132,8 +134,8 @@ Implemented areas:
   repair-image, and repair-payment replays are protected by tenant-scoped
   backend idempotency transactions; an ambiguous online POS sale reuses its
   original idempotency key when it is converted to a queued checkout.
-- POS and repair offline payments are limited to provisional cash or explicitly
-  pending external authorization; the portal exposes refunds as read-only, so
+- POS and repair offline payments are limited to provisional CASH-category
+  choices or explicitly pending ONLINE choices; the portal exposes refunds as read-only, so
   no refund mutation is queued.
 - authorization changes quarantine unresolved rows as `BLOCKED` while removing
   stale readable projections; refresh-token expiry no longer silently deletes
@@ -146,8 +148,8 @@ Implemented areas:
   local stock effects; the owned-server runner exits deterministically on
   Windows.
 
-Current validation includes 27 Vitest files / 67 tests, ESLint (0 errors, 4
-`no-img-element` warnings), TypeScript, a Next.js production build, backend
+Current validation includes 31 Vitest files / 85 tests, ESLint, TypeScript, a
+Next.js production build, backend
 `go test ./...` unit/in-process coverage, and 4 passing production Playwright
 tests for multi-device repair allocation, service-worker install/upgrade,
 offline cold-launch, browser-restart, mutation non-interception, and

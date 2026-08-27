@@ -450,6 +450,35 @@ CREATE TABLE pos_sessions (
     CHECK (counted_cash IS NULL OR expected_cash IS NULL OR variance = counted_cash - expected_cash)
 );
 
+CREATE TABLE payment_type_categories (
+    code VARCHAR(20) PRIMARY KEY CHECK (code IN ('CASH','ONLINE','DIGITAL')),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    is_available BOOLEAN NOT NULL DEFAULT TRUE
+);
+INSERT INTO payment_type_categories(code,name,is_available) VALUES
+('CASH','Cash',TRUE),('ONLINE','Online',TRUE),('DIGITAL','Digital',FALSE);
+
+CREATE TABLE payment_types (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+    category_code VARCHAR(20) NOT NULL REFERENCES payment_type_categories(code) ON DELETE RESTRICT,
+    name VARCHAR(255) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (merchant_id,id)
+);
+CREATE UNIQUE INDEX uq_payment_types_merchant_name ON payment_types(merchant_id,lower(name));
+CREATE INDEX idx_payment_types_merchant_category ON payment_types(merchant_id,category_code,is_active,name);
+INSERT INTO payment_types(merchant_id,category_code,name) SELECT id,'CASH','Cash' FROM merchants ON CONFLICT DO NOTHING;
+CREATE OR REPLACE FUNCTION provision_default_payment_type() RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO payment_types(merchant_id,category_code,name) VALUES(NEW.id,'CASH','Cash') ON CONFLICT DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER merchants_default_payment_type AFTER INSERT ON merchants FOR EACH ROW EXECUTE FUNCTION provision_default_payment_type();
+
 CREATE TABLE orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
@@ -469,7 +498,8 @@ CREATE TABLE orders (
     delivery_name VARCHAR(255),
     delivery_contact VARCHAR(500),
     note TEXT,
-    payment_type VARCHAR(50),
+    payment_type_id UUID,
+    payment_type VARCHAR(255),
     grand_total NUMERIC(15,2) NOT NULL DEFAULT 0 CHECK (grand_total >= 0),
     billing_address JSONB,
     shipping_address JSONB,
@@ -481,6 +511,7 @@ CREATE TABLE orders (
     FOREIGN KEY (merchant_id, customer_id) REFERENCES customers(merchant_id, id) ON DELETE SET NULL (customer_id),
     FOREIGN KEY (merchant_id, fulfillment_location_id) REFERENCES locations(merchant_id, id) ON DELETE RESTRICT,
     FOREIGN KEY (merchant_id, delivery_id) REFERENCES deliveries(merchant_id, id) ON DELETE SET NULL,
+    FOREIGN KEY (merchant_id, payment_type_id) REFERENCES payment_types(merchant_id, id) ON DELETE RESTRICT,
     FOREIGN KEY (merchant_id, pos_session_id) REFERENCES pos_sessions(merchant_id, id) ON DELETE SET NULL (pos_session_id),
     CHECK (grand_total = subtotal - discount_total + tax_total + shipping_total)
 );
@@ -513,7 +544,8 @@ CREATE TABLE payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
     order_id UUID NOT NULL,
-    method VARCHAR(30) NOT NULL CHECK (method IN ('CASH','CARD','BANK_TRANSFER','ONLINE','WALLET','OTHER')),
+    payment_type_id UUID,
+    method VARCHAR(255) NOT NULL,
     status VARCHAR(25) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','AUTHORIZED','CAPTURED','FAILED','VOIDED','REFUNDED','PARTIALLY_REFUNDED')),
     amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
     provider_reference VARCHAR(255),
@@ -522,7 +554,8 @@ CREATE TABLE payments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (merchant_id, id),
     UNIQUE (merchant_id, idempotency_key),
-    FOREIGN KEY (merchant_id, order_id) REFERENCES orders(merchant_id, id) ON DELETE RESTRICT
+    FOREIGN KEY (merchant_id, order_id) REFERENCES orders(merchant_id, id) ON DELETE RESTRICT,
+    FOREIGN KEY (merchant_id, payment_type_id) REFERENCES payment_types(merchant_id, id) ON DELETE RESTRICT
 );
 
 CREATE TABLE refunds (
@@ -6253,7 +6286,7 @@ BEGIN
     FOREACH t IN ARRAY ARRAY[
         'user_memberships','roles','membership_roles','shops','locations','customers','customer_addresses',
         'products','product_variants','variant_inventory_policies','price_lists','product_prices','suppliers','purchase_orders','measurement_groups',
-        'purchase_order_lines','goods_receipts','goods_receipt_lines','orders','order_lines','payments',
+        'purchase_order_lines','goods_receipts','goods_receipt_lines','orders','order_lines','payments','payment_types',
         'refunds','fulfillments','fulfillment_lines','inventory_balances','inventory_movements',
         'inventory_cost_layers','inventory_cost_allocations','inventory_reservations','accounting_accounts',
         'accounting_events','journal_entries','journal_lines','audit_events',
@@ -6342,6 +6375,17 @@ CREATE POLICY tenant_update ON membership_shop_assignments FOR UPDATE
     USING (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'))
     WITH CHECK (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
 CREATE POLICY tenant_delete ON membership_shop_assignments FOR DELETE
+    USING (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
+
+DROP POLICY IF EXISTS tenant_insert ON payment_types;
+DROP POLICY IF EXISTS tenant_update ON payment_types;
+DROP POLICY IF EXISTS tenant_delete ON payment_types;
+CREATE POLICY tenant_insert ON payment_types FOR INSERT
+    WITH CHECK (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
+CREATE POLICY tenant_update ON payment_types FOR UPDATE
+    USING (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'))
+    WITH CHECK (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
+CREATE POLICY tenant_delete ON payment_types FOR DELETE
     USING (app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
 
 COMMENT ON TABLE user_identities IS 'Sole authentication authority: email, password, lock state, and login tracking live here only.';

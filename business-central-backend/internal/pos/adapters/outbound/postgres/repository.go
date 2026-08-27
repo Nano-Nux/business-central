@@ -349,12 +349,23 @@ func optionalMoney(value string) (float64, error) {
 	return money(v), nil
 }
 
-func capturedPaymentMethod(value string) (string, error) {
-	method := strings.ToUpper(strings.TrimSpace(value))
-	if method != "CASH" {
-		return "", app.NewError("PAYMENT_AUTHORIZATION_REQUIRED", "Card, QR, wallet, and bank payments require verified provider authorization before capture.", 409)
+func selectedPaymentType(ctx context.Context, tx pgx.Tx, merchantID, paymentTypeID, legacyMethod string) (string, string, string, error) {
+	var id, name, category string
+	if strings.TrimSpace(paymentTypeID) != "" {
+		if err := tx.QueryRow(ctx, `SELECT id,name,category_code FROM payment_types WHERE merchant_id=$1::uuid AND id=$2::uuid AND is_active`, merchantID, paymentTypeID).Scan(&id, &name, &category); err != nil {
+			return "", "", "", app.NewError("VALIDATION_ERROR", "The selected payment type is not available for this merchant.", 400)
+		}
+	} else if strings.EqualFold(strings.TrimSpace(legacyMethod), "CASH") {
+		if err := tx.QueryRow(ctx, `SELECT id,name,category_code FROM payment_types WHERE merchant_id=$1::uuid AND category_code='CASH' AND is_active ORDER BY CASE WHEN name='Cash' THEN 0 ELSE 1 END,created_at LIMIT 1`, merchantID).Scan(&id, &name, &category); err != nil {
+			return "", "", "", app.NewError("VALIDATION_ERROR", "Create an active cash payment type before checkout.", 400)
+		}
+	} else {
+		return "", "", "", app.NewError("VALIDATION_ERROR", "Select an active merchant payment type.", 400)
 	}
-	return method, nil
+	if category == "DIGITAL" {
+		return "", "", "", app.NewError("FUTURE_IMPROVEMENT", "Digital payment types are reserved for a future improvement and cannot be used yet.", 409)
+	}
+	return id, name, category, nil
 }
 
 func (s *Service) QuoteSale(ctx context.Context, c *authdto.Claims, r CreateSaleRequest) (SaleQuote, error) {
@@ -655,6 +666,10 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 	if grandTotal <= 0 {
 		return SaleOrder{}, app.Validation("The payment total must be greater than zero.", nil)
 	}
+	paymentTypeID, paymentTypeName, _, err := selectedPaymentType(ctx, tx, c.MerchantID, r.PaymentTypeID, r.PaymentMethod)
+	if err != nil {
+		return SaleOrder{}, err
+	}
 	orderID := uuid.NewString()
 	if strings.TrimSpace(r.CustomerID) == "" && strings.TrimSpace(r.CustomerName) != "" && strings.TrimSpace(r.CustomerPhone) != "" {
 		if err = tx.QueryRow(ctx, `SELECT id FROM customers WHERE merchant_id=$1::uuid AND phone=$2 ORDER BY created_at LIMIT 1`, c.MerchantID, strings.TrimSpace(r.CustomerPhone)).Scan(&r.CustomerID); err == pgx.ErrNoRows {
@@ -671,7 +686,7 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 			return SaleOrder{}, app.Validation("The selected delivery is not available for this shop.", nil)
 		}
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO orders(id,merchant_id,customer_id,fulfillment_location_id,order_number,channel,status,currency_code,subtotal,discount_total,tax_total,shipping_total,grand_total,delivery_id,delivery_name,delivery_contact,note,payment_type,placed_at) VALUES($1,$2,NULLIF($3,'')::uuid,$4,$5,'POS','DRAFT',$6,$7,$8,$9,$10,$11,NULLIF($12,'')::uuid,$13,$14,$15,$16,now())`, orderID, c.MerchantID, r.CustomerID, locationID, orderNumber, currency, money(subtotal), money(discountTotal), taxTotal, shipping, grandTotal, r.DeliveryID, deliveryName, deliveryContact, strings.TrimSpace(r.Note), strings.TrimSpace(r.PaymentMethod))
+	_, err = tx.Exec(ctx, `INSERT INTO orders(id,merchant_id,customer_id,fulfillment_location_id,order_number,channel,status,currency_code,subtotal,discount_total,tax_total,shipping_total,grand_total,delivery_id,delivery_name,delivery_contact,note,payment_type_id,payment_type,placed_at) VALUES($1,$2,NULLIF($3,'')::uuid,$4,$5,'POS','DRAFT',$6,$7,$8,$9,$10,$11,NULLIF($12,'')::uuid,$13,$14,$15,$16,$17,now())`, orderID, c.MerchantID, r.CustomerID, locationID, orderNumber, currency, money(subtotal), money(discountTotal), taxTotal, shipping, grandTotal, r.DeliveryID, deliveryName, deliveryContact, strings.TrimSpace(r.Note), paymentTypeID, paymentTypeName)
 	if err != nil {
 		return SaleOrder{}, err
 	}
@@ -700,11 +715,7 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 	if _, err = tx.Exec(ctx, `UPDATE orders SET status='PENDING_PAYMENT' WHERE merchant_id=$1::uuid AND id=$2`, c.MerchantID, orderID); err != nil {
 		return SaleOrder{}, err
 	}
-	method, err := capturedPaymentMethod(r.PaymentMethod)
-	if err != nil {
-		return SaleOrder{}, err
-	}
-	if _, err = tx.Exec(ctx, `INSERT INTO payments(merchant_id,order_id,method,status,amount,idempotency_key,captured_at) VALUES($1,$2,$3,'CAPTURED',$4,$5,now())`, c.MerchantID, orderID, method, grandTotal, r.IdempotencyKey); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO payments(merchant_id,order_id,payment_type_id,method,status,amount,idempotency_key,captured_at) VALUES($1,$2,$3,$4,'CAPTURED',$5,$6,now())`, c.MerchantID, orderID, paymentTypeID, paymentTypeName, grandTotal, r.IdempotencyKey); err != nil {
 		return SaleOrder{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE orders SET status='CONFIRMED' WHERE merchant_id=$1::uuid AND id=$2`, c.MerchantID, orderID); err != nil {

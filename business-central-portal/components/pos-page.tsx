@@ -19,7 +19,7 @@ import {
   type OfflineCheckoutProjection,
 } from "@/lib/offline-checkout";
 import { currencyLabel, formatMoney } from "@/lib/currency";
-import type { Delivery, Invoice, Promotion, Variant } from "@/lib/types";
+import type { Delivery, Invoice, PaymentType, Promotion, Variant } from "@/lib/types";
 import { getMetadata, putMetadata } from "@/lib/offline-db";
 import { BarcodeScanner } from "./barcode-scanner";
 import { randomUuid } from "@/lib/random-uuid";
@@ -52,6 +52,7 @@ export function PosPage() {
   const promotions = useResource<Promotion>(
     "/promotions?page_index=0&page_size=100&filter=is_active:true",
   );
+  const paymentTypes = useResource<PaymentType>("/payment-types?active_only=true");
   const [query, setQuery] = useState("");
   const [barcodeMatches, setBarcodeMatches] = useState<SaleItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -81,6 +82,12 @@ export function PosPage() {
     currentShop ? `/shops/${currentShop.id}/deliveries?page_index=0&page_size=100` : "",
   );
   const deliveries = deliveryResource.data;
+  const usablePaymentTypes = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
+  const selectedPaymentType =
+    usablePaymentTypes.find((item) => item.id === paymentType) ??
+    usablePaymentTypes.find((item) => item.category_code === "CASH") ??
+    usablePaymentTypes[0];
+  const selectedPaymentTypeId = selectedPaymentType?.id ?? "";
 
   useEffect(() => {
     if (!offline.scope || !currentShop) return;
@@ -245,7 +252,9 @@ export function PosPage() {
         customerName,
         customerPhone,
         note,
-        paymentMethod: paymentType,
+        paymentMethod: selectedPaymentType?.name ?? "Cash",
+        paymentTypeId: selectedPaymentType?.id,
+        paymentCategory: selectedPaymentType?.category_code ?? "CASH",
       });
       return snapshot;
     }
@@ -263,7 +272,8 @@ export function PosPage() {
       delivery_fee: deliveryFee || undefined,
       manual_promotion: manualPromotion || undefined,
       note: note || undefined,
-      payment_method: paymentType,
+      payment_type_id: selectedPaymentType?.id,
+      payment_method: selectedPaymentType?.name,
     });
   }
 
@@ -307,7 +317,7 @@ export function PosPage() {
       }
       const nextQuote = await requestQuote();
       setQuote(nextQuote);
-      await pay(paymentType, nextQuote);
+      await pay(selectedPaymentTypeId, nextQuote);
     } catch (reason) {
       if (reason instanceof NetworkUnavailableError) {
         try {
@@ -329,7 +339,7 @@ export function PosPage() {
       setBusy(false);
     }
   }
-  async function saveOfflineCheckout(method = paymentType, provisionalId?: string) {
+  async function saveOfflineCheckout(method = selectedPaymentTypeId, provisionalId?: string) {
     if (!currentShop || !offline.scope)
       throw new Error("An authenticated shop scope is required for offline checkout.");
     const delivery = deliveries.find((item) => item.id === deliveryId);
@@ -346,7 +356,9 @@ export function PosPage() {
       delivery,
       deliveryFee,
       note,
-      paymentMethod: method,
+      paymentMethod: usablePaymentTypes.find((item) => item.id === method)?.name ?? "Cash",
+      paymentTypeId: method,
+      paymentCategory: usablePaymentTypes.find((item) => item.id === method)?.category_code ?? "CASH",
     });
     setProvisionalReceipt(projection);
     setCart([]);
@@ -370,7 +382,8 @@ export function PosPage() {
           asset_id: row.item.stock_asset_id,
         })),
         promotion_id: promotionId || undefined,
-        payment_method: method,
+        payment_type_id: method,
+        payment_method: usablePaymentTypes.find((item) => item.id === method)?.name,
         customer_name: customerName || undefined,
         customer_phone: customerPhone || undefined,
         delivery_id: deliveryId || undefined,
@@ -412,7 +425,7 @@ export function PosPage() {
     deliveryContact: deliveries.find((item) => item.id === deliveryId)?.contact_info,
     deliveryFee: Number(deliveryFee || 0),
     note,
-    paymentType,
+    paymentType: selectedPaymentType?.name ?? "Cash",
     footerNote:
       currentShop?.footer_note ||
       (typeof window !== "undefined" && currentShop
@@ -741,12 +754,10 @@ export function PosPage() {
               <label>
                 <span>Payment type</span>
                 <select
-                  value={paymentType}
+                  value={selectedPaymentTypeId}
                   onChange={(event) => setPaymentType(event.target.value)}
                 >
-                  <option value="CASH">Cash</option>
-                  <option value="CARD">Card</option>
-                  <option value="QR">QR payment</option>
+                  {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
                 </select>
               </label>
             </div>
@@ -813,7 +824,7 @@ export function PosPage() {
         )}
         {error && <div className="form-error">{error}</div>}
         <div className="payment-methods">
-          <button disabled={busy || !quote} onClick={() => pay(paymentType)}>
+          <button disabled={busy || !quote} onClick={() => pay(selectedPaymentTypeId)}>
             <span>{currencyLabel(currencyCode)}</span>
             <strong>Cash</strong>
             <small>Record a cash payment</small>

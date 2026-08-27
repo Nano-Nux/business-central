@@ -30,6 +30,9 @@ erDiagram
     orders ||--o{ order_lines : contains
     product_variants ||--o{ order_lines : sells
     orders ||--o{ payments : paid_by
+    merchants ||--o{ payment_types : configures
+    payment_type_categories ||--o{ payment_types : classifies
+    payment_types ||--o{ payments : selected_for
     payments ||--o{ refunds : refunded_by
     orders ||--o{ fulfillments : fulfilled_by
     fulfillments ||--o{ fulfillment_lines : contains

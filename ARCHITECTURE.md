@@ -23,7 +23,7 @@ This is a fresh-build commerce architecture. The project has no production data 
 model. `COMPLEX` exposes normal multi-variant setup. `SIMPLE` presents products
 directly while the backend atomically creates and maintains one standard
 `product_variants` row for pricing, stock, orders, and reporting.
-| Payment | `payments`, `refunds` | Payments belong to orders; refunds belong to payments and orders |
+| Payment | `payment_type_categories`, `payment_types`, `payments`, `refunds` | Merchants configure payment types once per tenant; payments belong to orders and retain the selected type/name snapshot; refunds belong to payments and orders |
 | Accounting boundary | `accounting_events` | Every financial/valuation event is posted through an explicit event |
 
 ## Authentication and authorization

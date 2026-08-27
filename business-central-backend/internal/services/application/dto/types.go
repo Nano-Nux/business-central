@@ -337,6 +337,7 @@ type RepairOrderRequest struct {
 	CustomerPhone         *string    `json:"customer_phone,omitempty"`
 	PromotionID           *string    `json:"promotion_id,omitempty"`
 	DepositAmount         string     `json:"deposit_amount,omitempty"`
+	DepositPaymentTypeID  string     `json:"deposit_payment_type_id,omitempty"`
 	DepositPaymentMethod  string     `json:"deposit_payment_method,omitempty"`
 	DepositIdempotencyKey string     `json:"deposit_idempotency_key,omitempty"`
 	ServiceID             *string    `json:"service_id,omitempty"`
@@ -434,6 +435,7 @@ type CreateRepairTicketRequest struct {
 	Note             *string                    `json:"note,omitempty"`
 	PaymentStatus    string                     `json:"payment_status,omitempty"`
 	DepositAmount    string                     `json:"deposit_amount,omitempty"`
+	PaymentTypeID    string                     `json:"payment_type_id,omitempty"`
 	PaymentMethod    string                     `json:"payment_method,omitempty"`
 	Parts            []RepairTicketPartRequest  `json:"parts,omitempty"`
 	Images           []RepairImageRequest       `json:"images,omitempty"`
@@ -460,6 +462,8 @@ type RepairPayment struct {
 	RepairOrderID string                      `json:"repair_order_id"`
 	Kind          string                      `json:"kind"`
 	Method        string                      `json:"method"`
+	PaymentTypeID string                      `json:"payment_type_id,omitempty"`
+	CategoryCode  string                      `json:"category_code,omitempty"`
 	Status        string                      `json:"status"`
 	Amount        string                      `json:"amount"`
 	CreatedAt     time.Time                   `json:"created_at"`
@@ -468,6 +472,7 @@ type RepairPayment struct {
 
 type RepairPaymentRequest struct {
 	Kind           string                             `json:"kind"`
+	PaymentTypeID  string                             `json:"payment_type_id,omitempty"`
 	Method         string                             `json:"method"`
 	Amount         string                             `json:"amount"`
 	IdempotencyKey string                             `json:"idempotency_key"`

@@ -156,6 +156,7 @@ type CreateSaleRequest struct {
 	ManualPromotion string            `json:"manual_promotion,omitempty"`
 	Note            string            `json:"note,omitempty"`
 	PromotionID     string            `json:"promotion_id,omitempty"`
+	PaymentTypeID   string            `json:"payment_type_id,omitempty"`
 	PaymentMethod   string            `json:"payment_method"`
 	IdempotencyKey  string            `json:"idempotency_key"`
 	Lines           []SaleLineRequest `json:"lines"`

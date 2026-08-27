@@ -44,6 +44,7 @@ The current portal uses the implemented baseline codes `tenant.read`, `tenant.wr
 | Manage inventory | No | Yes | Configurable | Configurable |
 | Manage service orders | No | Yes | Configurable | Configurable |
 | Manage repair orders | No | Yes | Configurable | Configurable |
+| Manage merchant payment types | No | Yes | Configurable through `membership.manage` | No |
 | Edit customer, delivery, repair intake, and repair billing records | No | Yes | No | No |
 | Approve repair estimates | No | Yes | Configurable | Configurable |
 | Refund payments | No | Yes | Configurable | Usually no |

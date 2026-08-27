@@ -57,6 +57,16 @@ Customer master reads are available at `/api/v1/customers` and
 details. Repair intake details use `PATCH /api/v1/repairs/orders/{id}/details`
 so staff lifecycle/status operations remain separate and cannot modify those
 merchant-owned fields.
+
+Merchant payment types are tenant-wide rather than shop-scoped. Authenticated
+users read the fixed `CASH`, `ONLINE`, and `DIGITAL` categories from
+`GET /api/v1/payment-type-categories` and active merchant choices from
+`GET /api/v1/payment-types?active_only=true`. Membership managers use
+`POST /api/v1/payment-types` and `PATCH/DELETE /api/v1/payment-types/{id}`.
+Used types cannot be deleted or moved to another category and must be made inactive or replaced. POS and repair payment
+commands select an active `payment_type_id`; CASH and ONLINE types are
+captured without additional type configuration, while DIGITAL returns
+`FUTURE_IMPROVEMENT` until its integration contract is implemented.
 Merchant owners can update the ticket billing boundary through
 `PATCH /api/v1/repairs/orders/{id}/billing`. The request replaces catalog
 service lines, labor fee, work-item prices (using the unchanged `additional_fee` field), and the current service
@@ -149,10 +159,10 @@ currency.
 Shop settings persist `footer_note`; payment settings persist `tax_label` and
 `receipt_note`, and invoice responses include those values for receipt output.
 
-POS checkout records a captured payment only for `CASH`. Card, QR, wallet,
-online, and bank methods return `PAYMENT_AUTHORIZATION_REQUIRED` until a
-dedicated provider flow supplies verified authorization. Reconnection alone
-never converts an offline external-payment intent into a captured payment.
+POS checkout and repair payments capture active merchant payment types in the
+`CASH` and `ONLINE` categories. Temporary-offline capture remains limited to
+`CASH`; an offline ONLINE intent stays pending for an online retry. `DIGITAL`
+returns `FUTURE_IMPROVEMENT` and is never captured.
 
 Product requests and reads also support an optional product-level `barcode`.
 Catalog barcode administration uses `POST /api/v1/catalog/barcodes` with
@@ -248,7 +258,7 @@ Error response:
 
 ## Required error codes
 
-At minimum: `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `IDEMPOTENCY_CONFLICT`, `MODULE_DISABLED`, `OFFLINE_OPERATION_REJECTED`, and `INTERNAL_ERROR`.
+At minimum: `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `IDEMPOTENCY_CONFLICT`, `MODULE_DISABLED`, `OFFLINE_OPERATION_REJECTED`, `FUTURE_IMPROVEMENT`, and `INTERNAL_ERROR`.
 
 ## Authentication
 

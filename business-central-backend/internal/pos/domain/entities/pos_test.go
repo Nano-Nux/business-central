@@ -34,3 +34,12 @@ func TestRefundRequiresPositiveAmountAndIdempotency(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSaleAcceptsMerchantPaymentTypeID(t *testing.T) {
+	if err := Sale(1, "payment-type-1", "", "checkout-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Sale(1, "", "", "checkout-1"); err == nil {
+		t.Fatal("expected a payment type requirement")
+	}
+}

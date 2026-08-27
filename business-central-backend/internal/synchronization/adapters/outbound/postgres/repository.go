@@ -266,6 +266,7 @@ type repairPaymentSyncPayload struct {
 	ShopID        string `json:"shop_id"`
 	RepairOrderID string `json:"repair_order_id"`
 	Kind          string `json:"kind"`
+	PaymentTypeID string `json:"payment_type_id"`
 	Method        string `json:"method"`
 	Amount        string `json:"amount"`
 	Allocations   []struct {
@@ -623,6 +624,12 @@ func (r *Repository) applyOfflineCheckoutOperation(ctx context.Context, tx pgx.T
 	}
 	payload.Request.IdempotencyKey = operation.ClientOperationID
 	requestedPaymentMethod := strings.ToUpper(strings.TrimSpace(payload.Request.PaymentMethod))
+	requestedPaymentCategory := requestedPaymentMethod
+	if strings.TrimSpace(payload.Request.PaymentTypeID) != "" {
+		if err := tx.QueryRow(ctx, `SELECT category_code FROM payment_types WHERE merchant_id=$1::uuid AND id=$2::uuid AND is_active`, claims.MerchantID, payload.Request.PaymentTypeID).Scan(&requestedPaymentCategory); err != nil {
+			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "VALIDATION_ERROR", "The selected payment type is not available for this merchant.")
+		}
+	}
 	// Validate an external-payment intent by simulating the same canonical sale
 	// as cash inside a savepoint. The savepoint is always rolled back for the
 	// external method, so no order, payment, stock movement, audit, idempotency
@@ -662,7 +669,7 @@ func (r *Repository) applyOfflineCheckoutOperation(ctx context.Context, tx pgx.T
 		})
 		return insertRejectedWithPayload(ctx, tx, claims, deviceID, sessionID, operation, "CHECKOUT_RECONCILIATION_REQUIRED", "Current price, tax, promotion, or stock rules differ from the provisional checkout.", serverPayload)
 	}
-	if requestedPaymentMethod != "CASH" {
+	if requestedPaymentCategory != "CASH" {
 		if _, err := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT offline_checkout_attempt`); err != nil {
 			return dto.OperationResult{}, err
 		}
@@ -2869,11 +2876,21 @@ func (r *Repository) applyRepairPaymentOperation(ctx context.Context, tx pgx.Tx,
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_PAYLOAD", "Repair payment payload is invalid.")
 	}
 	payload.Kind = strings.ToUpper(strings.TrimSpace(payload.Kind))
-	payload.Method = strings.ToUpper(strings.TrimSpace(payload.Method))
+	payload.Method = strings.TrimSpace(payload.Method)
 	if payload.Kind != "DEPOSIT" && payload.Kind != "FINAL" {
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_PAYLOAD", "Repair payment kind is invalid.")
 	}
-	if payload.Method != "CASH" {
+	var paymentTypeName, paymentCategory string
+	if strings.TrimSpace(payload.PaymentTypeID) != "" {
+		if err := tx.QueryRow(ctx, `SELECT name,category_code FROM payment_types WHERE merchant_id=$1::uuid AND id=$2::uuid AND is_active`, claims.MerchantID, payload.PaymentTypeID).Scan(&paymentTypeName, &paymentCategory); err != nil {
+			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "VALIDATION_ERROR", "The selected payment type is not available for this merchant.")
+		}
+	} else if strings.EqualFold(payload.Method, "CASH") {
+		if err := tx.QueryRow(ctx, `SELECT id,name,category_code FROM payment_types WHERE merchant_id=$1::uuid AND category_code='CASH' AND is_active ORDER BY CASE WHEN name='Cash' THEN 0 ELSE 1 END,created_at LIMIT 1`, claims.MerchantID).Scan(&payload.PaymentTypeID, &paymentTypeName, &paymentCategory); err != nil {
+			return dto.OperationResult{}, err
+		}
+	}
+	if paymentCategory != "CASH" {
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "ONLINE_REQUIRED", "Offline repair synchronization accepts cash payments only; external payment methods require online authorization.")
 	}
 	amount, err := strconv.ParseFloat(strings.TrimSpace(payload.Amount), 64)
@@ -2907,7 +2924,7 @@ func (r *Repository) applyRepairPaymentOperation(ctx context.Context, tx pgx.Tx,
 		return dto.OperationResult{}, err
 	}
 	amountText := fmt.Sprintf("%.2f", amount)
-	if _, err := tx.Exec(ctx, `INSERT INTO payments(id,merchant_id,order_id,method,status,amount,idempotency_key,captured_at) VALUES($1::uuid,$2::uuid,$3::uuid,'CASH','CAPTURED',$4,$5,now())`, operation.EntityID, claims.MerchantID, orderIDCanonical, amountText, "sync-repair-payment:"+operation.EntityID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO payments(id,merchant_id,order_id,payment_type_id,method,status,amount,idempotency_key,captured_at) VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'CAPTURED',$6,$7,now())`, operation.EntityID, claims.MerchantID, orderIDCanonical, payload.PaymentTypeID, paymentTypeName, amountText, "sync-repair-payment:"+operation.EntityID); err != nil {
 		return dto.OperationResult{}, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO repair_payment_allocations(merchant_id,repair_order_id,payment_id,payment_kind) VALUES($1::uuid,$2::uuid,$3::uuid,$4)`, claims.MerchantID, payload.RepairOrderID, operation.EntityID, payload.Kind); err != nil {

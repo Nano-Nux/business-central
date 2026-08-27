@@ -59,16 +59,11 @@ func Session(shopID, membershipID, status string) error {
 	return ValidateStatus(status)
 }
 
-func Sale(lines int, paymentMethod, idempotencyKey string) error {
-	if lines == 0 || strings.TrimSpace(paymentMethod) == "" || strings.TrimSpace(idempotencyKey) == "" {
+func Sale(lines int, paymentTypeID, paymentMethod, idempotencyKey string) error {
+	if lines == 0 || (strings.TrimSpace(paymentTypeID) == "" && strings.TrimSpace(paymentMethod) == "") || strings.TrimSpace(idempotencyKey) == "" {
 		return ErrRequired
 	}
-	switch paymentMethod {
-	case "CASH", "CARD", "BANK_TRANSFER", "ONLINE", "WALLET", "OTHER", "QR":
-		return nil
-	default:
-		return errors.New("POS payment method is invalid")
-	}
+	return nil
 }
 
 func Refund(paymentID, amount, idempotencyKey string) error {

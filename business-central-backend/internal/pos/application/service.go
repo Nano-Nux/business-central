@@ -139,8 +139,8 @@ func (s *Service) UpdateSession(ctx context.Context, claims *authdto.Claims, id 
 }
 
 func (s *Service) CreateSale(ctx context.Context, claims *authdto.Claims, request posdto.CreateSaleRequest) (posdto.SaleOrder, error) {
-	if err := domainpos.Sale(len(request.Lines), request.PaymentMethod, request.IdempotencyKey); err != nil {
-		return posdto.SaleOrder{}, invalid("At least one line, a supported payment method, and an idempotency key are required.")
+	if err := domainpos.Sale(len(request.Lines), request.PaymentTypeID, request.PaymentMethod, request.IdempotencyKey); err != nil {
+		return posdto.SaleOrder{}, invalid("At least one line, a payment_type_id, and an idempotency key are required.")
 	}
 	for _, line := range request.Lines {
 		if line.VariantID == "" || line.Quantity == "" {

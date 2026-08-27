@@ -11,6 +11,28 @@ type PriceList struct {
 	SyncVersion  int64  `json:"sync_version,omitempty"`
 }
 
+type PaymentTypeCategory struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	IsAvailable bool   `json:"is_available"`
+}
+
+type PaymentType struct {
+	ID           string    `json:"id"`
+	MerchantID   string    `json:"merchant_id"`
+	CategoryCode string    `json:"category_code"`
+	Name         string    `json:"name"`
+	IsActive     bool      `json:"is_active"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type PaymentTypeRequest struct {
+	CategoryCode string `json:"category_code"`
+	Name         string `json:"name"`
+	IsActive     *bool  `json:"is_active,omitempty"`
+}
+
 type ProductPrice struct {
 	SyncID      string     `json:"sync_id"`
 	SyncVersion int64      `json:"sync_version,omitempty"`

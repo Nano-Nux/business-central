@@ -11,7 +11,7 @@ import { useResource } from "@/lib/use-resource";
 import { queueDeliveryUpdate } from "@/lib/offline-deliveries";
 import { formatMoney } from "@/lib/currency";
 import { formatDateOnly, formatShopDateTime } from "@/lib/date-time";
-import type { Customer, Delivery, Promotion, RepairOrder, RepairPayment } from "@/lib/types";
+import type { Customer, Delivery, PaymentType, Promotion, RepairOrder, RepairPayment } from "@/lib/types";
 import { Button, EmptyState, Field, Form, Loading, PageHeader, StatusBadge } from "./ui";
 import { RepairWaitingFields } from "./repair-waiting-fields";
 
@@ -305,6 +305,8 @@ function RepairForm({ repair }: { repair: RepairOrder }) {
   const payments = useResource<RepairPayment>(
     `/repairs/orders/${encodeURIComponent(repair.id)}/payments?page_index=0&page_size=100`,
   );
+  const paymentTypes = useResource<PaymentType>("/payment-types?active_only=true");
+  const usablePaymentTypes = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [promotionId, setPromotionId] = useState(repair.promotion_id ?? "");
@@ -441,7 +443,8 @@ function RepairForm({ repair }: { repair: RepairOrder }) {
       const currentPaid = Number(billing.deposit_paid || 0);
       const requestedPaymentStatus = String(form.get("payment_status") || repair.payment_status);
       const requestedDeposit = Number(form.get("payment_amount") || 0);
-      const paymentMethod = String(form.get("payment_method") || "CASH");
+      const paymentTypeId = String(form.get("payment_type_id") || "");
+      const paymentType = usablePaymentTypes.find((item) => item.id === paymentTypeId);
       if (requestedPaymentStatus === "UNPAID") {
         if (currentPaid > 0.005) {
           throw new Error(
@@ -458,9 +461,11 @@ function RepairForm({ repair }: { repair: RepairOrder }) {
           );
         }
         if (requestedDeposit > currentPaid + 0.005) {
+          if (!paymentType) throw new Error("Select an active payment type.");
           await post(`/repairs/orders/${encodeURIComponent(repair.id)}/payments`, {
             kind: "DEPOSIT",
-            method: paymentMethod,
+            payment_type_id: paymentType.id,
+            method: paymentType.name,
             amount: (requestedDeposit - currentPaid).toFixed(2),
             idempotency_key: `repair-edit-deposit:${repair.id}:${crypto.randomUUID()}`,
           });
@@ -472,9 +477,11 @@ function RepairForm({ repair }: { repair: RepairOrder }) {
         }
         const remaining = total - currentPaid;
         if (remaining > 0.005) {
+          if (!paymentType) throw new Error("Select an active payment type.");
           await post(`/repairs/orders/${encodeURIComponent(repair.id)}/payments`, {
             kind: "FINAL",
-            method: paymentMethod,
+            payment_type_id: paymentType.id,
+            method: paymentType.name,
             amount: remaining.toFixed(2),
             idempotency_key: `repair-edit-final:${repair.id}:${crypto.randomUUID()}`,
           });
@@ -859,13 +866,9 @@ function RepairForm({ repair }: { repair: RepairOrder }) {
                 defaultValue={repair.deposit_paid}
               />
             </Field>
-            <Field label="Payment method">
-              <select name="payment_method" defaultValue="CASH">
-                <option value="CASH">Cash</option>
-                <option value="CARD">Card</option>
-                <option value="BANK_TRANSFER">Bank transfer</option>
-                <option value="WALLET">Wallet</option>
-                <option value="OTHER">Other</option>
+            <Field label="Payment type">
+              <select name="payment_type_id" defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id} required>
+                {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
               </select>
             </Field>
           </div>

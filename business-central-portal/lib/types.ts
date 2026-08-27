@@ -206,6 +206,20 @@ export type Currency = {
   symbol?: string;
   decimal_places: number;
 };
+export type PaymentTypeCategory = {
+  code: "CASH" | "ONLINE" | "DIGITAL";
+  name: string;
+  is_available: boolean;
+};
+export type PaymentType = {
+  id: string;
+  merchant_id: string;
+  category_code: PaymentTypeCategory["code"];
+  name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
 export type PriceList = {
   id: string;
   code: string;
@@ -517,6 +531,8 @@ export type RepairPayment = {
   repair_order_id: string;
   kind: string;
   method: string;
+  payment_type_id?: string;
+  category_code?: PaymentTypeCategory["code"];
   status: string;
   amount: string;
   created_at: string;

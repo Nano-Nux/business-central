@@ -858,12 +858,21 @@ paths:
   /api/v1/merchant:
     get: { tags: [Merchants], summary: Get the authenticated merchant profile, operationId: getCurrentMerchant, security: [{ bearerAuth: [] }], responses: { '200': { description: Merchant profile, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
     patch: { tags: [Merchants], summary: Update the authenticated merchant profile, operationId: updateCurrentMerchant, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object } } } }, responses: { '200': { description: Merchant updated, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
+  /api/v1/payment-type-categories:
+    get: { tags: [Merchants], summary: "List the CASH, ONLINE, and DIGITAL payment categories", operationId: listPaymentTypeCategories, security: [{ bearerAuth: [] }], responses: { '200': { description: Payment type categories } } }
+  /api/v1/payment-types:
+    get: { tags: [Merchants], summary: List merchant-scoped payment types, operationId: listPaymentTypes, security: [{ bearerAuth: [] }], parameters: [{ name: active_only, in: query, schema: { type: boolean } }], responses: { '200': { description: Merchant payment types } } }
+    post: { tags: [Merchants], summary: Create a merchant-scoped payment type, operationId: createPaymentType, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PaymentTypeRequest' } } } }, responses: { '201': { description: Payment type created } } }
+  /api/v1/payment-types/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceID' }]
+    patch: { tags: [Merchants], summary: Update a merchant-scoped payment type, operationId: updatePaymentType, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PaymentTypeRequest' } } } }, responses: { '200': { description: Payment type updated } } }
+    delete: { tags: [Merchants], summary: Delete an unused merchant-scoped payment type, operationId: deletePaymentType, security: [{ bearerAuth: [] }], responses: { '204': { description: Payment type deleted }, '409': { description: Used payment types must be made inactive instead } } }
   /api/v1/pos/catalog:
     get: { tags: [Catalog], summary: List sellable variants with current price and shop stock, operationId: listPOSCatalog, security: [{ bearerAuth: [] }], parameters: [{ name: shop_id, in: query, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: POS catalog, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
   /api/v1/pos/quote:
     post: { tags: [Catalog], summary: Calculate an authoritative sale quote, operationId: quotePOSSale, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [lines], properties: { shop_id: { type: string, format: uuid }, customer_name: { type: string }, customer_phone: { type: string }, delivery_id: { type: string, format: uuid }, delivery_fee: { type: string }, manual_promotion: { type: string }, note: { type: string }, payment_method: { type: string }, promotion_id: { type: string, format: uuid }, lines: { type: array, items: { type: object, required: [variant_id, quantity], properties: { variant_id: { type: string, format: uuid }, quantity: { type: string } } } } } } } } }, responses: { '200': { description: "Server-calculated subtotal, discount, tax, delivery, and total", content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } } } }
   /api/v1/pos/orders:
-    post: { tags: [Catalog], summary: Complete an authoritative POS sale, operationId: createPOSSale, security: [{ bearerAuth: [] }], description: "Prices, promotion eligibility, customer creation, delivery fee, cash payment, fulfillment, inventory movements, audit, and ordered synchronization publication are committed atomically. The idempotency key prevents duplicate business effects. External payment methods are rejected until verified provider authorization is supplied through a dedicated provider flow.", requestBody: { required: true, content: { application/json: { schema: { type: object, required: [shop_id, lines, payment_method, idempotency_key], properties: { shop_id: { type: string, format: uuid }, customer_name: { type: string }, customer_phone: { type: string }, delivery_id: { type: string, format: uuid }, delivery_fee: { type: string }, manual_promotion: { type: string }, note: { type: string }, promotion_id: { type: string, format: uuid }, payment_method: { type: string, enum: [CASH] }, idempotency_key: { type: string }, lines: { type: array, items: { type: object, required: [variant_id, quantity], properties: { variant_id: { type: string, format: uuid }, quantity: { type: string } } } } } } } } }, responses: { '201': { description: Fulfilled order, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '409': { description: External payment authorization required or idempotency conflict } } }
+    post: { tags: [Catalog], summary: Complete an authoritative POS sale, operationId: createPOSSale, security: [{ bearerAuth: [] }], description: "The selected active merchant payment type is stored with the order and captured payment. CASH and ONLINE categories are available; DIGITAL returns FUTURE_IMPROVEMENT. Pricing, inventory, audit, and synchronization effects remain atomic and idempotent.", requestBody: { required: true, content: { application/json: { schema: { type: object, required: [shop_id, lines, payment_type_id, idempotency_key], properties: { shop_id: { type: string, format: uuid }, customer_name: { type: string }, customer_phone: { type: string }, delivery_id: { type: string, format: uuid }, delivery_fee: { type: string }, manual_promotion: { type: string }, note: { type: string }, promotion_id: { type: string, format: uuid }, payment_type_id: { type: string, format: uuid }, idempotency_key: { type: string }, lines: { type: array, items: { type: object, required: [variant_id, quantity], properties: { variant_id: { type: string, format: uuid }, quantity: { type: string } } } } } } } } }, responses: { '201': { description: Fulfilled order, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceEnvelope' } } } }, '409': { description: Digital payment type is a future improvement or idempotency conflict } } }
   /api/v1/pos/orders/{orderId}/refunds:
     post:
       tags: [Catalog]
@@ -2171,6 +2180,13 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    PaymentTypeRequest:
+      type: object
+      required: [name, category_code]
+      properties:
+        name: { type: string, maxLength: 255 }
+        category_code: { type: string, enum: [CASH, ONLINE, DIGITAL] }
+        is_active: { type: boolean }
     HealthResponse:
       type: object
       required: [status, service, timestamp]
@@ -3422,7 +3438,8 @@ components:
         note: { type: string }
         payment_status: { type: string, enum: [UNPAID, DEPOSIT_PAID, PAID] }
         deposit_amount: { type: string }
-        payment_method: { type: string, enum: [CASH, CARD, BANK_TRANSFER, ONLINE, WALLET, OTHER] }
+        payment_type_id: { type: string, format: uuid }
+        payment_method: { type: string, deprecated: true, description: Historical compatibility snapshot; new clients select payment_type_id. }
         parts:
           type: array
           items:
@@ -3552,10 +3569,10 @@ components:
         value: { type: string, minLength: 1, maxLength: 500 }
     RepairPaymentRequest:
       type: object
-      required: [kind, method, amount, idempotency_key]
+      required: [kind, payment_type_id, amount, idempotency_key]
       properties:
         kind: { type: string, enum: [DEPOSIT, FINAL, ADJUSTMENT] }
-        method: { type: string }
+        payment_type_id: { type: string, format: uuid }
         amount: { type: string }
         idempotency_key: { type: string }
         allocations:

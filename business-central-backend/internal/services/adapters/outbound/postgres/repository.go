@@ -40,6 +40,25 @@ func nullableString(value *string) any {
 
 func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 
+func resolvePaymentType(ctx context.Context, tx pgx.Tx, merchantID, paymentTypeID, legacyMethod string) (string, string, string, error) {
+	var id, name, category string
+	if strings.TrimSpace(paymentTypeID) != "" {
+		if err := tx.QueryRow(ctx, `SELECT id,name,category_code FROM payment_types WHERE merchant_id=$1::uuid AND id=$2::uuid AND is_active`, merchantID, paymentTypeID).Scan(&id, &name, &category); err != nil {
+			return "", "", "", app.NewError("VALIDATION_ERROR", "The selected payment type is not available for this merchant.", 400)
+		}
+	} else if strings.EqualFold(strings.TrimSpace(legacyMethod), "CASH") || strings.TrimSpace(legacyMethod) == "" {
+		if err := tx.QueryRow(ctx, `SELECT id,name,category_code FROM payment_types WHERE merchant_id=$1::uuid AND category_code='CASH' AND is_active ORDER BY CASE WHEN name='Cash' THEN 0 ELSE 1 END,created_at LIMIT 1`, merchantID).Scan(&id, &name, &category); err != nil {
+			return "", "", "", app.NewError("VALIDATION_ERROR", "Create an active cash payment type before recording payment.", 400)
+		}
+	} else {
+		return "", "", "", app.NewError("VALIDATION_ERROR", "Select an active merchant payment type.", 400)
+	}
+	if category == "DIGITAL" {
+		return "", "", "", app.NewError("FUTURE_IMPROVEMENT", "Digital payment types are reserved for a future improvement and cannot be used yet.", 409)
+	}
+	return id, name, category, nil
+}
+
 var _ outbound.Repository = (*Repository)(nil)
 
 func contextPrefix() string {
@@ -992,16 +1011,16 @@ func (r *Repository) CreateRepairOrder(ctx context.Context, c *authdto.Claims, x
 			return dto.RepairOrder{}, err
 		}
 		if deposit != "0" {
-			method := x.DepositPaymentMethod
-			if method == "" {
-				method = "CASH"
+			paymentTypeID, paymentTypeName, _, paymentTypeErr := resolvePaymentType(ctx, tx, c.MerchantID, x.DepositPaymentTypeID, x.DepositPaymentMethod)
+			if paymentTypeErr != nil {
+				return dto.RepairOrder{}, paymentTypeErr
 			}
 			key := x.DepositIdempotencyKey
 			if key == "" {
 				key = "repair:" + v.ID + ":deposit"
 			}
 			var paymentID string
-			if err = tx.QueryRow(ctx, `INSERT INTO payments(merchant_id,order_id,method,status,amount,idempotency_key,captured_at) SELECT $1,so.order_id,$3,'CAPTURED',$4,$5,now() FROM service_orders so WHERE so.merchant_id=$1 AND so.id=$2 RETURNING id`, c.MerchantID, x.ServiceOrderID, method, deposit, key).Scan(&paymentID); err != nil {
+			if err = tx.QueryRow(ctx, `INSERT INTO payments(merchant_id,order_id,payment_type_id,method,status,amount,idempotency_key,captured_at) SELECT $1,so.order_id,$3,$4,'CAPTURED',$5,$6,now() FROM service_orders so WHERE so.merchant_id=$1 AND so.id=$2 RETURNING id`, c.MerchantID, x.ServiceOrderID, paymentTypeID, paymentTypeName, deposit, key).Scan(&paymentID); err != nil {
 				return dto.RepairOrder{}, err
 			}
 			if _, err = tx.Exec(ctx, `INSERT INTO repair_payment_allocations(merchant_id,repair_order_id,payment_id,payment_kind) VALUES($1,$2,$3,'DEPOSIT')`, c.MerchantID, v.ID, paymentID); err != nil {
@@ -1591,7 +1610,7 @@ func (r *Repository) CreateRepairTicket(ctx context.Context, c *authdto.Claims, 
 				method = "CASH"
 			}
 			payment, paymentErr := r.CreateRepairPayment(txCtx, c, repairOrder.ID, dto.RepairPaymentRequest{
-				Kind: kind, Method: method, Amount: amount, IdempotencyKey: x.IdempotencyKey + ":payment",
+				Kind: kind, PaymentTypeID: x.PaymentTypeID, Method: method, Amount: amount, IdempotencyKey: x.IdempotencyKey + ":payment",
 			})
 			if paymentErr != nil {
 				return dto.RepairTicket{}, paymentErr
@@ -2074,10 +2093,10 @@ func (r *Repository) DeleteRepairOrder(ctx context.Context, c *authdto.Claims, i
 func (r *Repository) ListRepairPayments(ctx context.Context, c *authdto.Claims, orderID string, q app.ListQuery) ([]dto.RepairPayment, int, error) {
 	w, a := scoped(c, q, "a", "a.payment_id::text")
 	w, a = addFilter(w, a, "a.repair_order_id=$%d", orderID)
-	return listRows(ctx, r.pool, contextPrefix(), "SELECT COUNT(*) FROM repair_payment_allocations a WHERE "+w, "SELECT p.id,a.repair_order_id,a.payment_kind,p.method,p.status,p.amount::text,p.created_at,COALESCE((SELECT jsonb_agg(jsonb_build_object('work_item_id',allocation.work_item_id::text,'amount',allocation.amount::text) ORDER BY allocation.work_item_id) FROM service_work_item_payment_allocations allocation WHERE allocation.merchant_id=a.merchant_id AND allocation.payment_id=a.payment_id),'[]'::jsonb) FROM repair_payment_allocations a JOIN payments p ON p.merchant_id=a.merchant_id AND p.id=a.payment_id CROSS JOIN ctx WHERE "+w+" ORDER BY p.created_at", a, q, func(rows pgx.Rows) (dto.RepairPayment, error) {
+	return listRows(ctx, r.pool, contextPrefix(), "SELECT COUNT(*) FROM repair_payment_allocations a WHERE "+w, "SELECT p.id,a.repair_order_id,a.payment_kind,p.method,COALESCE(p.payment_type_id::text,''),COALESCE(pt.category_code,''),p.status,p.amount::text,p.created_at,COALESCE((SELECT jsonb_agg(jsonb_build_object('work_item_id',allocation.work_item_id::text,'amount',allocation.amount::text) ORDER BY allocation.work_item_id) FROM service_work_item_payment_allocations allocation WHERE allocation.merchant_id=a.merchant_id AND allocation.payment_id=a.payment_id),'[]'::jsonb) FROM repair_payment_allocations a JOIN payments p ON p.merchant_id=a.merchant_id AND p.id=a.payment_id LEFT JOIN payment_types pt ON pt.merchant_id=p.merchant_id AND pt.id=p.payment_type_id CROSS JOIN ctx WHERE "+w+" ORDER BY p.created_at", a, q, func(rows pgx.Rows) (dto.RepairPayment, error) {
 		var v dto.RepairPayment
 		var allocations json.RawMessage
-		err := rows.Scan(&v.ID, &v.RepairOrderID, &v.Kind, &v.Method, &v.Status, &v.Amount, &v.CreatedAt, &allocations)
+		err := rows.Scan(&v.ID, &v.RepairOrderID, &v.Kind, &v.Method, &v.PaymentTypeID, &v.CategoryCode, &v.Status, &v.Amount, &v.CreatedAt, &allocations)
 		if err == nil {
 			err = json.Unmarshal(allocations, &v.Allocations)
 		}
@@ -2086,10 +2105,17 @@ func (r *Repository) ListRepairPayments(ctx context.Context, c *authdto.Claims, 
 }
 
 func (r *Repository) CreateRepairPayment(ctx context.Context, c *authdto.Claims, orderID string, x dto.RepairPaymentRequest) (dto.RepairPayment, error) {
-	if err := required(orderID, x.Kind, x.Method, x.Amount, x.IdempotencyKey); err != nil {
+	if err := required(orderID, x.Kind, x.Amount, x.IdempotencyKey); err != nil {
 		return dto.RepairPayment{}, err
 	}
+	if strings.TrimSpace(x.PaymentTypeID) == "" && strings.TrimSpace(x.Method) == "" {
+		return dto.RepairPayment{}, app.Validation("payment_type_id is required.", map[string]any{"payment_type_id": "required"})
+	}
 	return writeIdempotent(ctx, r.pool, c, "repair.payment", x.IdempotencyKey, x, func(tx pgx.Tx) (dto.RepairPayment, error) {
+		paymentTypeID, paymentTypeName, categoryCode, paymentTypeErr := resolvePaymentType(ctx, tx, c.MerchantID, x.PaymentTypeID, x.Method)
+		if paymentTypeErr != nil {
+			return dto.RepairPayment{}, paymentTypeErr
+		}
 		var totalCost, paid string
 		var serviceOrderID, orderIDCanonical string
 		if err := tx.QueryRow(ctx, `SELECT ro.total_cost::text,COALESCE((SELECT SUM(p.amount-COALESCE((SELECT SUM(rf.amount) FROM refunds rf WHERE rf.merchant_id=p.merchant_id AND rf.payment_id=p.id AND rf.status='SUCCEEDED'),0)) FROM repair_payment_allocations a JOIN payments p ON p.merchant_id=a.merchant_id AND p.id=a.payment_id WHERE a.merchant_id=ro.merchant_id AND a.repair_order_id=ro.id AND p.status IN ('CAPTURED','PARTIALLY_REFUNDED','REFUNDED')),0)::text,ro.service_order_id,so.order_id FROM repair_orders ro JOIN service_orders so ON so.merchant_id=ro.merchant_id AND so.id=ro.service_order_id WHERE ro.merchant_id=$1::uuid AND ro.id=$2 FOR UPDATE`, c.MerchantID, orderID).Scan(&totalCost, &paid, &serviceOrderID, &orderIDCanonical); err != nil {
@@ -2107,7 +2133,7 @@ func (r *Repository) CreateRepairPayment(ctx context.Context, c *authdto.Claims,
 			return dto.RepairPayment{}, app.Validation("Payment exceeds the remaining repair balance.", map[string]any{"amount": "must not exceed the outstanding balance"})
 		}
 		var paymentID string
-		if err := tx.QueryRow(ctx, `INSERT INTO payments(merchant_id,order_id,method,status,amount,idempotency_key,captured_at) VALUES($1,$2,$3,'CAPTURED',$4,$5,now()) ON CONFLICT (merchant_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`, c.MerchantID, orderIDCanonical, x.Method, x.Amount, x.IdempotencyKey).Scan(&paymentID); err != nil {
+		if err := tx.QueryRow(ctx, `INSERT INTO payments(merchant_id,order_id,payment_type_id,method,status,amount,idempotency_key,captured_at) VALUES($1,$2,$3,$4,'CAPTURED',$5,$6,now()) ON CONFLICT (merchant_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key RETURNING id`, c.MerchantID, orderIDCanonical, paymentTypeID, paymentTypeName, x.Amount, x.IdempotencyKey).Scan(&paymentID); err != nil {
 			return dto.RepairPayment{}, err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO repair_payment_allocations(merchant_id,repair_order_id,payment_id,payment_kind) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, c.MerchantID, orderID, paymentID, x.Kind); err != nil {
@@ -2121,6 +2147,8 @@ func (r *Repository) CreateRepairPayment(ctx context.Context, c *authdto.Claims,
 		if err := tx.QueryRow(ctx, `SELECT p.id,a.repair_order_id,a.payment_kind,p.method,p.status,p.amount::text,p.created_at FROM repair_payment_allocations a JOIN payments p ON p.merchant_id=a.merchant_id AND p.id=a.payment_id WHERE a.merchant_id=$1 AND a.payment_id=$2`, c.MerchantID, paymentID).Scan(&v.ID, &v.RepairOrderID, &v.Kind, &v.Method, &v.Status, &v.Amount, &v.CreatedAt); err != nil {
 			return dto.RepairPayment{}, err
 		}
+		v.PaymentTypeID = paymentTypeID
+		v.CategoryCode = categoryCode
 		v.Allocations = paymentAllocations
 		var newPaid string
 		if err := tx.QueryRow(ctx, `SELECT COALESCE(SUM(p.amount-COALESCE((SELECT SUM(rf.amount) FROM refunds rf WHERE rf.merchant_id=p.merchant_id AND rf.payment_id=p.id AND rf.status='SUCCEEDED'),0)),0)::text FROM repair_payment_allocations a JOIN payments p ON p.merchant_id=a.merchant_id AND p.id=a.payment_id WHERE a.merchant_id=$1 AND a.repair_order_id=$2 AND p.status IN ('CAPTURED','PARTIALLY_REFUNDED','REFUNDED')`, c.MerchantID, orderID).Scan(&newPaid); err != nil {

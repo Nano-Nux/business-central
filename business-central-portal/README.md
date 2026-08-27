@@ -68,8 +68,8 @@ authoritative.
 POS checkout has a dedicated temporary-offline policy. It atomically stores a
 provisional receipt, complete line/totals/payment/inventory snapshots, and a
 typed `POS_CHECKOUT` operation. Pending checkout quantities reduce available
-stock on that device. Cash is provisional; card, QR, wallet, and bank methods
-remain pending authorization and are never displayed as captured. On reconnect
+stock on that device. Merchant CASH-category types are provisional; ONLINE
+types remain pending and are never displayed as captured offline. On reconnect
 the backend revalidates scope and recalculates the canonical aggregate; a
 mismatch remains visible for review and a match links the provisional ID to the
 canonical order.

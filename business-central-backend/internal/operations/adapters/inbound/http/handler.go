@@ -27,6 +27,11 @@ func NewHandler(useCases operationsinbound.Operations, authorization inbound.Aut
 }
 
 func (h *Handler) RegisterRoutes(r fiber.Router) {
+	r.Get("/payment-type-categories", h.listPaymentTypeCategories)
+	r.Get("/payment-types", h.listPaymentTypes)
+	r.Post("/payment-types", h.createPaymentType)
+	r.Patch("/payment-types/:id", h.updatePaymentType)
+	r.Delete("/payment-types/:id", h.deletePaymentType)
 	r.Get("/pricing/price-lists", h.listPriceLists)
 	r.Post("/pricing/price-lists", h.createPriceList)
 	r.Patch("/pricing/price-lists/:id", h.updatePriceList)
@@ -53,6 +58,78 @@ func (h *Handler) RegisterRoutes(r fiber.Router) {
 	r.Get("/inventory/receivable-lines", h.listReceivableLines)
 	r.Post("/inventory/stock-in", h.stockIn)
 	r.Post("/inventory/stock-checkout", h.stockOut)
+}
+
+func (h *Handler) listPaymentTypeCategories(c fiber.Ctx) error {
+	if err := h.requirePermission(c, "tenant.read"); err != nil {
+		return err
+	}
+	ctx, cancel := contextWithTimeout(c)
+	defer cancel()
+	items, err := h.Operations.ListPaymentTypeCategories(ctx)
+	if err != nil {
+		return app.Internal(err)
+	}
+	return c.JSON(map[string]any{"data": items, "meta": map[string]any{}})
+}
+
+func (h *Handler) listPaymentTypes(c fiber.Ctx) error {
+	if err := h.requirePermission(c, "tenant.read"); err != nil {
+		return err
+	}
+	ctx, cancel := contextWithTimeout(c)
+	defer cancel()
+	items, err := h.Operations.ListPaymentTypes(ctx, claims(c), strings.EqualFold(c.Query("active_only"), "true"))
+	if err != nil {
+		return app.Internal(err)
+	}
+	return c.JSON(map[string]any{"data": items, "meta": map[string]any{}})
+}
+
+func (h *Handler) createPaymentType(c fiber.Ctx) error {
+	if err := h.requirePermission(c, "membership.manage"); err != nil {
+		return err
+	}
+	var request operationsdto.PaymentTypeRequest
+	if err := c.Bind().JSON(&request); err != nil {
+		return app.NewError("VALIDATION_ERROR", "Request body must be valid JSON.", 400)
+	}
+	ctx, cancel := contextWithTimeout(c)
+	defer cancel()
+	item, err := h.Operations.CreatePaymentType(ctx, claims(c), request)
+	if err != nil {
+		return databaseError(err)
+	}
+	return c.Status(201).JSON(map[string]any{"data": item, "meta": map[string]any{}})
+}
+
+func (h *Handler) updatePaymentType(c fiber.Ctx) error {
+	if err := h.requirePermission(c, "membership.manage"); err != nil {
+		return err
+	}
+	var request operationsdto.PaymentTypeRequest
+	if err := c.Bind().JSON(&request); err != nil {
+		return app.NewError("VALIDATION_ERROR", "Request body must be valid JSON.", 400)
+	}
+	ctx, cancel := contextWithTimeout(c)
+	defer cancel()
+	item, err := h.Operations.UpdatePaymentType(ctx, claims(c), c.Params("id"), request)
+	if err != nil {
+		return noResourceOrDatabase(err, "Payment type")
+	}
+	return c.JSON(map[string]any{"data": item, "meta": map[string]any{}})
+}
+
+func (h *Handler) deletePaymentType(c fiber.Ctx) error {
+	if err := h.requirePermission(c, "membership.manage"); err != nil {
+		return err
+	}
+	ctx, cancel := contextWithTimeout(c)
+	defer cancel()
+	if err := h.Operations.DeletePaymentType(ctx, claims(c), c.Params("id")); err != nil {
+		return noResource(err, "Payment type")
+	}
+	return c.Status(204).Send(nil)
 }
 
 func (h *Handler) listReceivableLines(c fiber.Ctx) error {

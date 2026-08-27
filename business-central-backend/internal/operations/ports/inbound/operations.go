@@ -9,6 +9,11 @@ import (
 )
 
 type Operations interface {
+	ListPaymentTypeCategories(context.Context) ([]operationsdto.PaymentTypeCategory, error)
+	ListPaymentTypes(context.Context, *authdto.Claims, bool) ([]operationsdto.PaymentType, error)
+	CreatePaymentType(context.Context, *authdto.Claims, operationsdto.PaymentTypeRequest) (operationsdto.PaymentType, error)
+	UpdatePaymentType(context.Context, *authdto.Claims, string, operationsdto.PaymentTypeRequest) (operationsdto.PaymentType, error)
+	DeletePaymentType(context.Context, *authdto.Claims, string) error
 	ListPriceLists(context.Context, *authdto.Claims) ([]operationsdto.PriceList, error)
 	CreatePriceList(context.Context, *authdto.Claims, operationsdto.PriceListRequest) (operationsdto.PriceList, error)
 	UpdatePriceList(context.Context, *authdto.Claims, string, operationsdto.PriceListRequest) (operationsdto.PriceList, error)

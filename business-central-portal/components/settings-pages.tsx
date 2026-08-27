@@ -38,6 +38,11 @@ export function SettingsPage() {
         description="Manage your business details and how invoices are printed."
       />
       <div className="settings-grid">
+        <Link href="/settings/payment-types" className="settings-card">
+          <span className="stat-icon mint"><Icon name="receipt" /></span>
+          <div><h2>Payment types</h2><p>Merchant-wide Cash, Online, and future Digital payment choices.</p></div>
+          <Icon name="arrow" />
+        </Link>
         <Link href="/settings/merchant" className="settings-card">
           <span className="stat-icon mint">
             <Icon name="store" />

@@ -21,6 +21,20 @@ var _ operationsinbound.Operations = (*Service)(nil)
 
 func invalid(message string) error { return app.Validation(message, nil) }
 
+func (s *Service) CreatePaymentType(ctx context.Context, claims *authdto.Claims, request operationsdto.PaymentTypeRequest) (operationsdto.PaymentType, error) {
+	if err := domainops.PaymentType(request.Name, request.CategoryCode); err != nil {
+		return operationsdto.PaymentType{}, invalid("Payment type name and category_code CASH, ONLINE, or DIGITAL are required.")
+	}
+	return s.Repository.CreatePaymentType(ctx, claims, request)
+}
+
+func (s *Service) UpdatePaymentType(ctx context.Context, claims *authdto.Claims, id string, request operationsdto.PaymentTypeRequest) (operationsdto.PaymentType, error) {
+	if err := domainops.PaymentType(request.Name, request.CategoryCode); err != nil {
+		return operationsdto.PaymentType{}, invalid("Payment type name and category_code CASH, ONLINE, or DIGITAL are required.")
+	}
+	return s.Repository.UpdatePaymentType(ctx, claims, id, request)
+}
+
 func (s *Service) CreatePriceList(ctx context.Context, claims *authdto.Claims, request operationsdto.PriceListRequest) (operationsdto.PriceList, error) {
 	if _, err := domainops.NewPriceList(request.Code, request.CurrencyCode); err != nil {
 		return operationsdto.PriceList{}, invalid("Price list code and currency_code are required.")

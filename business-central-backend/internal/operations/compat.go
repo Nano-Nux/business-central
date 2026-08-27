@@ -4,6 +4,9 @@ package operations
 import "business-central-backend/internal/operations/application/dto"
 
 type PriceList = dto.PriceList
+type PaymentType = dto.PaymentType
+type PaymentTypeCategory = dto.PaymentTypeCategory
+type PaymentTypeRequest = dto.PaymentTypeRequest
 type ProductPrice = dto.ProductPrice
 type Promotion = dto.Promotion
 type PromotionCode = dto.PromotionCode

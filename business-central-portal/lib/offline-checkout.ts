@@ -65,6 +65,8 @@ export type QueueOfflineCheckoutInput = {
   deliveryFee?: string;
   note?: string;
   paymentMethod: string;
+  paymentTypeId?: string;
+  paymentCategory?: "CASH" | "ONLINE" | "DIGITAL";
 };
 
 function cents(value: string | number | undefined) {
@@ -159,7 +161,8 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
   const provisionalId = input.provisionalId ?? randomUuid();
   const savedAt = new Date().toISOString();
   const snapshot = calculateOfflineCheckoutSnapshot(input);
-  const method = input.paymentMethod.toUpperCase();
+  const method = input.paymentMethod;
+  const category = input.paymentCategory ?? (method.toUpperCase() === "CASH" ? "CASH" : "ONLINE");
   const lineSnapshots: OfflineCheckoutProjection["line_snapshots"] = input.lines.map(
     ({ item, quantity }) => ({
       variant_id: item.id,
@@ -180,7 +183,7 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
     provisional_id: provisionalId,
     shop_id: input.shop.id,
     saved_at: savedAt,
-    status: method === "CASH" ? "PENDING_SYNCHRONIZATION" : "PENDING_PAYMENT_AUTHORIZATION",
+    status: category === "CASH" ? "PENDING_SYNCHRONIZATION" : "PENDING_PAYMENT_AUTHORIZATION",
     ...(input.customerName ? { customer_name: input.customerName } : {}),
     ...(input.customerPhone ? { customer_phone: input.customerPhone } : {}),
     ...(input.delivery
@@ -195,7 +198,7 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
     ...(input.note ? { note: input.note } : {}),
     payment: {
       method,
-      status: method === "CASH" ? "PROVISIONAL_CASH" : "PENDING_AUTHORIZATION",
+      status: category === "CASH" ? "PROVISIONAL_CASH" : "PENDING_AUTHORIZATION",
     },
     snapshot,
     line_snapshots: lineSnapshots,
@@ -216,6 +219,7 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
       manual_promotion: input.manualPromotion || "0",
       ...(input.note ? { note: input.note } : {}),
       payment_method: method,
+      ...(input.paymentTypeId ? { payment_type_id: input.paymentTypeId } : {}),
       idempotency_key: provisionalId,
     },
     snapshot,

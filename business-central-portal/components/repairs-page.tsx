@@ -66,6 +66,7 @@ import type {
   CustomFieldDefinition,
   Brand,
   RepairPreset,
+  PaymentType,
   Variant,
 } from "@/lib/types";
 
@@ -379,6 +380,8 @@ function TicketDetails({
   const payments = useResource<RepairPayment>(
     `/repairs/orders/${repair.id}/payments?page_index=0&page_size=100`,
   );
+  const paymentTypes = useResource<PaymentType>("/payment-types?active_only=true");
+  const usablePaymentTypes = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
   const images = useResource<RepairImage>(
     `/repairs/orders/${repair.id}/images?page_index=0&page_size=100`,
   );
@@ -487,8 +490,10 @@ function TicketDetails({
     const values = new FormData(event.currentTarget);
     setPaymentError("");
     try {
-      const method = String(values.get("method"));
-      if (offline.status === "offline" && method !== "CASH") {
+      const paymentTypeId = String(values.get("payment_type_id"));
+      const paymentType = usablePaymentTypes.find((item) => item.id === paymentTypeId);
+      if (!paymentType) throw new Error("Select an active payment type.");
+      if (offline.status === "offline" && paymentType.category_code !== "CASH") {
         throw new Error("External repair payment authorization requires a connection.");
       }
       const paymentAmount = Number(values.get("amount"));
@@ -512,7 +517,8 @@ function TicketDetails({
       }
       const body = {
         kind: "FINAL",
-        method,
+        payment_type_id: paymentType.id,
+        method: paymentType.name,
         amount: String(values.get("amount")),
         idempotency_key: `repair-${repair.id}-${crypto.randomUUID()}`,
         allocations,
@@ -1244,13 +1250,9 @@ function TicketDetails({
               required
             />
           </Field>
-          <Field label="Payment method">
-            <select name="method" defaultValue="CASH">
-              <option>CASH</option>
-              <option>CARD</option>
-              <option>BANK_TRANSFER</option>
-              <option>WALLET</option>
-              <option>OTHER</option>
+          <Field label="Payment type">
+            <select name="payment_type_id" defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id} required>
+              {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
             </select>
           </Field>
           <div className="modal-actions">
@@ -1379,6 +1381,8 @@ export function RepairsPage() {
   const promotions = useResource<Promotion>(
     "/promotions?page_index=0&page_size=100&filter=is_active:true",
   );
+  const paymentTypes = useResource<PaymentType>("/payment-types?active_only=true");
+  const usablePaymentTypes = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
   const services = useResource<ServiceCatalog>(
     "/services/catalog?page_index=0&page_size=100&filter=is_active:true",
   );
@@ -1471,7 +1475,8 @@ export function RepairsPage() {
       const number = `REP-${crypto.randomUUID().replaceAll("-", "").slice(0, 16).toUpperCase()}`;
       const requestedPaymentStatus = String(form.get("payment_status") || "UNPAID");
       const requestedDeposit = paymentStatus === "DEPOSIT_PAID" ? depositAmount : "0";
-      const requestedPaymentMethod = String(form.get("deposit_method") || "CASH");
+      const requestedPaymentTypeId = String(form.get("deposit_payment_type_id") || "");
+      const requestedPaymentType = usablePaymentTypes.find((item) => item.id === requestedPaymentTypeId);
       const workItemIds = [crypto.randomUUID(), ...additionalWorkItems.map((item) => item.id)];
       const imageNames = ["images-ticket", ...workItemIds.map((_, index) => `images-${index}`)];
       const hasImages = imageNames.some((name) => imageAction(form, name) !== "KEEP");
@@ -1555,7 +1560,8 @@ export function RepairsPage() {
         additional_fee: "0",
         payment_status: requestedPaymentStatus,
         deposit_amount: requestedDeposit,
-        payment_method: requestedPaymentMethod,
+        payment_type_id: requestedPaymentType?.id,
+        payment_method: requestedPaymentType?.name,
         promotion_id: String(form.get("promotion_id") || "") || undefined,
         note: String(form.get("note") || "") || undefined,
         parts: partIds.map((variantId) => ({
@@ -1571,7 +1577,10 @@ export function RepairsPage() {
       if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
         throw new Error("Offline storage is required to save a repair ticket while disconnected.");
       }
-      if (requestedPaymentStatus !== "UNPAID" && requestedPaymentMethod !== "CASH") {
+      if (requestedPaymentStatus !== "UNPAID" && !requestedPaymentType) {
+        throw new Error("Select an active payment type.");
+      }
+      if (requestedPaymentStatus !== "UNPAID" && requestedPaymentType?.category_code !== "CASH" && offline.status === "offline") {
         throw new Error("External repair payment authorization requires a connection.");
       }
       if (offline.scope && offline.storageAvailable && images.length === 0) {
@@ -2684,29 +2693,23 @@ export function RepairsPage() {
                 </select>
               </Field>
               {paymentStatus === "DEPOSIT_PAID" && (
-                <>
-                  <Field label="Deposit amount">
-                    <input
-                      name="deposit_amount"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={depositAmount}
-                      onChange={(event) => setDepositAmount(event.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field label="Payment method">
-                    <select name="deposit_method">
-                      <option>CASH</option>
-                      <option>CARD</option>
-                      <option>BANK_TRANSFER</option>
-                      <option>WALLET</option>
-                      <option>OTHER</option>
-                    </select>
-                  </Field>
-                </>
+                <Field label="Deposit amount">
+                  <input
+                    name="deposit_amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={depositAmount}
+                    onChange={(event) => setDepositAmount(event.target.value)}
+                    required
+                  />
+                </Field>
               )}
+              {paymentStatus !== "UNPAID" && <Field label="Payment type">
+                <select name="deposit_payment_type_id" defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id} required>
+                  {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
+                </select>
+              </Field>}
             </div>
           </section>
           <section className="configuration-section">
