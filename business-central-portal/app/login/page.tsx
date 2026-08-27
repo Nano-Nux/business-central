@@ -122,7 +122,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@yourshop.com"
+                placeholder="email@yourshop.com"
                 required
                 autoFocus
               />
