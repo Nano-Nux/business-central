@@ -28,6 +28,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog AS $$
 $$;
 
 DROP POLICY IF EXISTS user_identity_self_access ON user_identities;
+DROP POLICY IF EXISTS user_identity_access ON user_identities;
 CREATE POLICY user_identity_access ON user_identities
     USING (
         id = app_current_user_id()
