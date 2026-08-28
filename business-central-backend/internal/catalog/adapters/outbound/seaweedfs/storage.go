@@ -17,16 +17,22 @@ import (
 )
 
 type Storage struct {
-	filerURL string
-	client   *http.Client
+	filerURL      string
+	authorization string
+	client        *http.Client
 }
 
 var _ media.Storage = (*Storage)(nil)
 
-func New(filerURL string) *Storage {
+func New(filerURL string, authorization ...string) *Storage {
+	var authHeader string
+	if len(authorization) > 0 {
+		authHeader = strings.TrimSpace(authorization[0])
+	}
 	return &Storage{
-		filerURL: strings.TrimRight(filerURL, "/"),
-		client:   &http.Client{Timeout: 30 * time.Second},
+		filerURL:      strings.TrimRight(filerURL, "/"),
+		authorization: authHeader,
+		client:        &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -52,6 +58,9 @@ func (s *Storage) Store(ctx context.Context, merchantID string, upload media.Upl
 		return "", err
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
+	if s.authorization != "" {
+		request.Header.Set("Authorization", s.authorization)
+	}
 	response, err := s.client.Do(request)
 	if err != nil {
 		return "", err

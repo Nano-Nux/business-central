@@ -10,23 +10,24 @@ import (
 )
 
 type Config struct {
-	DatabaseURL           string
-	Host                  string
-	Port                  string
-	PublicBaseURL         string
-	CORSOrigin            string
-	SeaweedFSFilerURL     string
-	JWTSecret             []byte
-	AccessTokenTTL        time.Duration
-	RefreshTokenTTL       time.Duration
-	Environment           string
-	AutoMigrate           bool
-	AutoInitSchema        bool
-	PasswordCost          int
-	AdminEmail            string
-	AdminPassword         string
-	PlatformAdminEmail    string
-	PlatformAdminPassword string
+	DatabaseURL                 string
+	Host                        string
+	Port                        string
+	PublicBaseURL               string
+	CORSOrigin                  string
+	SeaweedFSFilerURL           string
+	SeaweedFSFilerAuthorization string
+	JWTSecret                   []byte
+	AccessTokenTTL              time.Duration
+	RefreshTokenTTL             time.Duration
+	Environment                 string
+	AutoMigrate                 bool
+	AutoInitSchema              bool
+	PasswordCost                int
+	AdminEmail                  string
+	AdminPassword               string
+	PlatformAdminEmail          string
+	PlatformAdminPassword       string
 }
 
 func Load() (Config, error) {
@@ -73,23 +74,24 @@ func Load() (Config, error) {
 	publicBaseURL := envOr("PUBLIC_BASE_URL", fmt.Sprintf("http://localhost:%s", port))
 	corsOrigin := envOr("CORS_ORIGIN", "*")
 	return Config{
-		DatabaseURL:           databaseURL,
-		Host:                  envOr("HOST", "0.0.0.0"),
-		Port:                  port,
-		PublicBaseURL:         strings.TrimRight(publicBaseURL, "/"),
-		CORSOrigin:            corsOrigin,
-		SeaweedFSFilerURL:     envOr("SEAWEEDFS_FILER_URL", "http://localhost:8888"),
-		JWTSecret:             []byte(secret),
-		AccessTokenTTL:        accessTTL,
-		RefreshTokenTTL:       refreshTTL,
-		Environment:           environment,
-		AutoMigrate:           boolEnv("AUTO_MIGRATE", true),
-		AutoInitSchema:        boolEnv("AUTO_INIT_SCHEMA", false),
-		PasswordCost:          cost,
-		AdminEmail:            adminEmail,
-		AdminPassword:         adminPassword,
-		PlatformAdminEmail:    platformAdminEmail,
-		PlatformAdminPassword: platformAdminPassword,
+		DatabaseURL:                 databaseURL,
+		Host:                        envOr("HOST", "0.0.0.0"),
+		Port:                        port,
+		PublicBaseURL:               strings.TrimRight(publicBaseURL, "/"),
+		CORSOrigin:                  corsOrigin,
+		SeaweedFSFilerURL:           envOr("SEAWEEDFS_FILER_URL", "http://localhost:8888"),
+		SeaweedFSFilerAuthorization: strings.TrimSpace(os.Getenv("SEAWEEDFS_FILER_AUTHORIZATION")),
+		JWTSecret:                   []byte(secret),
+		AccessTokenTTL:              accessTTL,
+		RefreshTokenTTL:             refreshTTL,
+		Environment:                 environment,
+		AutoMigrate:                 boolEnv("AUTO_MIGRATE", true),
+		AutoInitSchema:              boolEnv("AUTO_INIT_SCHEMA", false),
+		PasswordCost:                cost,
+		AdminEmail:                  adminEmail,
+		AdminPassword:               adminPassword,
+		PlatformAdminEmail:          platformAdminEmail,
+		PlatformAdminPassword:       platformAdminPassword,
 	}, nil
 }
 

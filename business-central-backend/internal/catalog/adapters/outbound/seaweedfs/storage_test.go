@@ -20,6 +20,9 @@ func TestStoreUploadsToTenantMediaPath(t *testing.T) {
 		if !strings.HasPrefix(request.URL.Path, "/media/merchant-1/") || !strings.HasSuffix(request.URL.Path, ".png") {
 			t.Fatalf("unexpected path: %s", request.URL.Path)
 		}
+		if got := request.Header.Get("Authorization"); got != "Bearer filer-test-token" {
+			t.Fatalf("authorization header = %q", got)
+		}
 		file, _, err := request.FormFile("file")
 		if err != nil {
 			t.Fatal(err)
@@ -31,7 +34,7 @@ func TestStoreUploadsToTenantMediaPath(t *testing.T) {
 	}))
 	defer server.Close()
 
-	storage := New(server.URL)
+	storage := New(server.URL, "Bearer filer-test-token")
 	imageURL, err := storage.Store(context.Background(), "merchant-1", media.Upload{
 		FileName: "item.png", ContentType: "image/png", Content: strings.NewReader("image-data"), Size: 10,
 	})

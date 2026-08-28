@@ -23,6 +23,10 @@ publishes the API and read-only file hostname without exposing PostgreSQL. See
 [`deploy/README.md`](deploy/README.md) for setup, Cloudflare, and GitHub secret
 instructions.
 
+For the separate 256 MB datastore VPS that runs Docker PostgreSQL and
+SeaweedFS, see [`datastore/README.md`](datastore/README.md). That deployment
+uses the NVMe disk because the datastore VPS has no HDD.
+
 ## Read first
 
 1. `BUSINESS_CONTEXT.md` — business concepts and rules

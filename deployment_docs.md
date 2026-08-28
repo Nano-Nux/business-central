@@ -200,6 +200,7 @@ export HOST='127.0.0.1'
 export PORT='8080'
 export DATABASE_URL='generated-by-setup-vps'
 export SEAWEEDFS_FILER_URL='http://127.0.0.1:8888'
+export SEAWEEDFS_FILER_AUTHORIZATION='Bearer <service-token-if-filer-auth-is-enabled>'
 export CORS_ORIGIN='*'
 export PUBLIC_BASE_URL='https://business-central-backend.nanonux.com'
 export JWT_SECRET='random-secret-at-least-32-characters'
@@ -221,7 +222,7 @@ versioned migrations can run.
 Inspect variables while hiding secret values:
 
 ```powershell
-ssh -p 4998 root@147.135.16.160 "sed -E 's/(PASSWORD|SECRET|DATABASE_URL)=.*/REDACTED/' /etc/business-central/backend.env"
+ssh -p 4998 root@147.135.16.160 "sed -E 's/(PASSWORD|SECRET|DATABASE_URL|AUTHORIZATION)=.*/REDACTED/' /etc/business-central/backend.env"
 ```
 
 Validate shell syntax:
@@ -231,7 +232,11 @@ ssh -p 4998 root@147.135.16.160 "sh -n /etc/business-central/backend.env"
 ```
 
 Keep HOST=127.0.0.1, PORT=8080, and SEAWEEDFS_FILER_URL pointing to the private
-filer. Nginx owns public port 5000.
+filer when backend, database, and SeaweedFS share the VPS. If the backend is
+hosted externally, set SEAWEEDFS_FILER_URL to the public protected filer
+endpoint and set SEAWEEDFS_FILER_AUTHORIZATION to the complete Authorization
+header value expected by the filer-side proxy. Never put that service
+credential in a NEXT_PUBLIC_* portal variable.
 
 ## 6. SSH key for GitHub Actions
 
@@ -850,4 +855,3 @@ Admin Vercel variable:
 ```env
 NEXT_PUBLIC_API_URL=https://business-central-backend.nanonux.com/api/v1
 ```
-

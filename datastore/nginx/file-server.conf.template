@@ -1,0 +1,52 @@
+map_hash_bucket_size 128;
+
+map $http_authorization $filer_authorized {
+    default 0;
+    "Bearer ${SEAWEEDFS_AUTH_TOKEN}" 1;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    location = /healthz {
+        default_type text/plain;
+        return 200 "file-proxy ok\n";
+    }
+
+    # Public browser reads. SeaweedFS public filer listener is read-only.
+    location /media/ {
+        proxy_pass http://seaweedfs:8889;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    location / {
+        return 404;
+    }
+}
+
+server {
+    listen 81;
+    server_name _;
+
+    # Backend-only filer API. Nginx validates the shared service token before
+    # forwarding an upload to the private SeaweedFS filer listener.
+    client_max_body_size 1m;
+
+    location / {
+        if ($filer_authorized = 0) {
+            add_header WWW-Authenticate 'Bearer realm="business-central-filer"' always;
+            return 401;
+        }
+
+        proxy_pass http://seaweedfs:8888;
+        proxy_set_header Authorization "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}

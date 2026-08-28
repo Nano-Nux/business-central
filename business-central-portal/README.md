@@ -90,12 +90,14 @@ All direct image files follow the shop-logo rule, including product, variant,
 and repair images. The portal resizes the selected file and stores it in the
 scoped IndexedDB outbox while disconnected. On reconnect, the portal uploads
 the file through `/media/images/upload` to the backend's SeaweedFS-backed media
-service, replaces the queued marker with the returned relative `/media/...`
+service using the authenticated backend session, replaces the queued marker with the returned relative `/media/...`
 path, and then synchronizes the resource update. The database never stores the
 file-server hostname or port. The portal prefixes relative media paths only at
 render time using `NEXT_PUBLIC_FILE_SERVER_URL`; external image URLs and data
 URLs remain unchanged. In production, set that value to the stable public file
 hostname, for example `https://business-central-file.nanonux.com`.
+SeaweedFS service credentials belong only to the backend and must not be added
+to any `NEXT_PUBLIC_*` variable.
 
 ## Bluetooth receipt printing
 
