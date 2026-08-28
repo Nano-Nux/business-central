@@ -42,6 +42,7 @@ CREATE POLICY user_identity_access ON user_identities
     )
     WITH CHECK (
         id = app_current_user_id()
+        OR current_setting('app.auth_mode', true) = 'login'
         OR app_is_platform_admin()
         OR app_can_manage_memberships(app_current_merchant_id())
     );
@@ -62,6 +63,13 @@ CREATE POLICY tenant_select ON user_memberships FOR SELECT
         OR (merchant_id = app_current_merchant_id() AND identity_id = app_current_user_id() AND is_active)
         OR (merchant_id = app_current_merchant_id() AND app_can_manage_memberships(merchant_id))
     );
+`
+
+const userIdentityBootstrapPolicyFix = `
+DROP POLICY IF EXISTS user_identity_bootstrap_login ON user_identities;
+CREATE POLICY user_identity_bootstrap_login ON user_identities
+    FOR INSERT
+    WITH CHECK (current_setting('app.auth_mode', true) = 'login');
 `
 
 const onePricePerVariant = `
@@ -1242,6 +1250,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0034_repair_issues_conditions_presets", sql: repairIssuesConditionsPresets},
 		{version: "0035_repair_waiting_time", sql: repairWaitingTime},
 		{version: "0036_merchant_payment_types", sql: merchantPaymentTypes},
+		{version: "0037_user_identity_bootstrap_rls", sql: userIdentityBootstrapPolicyFix},
 	}
 	for _, migration := range migrations {
 		var applied bool

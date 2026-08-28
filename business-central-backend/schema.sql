@@ -6216,9 +6216,19 @@ ON CONFLICT (code) DO NOTHING;
 
 ALTER TABLE user_identities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_identities FORCE ROW LEVEL SECURITY;
-CREATE POLICY user_identity_self_access ON user_identities
-    USING (id = app_current_user_id() OR app_is_platform_admin())
-    WITH CHECK (id = app_current_user_id() OR app_is_platform_admin());
+DROP POLICY IF EXISTS user_identity_self_access ON user_identities;
+DROP POLICY IF EXISTS user_identity_access ON user_identities;
+CREATE POLICY user_identity_access ON user_identities
+    USING (
+        id = app_current_user_id()
+        OR current_setting('app.auth_mode', true) = 'login'
+        OR app_is_platform_admin()
+    )
+    WITH CHECK (
+        id = app_current_user_id()
+        OR current_setting('app.auth_mode', true) = 'login'
+        OR app_is_platform_admin()
+    );
 
 ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE refresh_tokens FORCE ROW LEVEL SECURITY;
