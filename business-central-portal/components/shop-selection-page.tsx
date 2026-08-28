@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useShop } from "@/lib/shop";
 import { formatShopAddress } from "@/lib/shop-address";
+import { resolveMediaURL } from "@/lib/media-url";
 import { Icon } from "./icons";
 import { BrandIcon } from "./brand-icon";
 import { Loading } from "./ui";
@@ -58,7 +59,7 @@ export function ShopSelectionPage() {
         <section className="shop-selection-grid" aria-label="Available shops">
           {shops.map((shop) => {
             const address = formatShopAddress(shop.address);
-            const logoUrl = shop.logo_url || shop.address?.logo_url;
+            const logoUrl = resolveMediaURL(shop.logo_url || shop.address?.logo_url);
             return (
               <button
                 type="button"

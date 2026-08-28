@@ -1,6 +1,7 @@
 import type { Invoice } from "./types";
 import { formatMoney, formatQuantity } from "./currency";
 import { formatDateOnly, formatShopDateTime } from "./date-time";
+import { resolveMediaURL } from "./media-url";
 
 export const INVOICE_FOOTER_PROMOTION = "More business solution? Contact to https://nanonux.com";
 
@@ -18,6 +19,7 @@ function paymentStatus(invoice: Invoice) {
 
 function loadLogo(invoice: Invoice): Promise<HTMLImageElement | null> {
   if (invoice.showLogo === false || !invoice.logoUrl?.trim()) return Promise.resolve(null);
+  const logoURL = resolveMediaURL(invoice.logoUrl);
   return new Promise((resolve) => {
     const image = new Image();
     const timer = window.setTimeout(() => resolve(null), 5000);
@@ -27,8 +29,8 @@ function loadLogo(invoice: Invoice): Promise<HTMLImageElement | null> {
     };
     image.onload = () => finish(image);
     image.onerror = () => finish(null);
-    if (/^https?:/i.test(invoice.logoUrl!)) image.crossOrigin = "anonymous";
-    image.src = invoice.logoUrl!;
+    if (/^https?:/i.test(logoURL)) image.crossOrigin = "anonymous";
+    image.src = logoURL;
   });
 }
 

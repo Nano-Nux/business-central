@@ -11,6 +11,7 @@ import { useShop } from "@/lib/shop";
 import { useOffline } from "@/lib/offline";
 import { SyncStatusPanel } from "./sync-status-panel";
 import { formatShopAddress } from "@/lib/shop-address";
+import { resolveMediaURL } from "@/lib/media-url";
 
 type NavItem = {
   href: string;
@@ -269,7 +270,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .slice(0, 2)
       .join("")
       .toUpperCase() ?? "—";
-  const shopLogoUrl = currentShop?.logo_url || currentShop?.address?.logo_url;
+  const shopLogoUrl = resolveMediaURL(currentShop?.logo_url || currentShop?.address?.logo_url);
 
   async function signOut() {
     try {

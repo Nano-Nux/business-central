@@ -54,15 +54,14 @@ invalid or mismatched image content, and decoded dimensions above 240 pixels,
 so SeaweedFS only receives validated reduced images.
 
 `SEAWEEDFS_FILER_URL` is the backend-to-filer address and
-`SEAWEEDFS_PUBLIC_URL` is the browser-viewable filer address stored in resource
-image records. Both default to `http://localhost:8888` for local development.
-When the backend runs in Docker, use `http://seaweed-filer:8888` for the internal
-filer URL while keeping the public URL reachable by portal users. In
-production, `SEAWEEDFS_PUBLIC_URL` is required, must use HTTPS, and must not be
-a loopback or private address. Put the filer behind a public HTTPS reverse
-proxy and allow the portal origin with CORS; image receipts use canvas and
-therefore require cross-origin image access. Portal pages render the stored
-public URL directly and do not proxy image reads through this backend.
+The backend stores uploaded media as a relative `/media/...` object path in
+resource image records. The browser-facing file-server hostname is not stored
+in PostgreSQL, so changing domains or ports does not require rewriting image
+data. When the backend runs in Docker, use `http://seaweed-filer:8888` for the
+internal filer URL. The portal prefixes stored paths at render time with its
+`NEXT_PUBLIC_FILE_SERVER_URL`; external URLs and Google Drive URLs remain
+absolute. Image receipts use canvas and therefore require cross-origin image
+access from the configured file-server origin.
 
 For a brand-new PostgreSQL database, set `AUTO_INIT_SCHEMA=true` for the first
 startup only. This explicitly applies the canonical `schema.sql`; leave it

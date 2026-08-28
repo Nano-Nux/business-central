@@ -14,6 +14,15 @@ Business Central is a multi-tenant business management platform for merchant adm
 
 The public-facing site is intentionally not an immediate development priority.
 
+## Production deployment
+
+The current Alpine NAT VPS deployment builds the backend in GitHub Actions and
+ships only a Linux runtime artifact to the server. Native OpenRC PostgreSQL and
+SeaweedFS services keep their data on the mounted HDD, while a Cloudflare Tunnel
+publishes the API and read-only file hostname without exposing PostgreSQL. See
+[`deploy/README.md`](deploy/README.md) for setup, Cloudflare, and GitHub secret
+instructions.
+
 ## Read first
 
 1. `BUSINESS_CONTEXT.md` — business concepts and rules

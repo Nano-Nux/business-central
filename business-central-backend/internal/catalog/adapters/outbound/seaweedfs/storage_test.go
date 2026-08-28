@@ -31,7 +31,7 @@ func TestStoreUploadsToTenantMediaPath(t *testing.T) {
 	}))
 	defer server.Close()
 
-	storage := New(server.URL, "https://images.example.test")
+	storage := New(server.URL)
 	imageURL, err := storage.Store(context.Background(), "merchant-1", media.Upload{
 		FileName: "item.png", ContentType: "image/png", Content: strings.NewReader("image-data"), Size: 10,
 	})
@@ -41,7 +41,7 @@ func TestStoreUploadsToTenantMediaPath(t *testing.T) {
 	if uploaded != "image-data" {
 		t.Fatalf("unexpected uploaded data: %s", uploaded)
 	}
-	if !strings.HasPrefix(imageURL, "https://images.example.test/media/merchant-1/") || !strings.HasSuffix(imageURL, ".png") {
-		t.Fatalf("unexpected public URL: %s", imageURL)
+	if !strings.HasPrefix(imageURL, "/media/merchant-1/") || !strings.HasSuffix(imageURL, ".png") {
+		t.Fatalf("unexpected stored path: %s", imageURL)
 	}
 }

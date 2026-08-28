@@ -17,18 +17,16 @@ import (
 )
 
 type Storage struct {
-	filerURL  string
-	publicURL string
-	client    *http.Client
+	filerURL string
+	client   *http.Client
 }
 
 var _ media.Storage = (*Storage)(nil)
 
-func New(filerURL, publicURL string) *Storage {
+func New(filerURL string) *Storage {
 	return &Storage{
-		filerURL:  strings.TrimRight(filerURL, "/"),
-		publicURL: strings.TrimRight(publicURL, "/"),
-		client:    &http.Client{Timeout: 30 * time.Second},
+		filerURL: strings.TrimRight(filerURL, "/"),
+		client:   &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -63,7 +61,9 @@ func (s *Storage) Store(ctx context.Context, merchantID string, upload media.Upl
 		message, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
 		return "", fmt.Errorf("SeaweedFS filer returned %s: %s", response.Status, strings.TrimSpace(string(message)))
 	}
-	return s.publicURL + objectPath, nil
+	// Persist only the object path. The browser-facing file-server base URL is
+	// deployment configuration and must not become part of database records.
+	return objectPath, nil
 }
 
 func extensionForContentType(contentType string) string {

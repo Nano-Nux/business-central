@@ -53,6 +53,7 @@ import { InvoiceReceipt } from "./invoice-receipt";
 import { RepairWaitingFields } from "./repair-waiting-fields";
 import { BarcodeScanner } from "./barcode-scanner";
 import { formatShopAddress } from "@/lib/shop-address";
+import { resolveMediaURL } from "@/lib/media-url";
 import { ImageSourceField, prepareImageSubmissions } from "./image-source-input";
 import { imageUploadMarker } from "@/lib/offline-images";
 import type {
@@ -926,7 +927,7 @@ function TicketDetails({
               {image.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={image.image_url}
+                  src={resolveMediaURL(image.image_url)}
                   alt={image.filename}
                   style={{ maxWidth: 120, maxHeight: 120, objectFit: "cover" }}
                 />

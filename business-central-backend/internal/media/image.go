@@ -10,6 +10,7 @@ import (
 	_ "image/png"
 	"io"
 	"net/url"
+	pathpkg "path"
 	"strings"
 
 	"business-central-backend/internal/app"
@@ -115,6 +116,13 @@ func NormalizeURL(request URLRequest, allowUpload bool) (Image, error) {
 	if !validSource {
 		return Image{}, app.Validation("source_type must be URL or GOOGLE_DRIVE for URL submissions.", nil)
 	}
+	if request.SourceType == "UPLOAD" {
+		storedPath, ok := normalizeStoredPath(request.ImageURL)
+		if !ok {
+			return Image{}, app.Validation("Uploaded images must use a relative /media/ path.", nil)
+		}
+		return Image{ImageURL: storedPath, SourceType: request.SourceType}, nil
+	}
 	parsed, err := url.ParseRequestURI(request.ImageURL)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 		return Image{}, app.Validation("Image URL must be a valid HTTP or HTTPS URL.", nil)
@@ -127,6 +135,31 @@ func NormalizeURL(request URLRequest, allowUpload bool) (Image, error) {
 		request.ImageURL = "https://drive.google.com/uc?export=view&id=" + url.QueryEscape(fileID)
 	}
 	return Image{ImageURL: request.ImageURL, SourceType: request.SourceType}, nil
+}
+
+// normalizeStoredPath accepts the relative path written by the file storage
+// adapter. Absolute upload URLs are accepted only for compatibility with data
+// created by older releases, then reduced to their path before persistence.
+func normalizeStoredPath(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", false
+	}
+	parsed, err := url.ParseRequestURI(trimmed)
+	if err != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", false
+	}
+	if !parsed.IsAbs() && (parsed.Host != "" || parsed.Scheme != "") {
+		return "", false
+	}
+	path := parsed.EscapedPath()
+	if path == "" || !strings.HasPrefix(path, "/media/") || path == "/media/" {
+		return "", false
+	}
+	if pathpkg.Clean(path) != path || strings.Contains(path, "//") {
+		return "", false
+	}
+	return path, true
 }
 
 func googleDriveFileID(parsed *url.URL) string {

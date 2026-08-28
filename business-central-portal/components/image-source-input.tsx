@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useState } from "react";
 import { upload } from "@/lib/api";
 import { blobToBase64, resizeImageFile } from "@/lib/image";
+import { resolveMediaURL } from "@/lib/media-url";
 import { randomUuid } from "@/lib/random-uuid";
 import type { OfflineImageUpload } from "@/lib/offline-images";
 import { Field } from "./ui";
@@ -60,7 +61,7 @@ export function ImageSourceField({
           <div className="image-preview-row">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={selectedPreview || currentUrl}
+              src={selectedPreview || resolveMediaURL(currentUrl)}
               alt={selectedPreview ? "Selected image preview" : "Saved image"}
             />
             <small>{selectedPreview ? "Selected image - save to upload" : "Saved image"}</small>

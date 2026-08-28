@@ -42,6 +42,7 @@ CREATE POLICY user_identity_access ON user_identities
     )
     WITH CHECK (
         id = app_current_user_id()
+        OR current_setting('app.auth_mode', true) = 'login'
         OR app_is_platform_admin()
         OR app_can_manage_memberships(app_current_merchant_id())
     );
@@ -62,6 +63,13 @@ CREATE POLICY tenant_select ON user_memberships FOR SELECT
         OR (merchant_id = app_current_merchant_id() AND identity_id = app_current_user_id() AND is_active)
         OR (merchant_id = app_current_merchant_id() AND app_can_manage_memberships(merchant_id))
     );
+`
+
+const userIdentityBootstrapPolicyFix = `
+DROP POLICY IF EXISTS user_identity_bootstrap_login ON user_identities;
+CREATE POLICY user_identity_bootstrap_login ON user_identities
+    FOR INSERT
+    WITH CHECK (current_setting('app.auth_mode', true) = 'login');
 `
 
 const onePricePerVariant = `
@@ -1180,6 +1188,7 @@ DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='orders_paym
 UPDATE payments p SET payment_type_id=pt.id FROM payment_types pt WHERE pt.merchant_id=p.merchant_id AND pt.name='Cash' AND p.method='CASH' AND p.payment_type_id IS NULL;
 UPDATE orders o SET payment_type_id=pt.id FROM payment_types pt WHERE pt.merchant_id=o.merchant_id AND pt.name='Cash' AND o.payment_type='CASH' AND o.payment_type_id IS NULL;
 ALTER TABLE payment_types ENABLE ROW LEVEL SECURITY; ALTER TABLE payment_types FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_select ON payment_types; DROP POLICY IF EXISTS tenant_insert ON payment_types; DROP POLICY IF EXISTS tenant_update ON payment_types; DROP POLICY IF EXISTS tenant_delete ON payment_types;
 CREATE POLICY tenant_select ON payment_types FOR SELECT USING(app_can_read_tenant(merchant_id));
 CREATE POLICY tenant_insert ON payment_types FOR INSERT WITH CHECK(app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
 CREATE POLICY tenant_update ON payment_types FOR UPDATE USING(app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage')) WITH CHECK(app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
@@ -1241,6 +1250,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0034_repair_issues_conditions_presets", sql: repairIssuesConditionsPresets},
 		{version: "0035_repair_waiting_time", sql: repairWaitingTime},
 		{version: "0036_merchant_payment_types", sql: merchantPaymentTypes},
+		{version: "0037_user_identity_bootstrap_rls", sql: userIdentityBootstrapPolicyFix},
 	}
 	for _, migration := range migrations {
 		var applied bool

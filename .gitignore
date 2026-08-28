@@ -1,0 +1,8 @@
+# Local deployment artifacts and credentials.
+.cloudflared-tunnel.token
+deploy/.cloudflared-tunnel.token
+deploy/*.token
+
+# Local build output.
+dist/
+*.tar.gz
