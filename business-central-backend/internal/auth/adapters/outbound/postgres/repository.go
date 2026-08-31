@@ -1457,8 +1457,12 @@ func assignRoles(ctx context.Context, tx pgx.Tx, merchantID, membershipID string
 	if _, err := tx.Exec(ctx, `DELETE FROM membership_roles WHERE merchant_id = $1 AND membership_id = $2`, merchantID, membershipID); err != nil {
 		return err
 	}
+	var grantedByMembershipID *string
+	if trimmed := strings.TrimSpace(grantedBy); trimmed != "" {
+		grantedByMembershipID = &trimmed
+	}
 	for _, roleID := range roleIDs {
-		if _, err := tx.Exec(ctx, `INSERT INTO membership_roles(merchant_id, membership_id, role_id, granted_by) VALUES ($1, $2, $3, $4)`, merchantID, membershipID, roleID, grantedBy); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO membership_roles(merchant_id, membership_id, role_id, granted_by_membership_id) VALUES ($1, $2, $3, $4)`, merchantID, membershipID, roleID, grantedByMembershipID); err != nil {
 			return err
 		}
 	}
