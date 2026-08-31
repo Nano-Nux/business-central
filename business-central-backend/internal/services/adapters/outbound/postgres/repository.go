@@ -1532,6 +1532,9 @@ func (r *Repository) CreateRepairTicket(ctx context.Context, c *authdto.Claims, 
 			}
 			result.WorkItems = append(result.WorkItems, workItem)
 		}
+		if err := autoCreateRepairPresets(ctx, tx, c.MerchantID, x.ShopID, workItems); err != nil {
+			return dto.RepairTicket{}, err
+		}
 		for _, resolved := range resolvedServiceItems {
 			if resolved.WorkItemID == nil {
 				resolved.WorkItemID = &result.WorkItems[0].ID

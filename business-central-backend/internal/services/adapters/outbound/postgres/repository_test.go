@@ -409,3 +409,53 @@ func TestApplyRepairWaitingRangeUsesAllDevices(t *testing.T) {
 func daysPtr(value int) *int { return &value }
 
 func stringPtr(value string) *string { return &value }
+
+func TestExtractUniquePresetValues(t *testing.T) {
+	workItems := []servicedto.RepairWorkItemRequest{
+		{
+			Issues:     []string{" Screen cracked ", "Water Damage", "screen cracked"},
+			Conditions: []string{"Scratched body", " Dented corner "},
+		},
+		{
+			Issues:     []string{"WATER DAMAGE", "Battery draining fast", ""},
+			Conditions: []string{"scratched body", "Heavy wear"},
+		},
+	}
+	issues, conditions := extractUniquePresetValues(workItems)
+	if len(issues) != 3 {
+		t.Fatalf("expected 3 unique issues, got %d: %#v", len(issues), issues)
+	}
+	if issues[0] != "Screen cracked" || issues[1] != "Water Damage" || issues[2] != "Battery draining fast" {
+		t.Fatalf("unexpected issues: %#v", issues)
+	}
+	if len(conditions) != 3 {
+		t.Fatalf("expected 3 unique conditions, got %d: %#v", len(conditions), conditions)
+	}
+	if conditions[0] != "Scratched body" || conditions[1] != "Dented corner" || conditions[2] != "Heavy wear" {
+		t.Fatalf("unexpected conditions: %#v", conditions)
+	}
+}
+
+func TestFilterNewPresetValues(t *testing.T) {
+	workItems := []servicedto.RepairWorkItemRequest{
+		{
+			Issues:     []string{"Screen cracked", "New Issue"},
+			Conditions: []string{"Scratched body", "New Condition"},
+		},
+	}
+	existingIssues := map[string]struct{}{
+		"screen cracked": {},
+	}
+	existingConditions := map[string]struct{}{
+		"scratched body": {},
+	}
+	newIssues, newConditions := filterNewPresetValues(workItems, existingIssues, existingConditions)
+	if len(newIssues) != 1 || newIssues[0] != "New Issue" {
+		t.Fatalf("expected only 'New Issue', got %#v", newIssues)
+	}
+	if len(newConditions) != 1 || newConditions[0] != "New Condition" {
+		t.Fatalf("expected only 'New Condition', got %#v", newConditions)
+	}
+}
+
+

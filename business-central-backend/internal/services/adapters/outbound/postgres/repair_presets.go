@@ -77,3 +77,114 @@ func (r *Repository) DeleteRepairPreset(ctx context.Context, c *authdto.Claims, 
 	_, err := r.pool.Exec(ctx, contextPrefix()+"DELETE FROM repair_presets x USING ctx WHERE x.merchant_id=$2::uuid AND x.id=$3::uuid", c.IdentityID, c.MerchantID, id)
 	return err
 }
+
+func extractUniquePresetValues(workItems []dto.RepairWorkItemRequest) ([]string, []string) {
+	var issues []string
+	var conditions []string
+	seenIssues := make(map[string]struct{})
+	seenConditions := make(map[string]struct{})
+
+	for _, item := range workItems {
+		for _, issue := range item.Issues {
+			val := strings.TrimSpace(issue)
+			if val == "" || len([]rune(val)) > 500 {
+				continue
+			}
+			key := strings.ToLower(val)
+			if _, exists := seenIssues[key]; !exists {
+				seenIssues[key] = struct{}{}
+				issues = append(issues, val)
+			}
+		}
+		for _, condition := range item.Conditions {
+			val := strings.TrimSpace(condition)
+			if val == "" || len([]rune(val)) > 500 {
+				continue
+			}
+			key := strings.ToLower(val)
+			if _, exists := seenConditions[key]; !exists {
+				seenConditions[key] = struct{}{}
+				conditions = append(conditions, val)
+			}
+		}
+	}
+	return issues, conditions
+}
+
+func filterNewPresetValues(workItems []dto.RepairWorkItemRequest, existingIssues, existingConditions map[string]struct{}) ([]string, []string) {
+	issues, conditions := extractUniquePresetValues(workItems)
+	var newIssues []string
+	var newConditions []string
+
+	for _, issue := range issues {
+		key := strings.ToLower(strings.TrimSpace(issue))
+		if _, exists := existingIssues[key]; !exists {
+			newIssues = append(newIssues, issue)
+		}
+	}
+	for _, condition := range conditions {
+		key := strings.ToLower(strings.TrimSpace(condition))
+		if _, exists := existingConditions[key]; !exists {
+			newConditions = append(newConditions, condition)
+		}
+	}
+	return newIssues, newConditions
+}
+
+func autoCreateRepairPresets(ctx context.Context, tx pgx.Tx, merchantID, shopID string, workItems []dto.RepairWorkItemRequest) error {
+	merchantID = strings.TrimSpace(merchantID)
+	shopID = strings.TrimSpace(shopID)
+	if merchantID == "" || shopID == "" || len(workItems) == 0 {
+		return nil
+	}
+	issues, conditions := extractUniquePresetValues(workItems)
+	if len(issues) == 0 && len(conditions) == 0 {
+		return nil
+	}
+
+	existingIssues := make(map[string]struct{})
+	existingConditions := make(map[string]struct{})
+
+	rows, err := tx.Query(ctx, `SELECT preset_type, lower(btrim(value)) FROM repair_presets WHERE merchant_id=$1::uuid AND shop_id=$2::uuid`, merchantID, shopID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var presetType, val string
+		if err := rows.Scan(&presetType, &val); err != nil {
+			return err
+		}
+		if presetType == "ISSUE" {
+			existingIssues[val] = struct{}{}
+		} else if presetType == "CONDITION" {
+			existingConditions[val] = struct{}{}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	newIssues, newConditions := filterNewPresetValues(workItems, existingIssues, existingConditions)
+
+	for _, issue := range newIssues {
+		if _, err := tx.Exec(ctx, `INSERT INTO repair_presets(merchant_id,shop_id,preset_type,value)
+			SELECT $1::uuid,$2::uuid,'ISSUE',$3 WHERE EXISTS(SELECT 1 FROM shops WHERE merchant_id=$1::uuid AND id=$2::uuid)
+			ON CONFLICT (merchant_id,shop_id,preset_type,lower(btrim(value))) DO NOTHING`,
+			merchantID, shopID, issue); err != nil {
+			return err
+		}
+	}
+	for _, condition := range newConditions {
+		if _, err := tx.Exec(ctx, `INSERT INTO repair_presets(merchant_id,shop_id,preset_type,value)
+			SELECT $1::uuid,$2::uuid,'CONDITION',$3 WHERE EXISTS(SELECT 1 FROM shops WHERE merchant_id=$1::uuid AND id=$2::uuid)
+			ON CONFLICT (merchant_id,shop_id,preset_type,lower(btrim(value))) DO NOTHING`,
+			merchantID, shopID, condition); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+
