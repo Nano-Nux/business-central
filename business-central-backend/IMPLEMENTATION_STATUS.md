@@ -6,7 +6,7 @@ Last reviewed: 2026-08-27
 
 - Merchant-scoped payment-type CRUD provides fixed CASH, ONLINE, and DIGITAL categories, default Cash provisioning, tenant-safe order/payment references, and shared POS/repair validation. DIGITAL capture is deliberately reserved for future improvement.
 
-- Repair work items persist ordered multi-value issues and optional conditions while retaining `issue_description` as the first-item compatibility alias. Merchant owners manage unique ISSUE and CONDITION presets per shop through tenant-safe CRUD endpoints; invoice and synchronization projections preserve the arrays.
+- Repair work items persist ordered multi-value issues and optional conditions while retaining `issue_description` as the first-item compatibility alias. Merchant owners manage unique ISSUE and CONDITION presets per shop through tenant-safe CRUD endpoints; ticket creation and work-item updates automatically persist any newly entered issues and conditions as shop presets if not already present. Invoice and synchronization projections preserve the arrays.
 - Repair work items persist automatic waiting start dates and canonical waiting end dates. Requests accept either `waiting_days` or `waiting_end_date`; responses and invoices derive both forms plus the whole-ticket range without duplicate ticket-level columns.
 
 - Repair billing supports catalog labor fees, shop-scoped tax inclusion/rates, repair payment states, notes, and calculated labor/tax/total fields. Repair orders use `total_cost` as their sole cost field.

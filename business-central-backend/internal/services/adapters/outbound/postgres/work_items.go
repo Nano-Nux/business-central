@@ -242,7 +242,8 @@ func (r *Repository) UpdateRepairWorkItem(ctx context.Context, c *authdto.Claims
 	}
 	return write(ctx, r.pool, c, func(tx pgx.Tx) (dto.RepairWorkItem, error) {
 		var serviceOrderID, serviceType string
-		if err := tx.QueryRow(ctx, `SELECT wi.service_order_id,so.service_type FROM service_order_work_items wi JOIN service_orders so ON so.merchant_id=wi.merchant_id AND so.id=wi.service_order_id WHERE wi.merchant_id=$1::uuid AND wi.id=$2::uuid`, c.MerchantID, id).Scan(&serviceOrderID, &serviceType); err != nil {
+		var shopID *string
+		if err := tx.QueryRow(ctx, `SELECT wi.service_order_id,so.service_type,so.shop_id::text FROM service_order_work_items wi JOIN service_orders so ON so.merchant_id=wi.merchant_id AND so.id=wi.service_order_id WHERE wi.merchant_id=$1::uuid AND wi.id=$2::uuid`, c.MerchantID, id).Scan(&serviceOrderID, &serviceType, &shopID); err != nil {
 			return dto.RepairWorkItem{}, err
 		}
 		if x.Fields != nil {
@@ -283,6 +284,22 @@ func (r *Repository) UpdateRepairWorkItem(ctx context.Context, c *authdto.Claims
 		if x.IssueDescription != nil || x.Issues != nil || x.Conditions != nil || x.Note != nil || x.Fields != nil || x.WaitingDays != nil || x.WaitingEndDate != nil {
 			if _, err := tx.Exec(ctx, `UPDATE repair_work_item_devices SET issue_description=COALESCE($3::text,issue_description),issues=COALESCE($4::jsonb,issues),conditions=COALESCE($5::jsonb,conditions),notes=COALESCE($6::text,notes),custom_fields=COALESCE($7::jsonb,custom_fields),waiting_end_date=CASE WHEN $8::text IS NOT NULL THEN $8::date WHEN $9::int IS NOT NULL THEN waiting_start_date+$9::int ELSE waiting_end_date END WHERE merchant_id=$1::uuid AND work_item_id=$2::uuid`, c.MerchantID, id, x.IssueDescription, issuesJSON, conditionsJSON, x.Note, fieldsJSON, x.WaitingEndDate, x.WaitingDays); err != nil {
 				return dto.RepairWorkItem{}, err
+			}
+			if shopID != nil && strings.TrimSpace(*shopID) != "" && (x.Issues != nil || x.Conditions != nil) {
+				var workItemIssues []string
+				var workItemConditions []string
+				if x.Issues != nil {
+					workItemIssues = *x.Issues
+				}
+				if x.Conditions != nil {
+					workItemConditions = *x.Conditions
+				}
+				if err := autoCreateRepairPresets(ctx, tx, c.MerchantID, *shopID, []dto.RepairWorkItemRequest{{
+					Issues:     workItemIssues,
+					Conditions: workItemConditions,
+				}}); err != nil {
+					return dto.RepairWorkItem{}, err
+				}
 			}
 		}
 		if x.Status != "" {
