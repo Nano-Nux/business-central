@@ -871,6 +871,12 @@ export function AccountsPage() {
   );
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState("");
+  const [passwordUser, setPasswordUser] = useState<User | null>(null);
+  const [staffPassword, setStaffPassword] = useState("");
+  const [staffConfirmPassword, setStaffConfirmPassword] = useState("");
+  const [passwordModalError, setPasswordModalError] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (offline.status === "offline") {
@@ -909,6 +915,35 @@ export function AccountsPage() {
     }
     await patch(`/users/${user.membership_id}`, { shop_id: shopId });
     await users.reload();
+  }
+  async function submitStaffPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!passwordUser) return;
+    if (offline.status === "offline") {
+      setPasswordModalError("Staff password changes require an active connection.");
+      return;
+    }
+    if (staffPassword.length < 8) {
+      setPasswordModalError("Password must be at least 8 characters long.");
+      return;
+    }
+    if (staffPassword !== staffConfirmPassword) {
+      setPasswordModalError("Passwords do not match.");
+      return;
+    }
+    setPasswordBusy(true);
+    setPasswordModalError("");
+    try {
+      await patch(`/users/${passwordUser.membership_id}`, {
+        password: staffPassword,
+      });
+      setPasswordUser(null);
+      await users.reload();
+    } catch (err) {
+      setPasswordModalError(err instanceof Error ? err.message : "Failed to update staff password.");
+    } finally {
+      setPasswordBusy(false);
+    }
   }
   return (
     <>
@@ -1013,6 +1048,18 @@ export function AccountsPage() {
                   <td>
                     <div className="row-actions">
                       <button
+                        title="Change staff password"
+                        disabled={offline.status === "offline"}
+                        onClick={() => {
+                          setPasswordUser(user);
+                          setStaffPassword("");
+                          setStaffConfirmPassword("");
+                          setPasswordModalError("");
+                        }}
+                      >
+                        <Icon name="lock" size={15} />
+                      </button>
+                      <button
                         title={user.is_active ? "Deactivate" : "Activate"}
                         disabled={offline.status === "offline"}
                         onClick={() => toggle(user)}
@@ -1055,7 +1102,7 @@ export function AccountsPage() {
               </Field>
             </div>
             <Field label="Temporary password">
-              <input name="password" type="password" minLength={12} required />
+              <input name="password" type="password" minLength={8} required />
             </Field>
             <Field label="Assigned shop">
               <select name="shop_id" required>
@@ -1075,6 +1122,50 @@ export function AccountsPage() {
             </Button>
             <Button type="submit" disabled={offline.status === "offline"}>
               Create staff
+            </Button>
+          </div>
+        </Form>
+      </Modal>
+      <Modal
+        open={Boolean(passwordUser)}
+        onClose={() => setPasswordUser(null)}
+        title={`Change password: ${passwordUser?.display_name ?? ""}`}
+        description={`Set a new sign-in password for ${passwordUser?.email ?? "this staff member"}.`}
+      >
+        <Form onSubmit={submitStaffPassword}>
+          <div className="form-grid">
+            {passwordModalError && (
+              <div style={{ gridColumn: "1 / -1", padding: "0.75rem", background: "#fef2f2", color: "#b91c1c", borderRadius: "6px", fontSize: "0.9rem" }}>
+                {passwordModalError}
+              </div>
+            )}
+            <Field label="New password" hint="Minimum 8 characters">
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={staffPassword}
+                onChange={(e) => setStaffPassword(e.target.value)}
+                placeholder="Enter new password"
+              />
+            </Field>
+            <Field label="Confirm password" hint="Retype to confirm">
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={staffConfirmPassword}
+                onChange={(e) => setStaffConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+              />
+            </Field>
+          </div>
+          <div className="modal-actions">
+            <Button type="button" variant="secondary" onClick={() => setPasswordUser(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" icon="lock" disabled={passwordBusy || !staffPassword}>
+              {passwordBusy ? "Updating..." : "Update password"}
             </Button>
           </div>
         </Form>

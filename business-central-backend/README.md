@@ -54,6 +54,12 @@ invalid or mismatched image content, and decoded dimensions above 240 pixels,
 so SeaweedFS only receives validated reduced images.
 
 `SEAWEEDFS_FILER_URL` is the backend-to-filer address and
+`SEAWEEDFS_FILER_AUTHORIZATION` is an optional complete HTTP `Authorization`
+header value, for example `Bearer <service-token>`. It is sent only by the
+backend to the filer during uploads and must never be placed in a `NEXT_PUBLIC_`
+portal variable. The filer-side proxy or authentication layer must validate
+this header; SeaweedFS will not accept an arbitrary header unless its endpoint
+is configured to enforce it.
 The backend stores uploaded media as a relative `/media/...` object path in
 resource image records. The browser-facing file-server hostname is not stored
 in PostgreSQL, so changing domains or ports does not require rewriting image

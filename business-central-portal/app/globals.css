@@ -905,6 +905,23 @@ textarea:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.profile-menu a {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: var(--theme-white);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.profile-menu a:hover {
+  background: var(--theme-soft);
+}
 .profile-menu button {
   width: 100%;
   border: 0;

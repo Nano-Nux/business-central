@@ -63,6 +63,12 @@ ssh -p 4998 root@147.135.16.160 \
 
 `CORS_ORIGIN='*'` allows browser clients from any origin. The current portal sends bearer tokens in the `Authorization` header and does not use cookie credentials, so this wildcard configuration is supported. Native mobile clients generally do not enforce browser CORS.
 
+When the backend uses a protected public SeaweedFS filer endpoint, set
+`SEAWEEDFS_FILER_AUTHORIZATION` in the backend environment to the complete
+header value, for example `Bearer <service-token>`. The backend sends this
+header only to SeaweedFS. Never put this value in a `NEXT_PUBLIC_*` portal
+variable; the filer-side proxy or authentication layer must validate it.
+
 `setup-vps.sh` generates a random database password and JWT secret and stores them in root-readable configuration files. It creates the PostgreSQL role/database, tunes PostgreSQL for the small RAM budget, installs SeaweedFS, installs Nginx, and creates the services. `AUTO_INIT_SCHEMA=true` is used only until the first successful application deployment, when `deploy-release.sh` changes it to `false`.
 
 If you want first-admin bootstrap on the first release, edit `/etc/business-central/backend.env` before deployment and set both `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Never commit that file.

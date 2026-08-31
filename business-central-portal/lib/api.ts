@@ -178,5 +178,8 @@ export function remove(path: string) {
 }
 
 export function upload<T>(path: string, data: FormData) {
+  // Image uploads go to the backend. The backend adds the private
+  // SeaweedFS Authorization header; never expose that service credential in
+  // NEXT_PUBLIC_* variables or send it from the browser.
   return api<T>(path, { method: "POST", body: data });
 }

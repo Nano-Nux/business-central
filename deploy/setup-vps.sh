@@ -252,6 +252,7 @@ if [ ! -f "$BACKEND_ENV" ]; then
     printf 'export PUBLIC_BASE_URL=%s\n' "$(quote_for_shell "$PUBLIC_BASE_URL")"
     printf 'export CORS_ORIGIN=%s\n' "$(quote_for_shell "$CORS_ORIGIN")"
     printf 'export SEAWEEDFS_FILER_URL=%s\n' "$(quote_for_shell http://127.0.0.1:8888)"
+    printf 'export SEAWEEDFS_FILER_AUTHORIZATION=%s\n' "$(quote_for_shell "${SEAWEEDFS_FILER_AUTHORIZATION:-}")"
     printf 'export JWT_SECRET=%s\n' "$(quote_for_shell "$jwt_secret")"
     printf 'export ACCESS_TOKEN_TTL=%s\n' "$(quote_for_shell 24h)"
     printf 'export REFRESH_TOKEN_TTL=%s\n' "$(quote_for_shell 336h)"

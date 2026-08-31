@@ -28,6 +28,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog AS $$
 $$;
 
 DROP POLICY IF EXISTS user_identity_self_access ON user_identities;
+DROP POLICY IF EXISTS user_identity_access ON user_identities;
 CREATE POLICY user_identity_access ON user_identities
     USING (
         id = app_current_user_id()
@@ -1195,6 +1196,14 @@ CREATE POLICY tenant_update ON payment_types FOR UPDATE USING(app_can_write_tena
 CREATE POLICY tenant_delete ON payment_types FOR DELETE USING(app_can_write_tenant(merchant_id) AND app_has_permission('membership.manage'));
 `
 
+const superAdminSupport = `
+ALTER TABLE platform_admin_identities ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE platform_admin_identities SET is_super_admin = TRUE
+WHERE identity_id = (
+    SELECT identity_id FROM platform_admin_identities ORDER BY created_at ASC LIMIT 1
+);
+`
+
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -1251,6 +1260,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0035_repair_waiting_time", sql: repairWaitingTime},
 		{version: "0036_merchant_payment_types", sql: merchantPaymentTypes},
 		{version: "0037_user_identity_bootstrap_rls", sql: userIdentityBootstrapPolicyFix},
+		{version: "0038_super_admin_support", sql: superAdminSupport},
 	}
 	for _, migration := range migrations {
 		var applied bool

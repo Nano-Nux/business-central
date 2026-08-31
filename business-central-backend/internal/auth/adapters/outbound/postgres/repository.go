@@ -218,7 +218,7 @@ func (s *Service) Login(ctx context.Context, request LoginRequest) (Session, *ap
 	if err != nil {
 		return Session{}, app.Internal(err)
 	}
-	platformAdmin, err := s.platformAdminForIdentityTx(ctx, tx, identityID)
+	platformAdmin, superAdmin, err := s.platformAdminForIdentityTx(ctx, tx, identityID)
 	if err != nil {
 		return Session{}, app.Internal(err)
 	}
@@ -261,8 +261,8 @@ func (s *Service) Login(ctx context.Context, request LoginRequest) (Session, *ap
 			return Session{}, app.Internal(roleErr)
 		}
 	}
-	user := User{ID: identityID, MembershipID: membershipID, MerchantID: merchantID, Email: email, DisplayName: displayName, Phone: phone, ShopID: shopID, IsActive: true, PlatformAdmin: platformAdmin, Roles: roles}
-	access, expiresAt, err := s.issueAccessToken(identityID, merchantID, membershipID, platformAdmin)
+	user := User{ID: identityID, MembershipID: membershipID, MerchantID: merchantID, Email: email, DisplayName: displayName, Phone: phone, ShopID: shopID, IsActive: true, PlatformAdmin: platformAdmin, SuperAdmin: superAdmin, Roles: roles}
+	access, expiresAt, err := s.issueAccessToken(identityID, merchantID, membershipID, platformAdmin, superAdmin)
 	if err != nil {
 		return Session{}, app.Internal(err)
 	}
@@ -295,7 +295,7 @@ func (s *Service) Refresh(ctx context.Context, rawToken string) (Session, *app.E
 	if _, err := tx.Exec(ctx, `SELECT set_config('app.auth_mode', '', true), set_config('app.user_id', $1, true)`, identityID); err != nil {
 		return Session{}, app.Internal(err)
 	}
-	platformAdmin, err := s.platformAdminForIdentityTx(ctx, tx, identityID)
+	platformAdmin, superAdmin, err := s.platformAdminForIdentityTx(ctx, tx, identityID)
 	if err != nil {
 		return Session{}, app.Internal(err)
 	}
@@ -334,11 +334,11 @@ func (s *Service) Refresh(ctx context.Context, rawToken string) (Session, *app.E
 			return Session{}, app.Internal(err)
 		}
 	}
-	access, accessExpiresAt, err := s.issueAccessToken(identityID, merchantID, membershipID, platformAdmin)
+	access, accessExpiresAt, err := s.issueAccessToken(identityID, merchantID, membershipID, platformAdmin, superAdmin)
 	if err != nil {
 		return Session{}, app.Internal(err)
 	}
-	return Session{AccessToken: access, RefreshToken: newToken, TokenType: "Bearer", ExpiresAt: accessExpiresAt, User: User{ID: identityID, MembershipID: membershipID, MerchantID: merchantID, Email: email, DisplayName: displayName, Phone: phone, ShopID: shopID, IsActive: true, PlatformAdmin: platformAdmin, Roles: roles}}, nil
+	return Session{AccessToken: access, RefreshToken: newToken, TokenType: "Bearer", ExpiresAt: accessExpiresAt, User: User{ID: identityID, MembershipID: membershipID, MerchantID: merchantID, Email: email, DisplayName: displayName, Phone: phone, ShopID: shopID, IsActive: true, PlatformAdmin: platformAdmin, SuperAdmin: superAdmin, Roles: roles}}, nil
 }
 
 func (s *Service) Logout(ctx context.Context, identityID, rawToken string) *app.Error {
@@ -407,10 +407,13 @@ func (s *Service) HasAnyRole(ctx context.Context, claims *Claims, roleCodes ...s
 	return allowed, err
 }
 
-func (s *Service) platformAdminForIdentityTx(ctx context.Context, tx pgx.Tx, identityID string) (bool, error) {
-	var isAdmin bool
-	err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM platform_admin_identities WHERE identity_id = $1)`, identityID).Scan(&isAdmin)
-	return isAdmin, err
+func (s *Service) platformAdminForIdentityTx(ctx context.Context, tx pgx.Tx, identityID string) (bool, bool, error) {
+	var isAdmin, isSuperAdmin bool
+	err := tx.QueryRow(ctx, `SELECT true, COALESCE(is_super_admin, false) FROM platform_admin_identities WHERE identity_id = $1`, identityID).Scan(&isAdmin, &isSuperAdmin)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, false, nil
+	}
+	return isAdmin, isSuperAdmin, err
 }
 
 func (s *Service) BootstrapPlatformAdmin(ctx context.Context, email, password string) error {
@@ -443,7 +446,7 @@ func (s *Service) BootstrapPlatformAdmin(ctx context.Context, email, password st
 	} else if !active {
 		return errors.New("platform admin identity is inactive")
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO platform_admin_identities(identity_id) VALUES ($1) ON CONFLICT (identity_id) DO NOTHING`, identityID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO platform_admin_identities(identity_id, is_super_admin) VALUES ($1, true) ON CONFLICT (identity_id) DO NOTHING`, identityID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -484,7 +487,7 @@ func (s *Service) BootstrapDefaultAdmin(ctx context.Context, email, password str
 	if err := tx.QueryRow(ctx, `INSERT INTO user_identities(email, password_hash) VALUES ($1, $2) RETURNING id`, email, string(hash)).Scan(&identityID); err != nil {
 		return false, err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO platform_admin_identities(identity_id) VALUES ($1)`, identityID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO platform_admin_identities(identity_id, is_super_admin) VALUES ($1, true)`, identityID); err != nil {
 		return false, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -1171,22 +1174,73 @@ func (s *Service) UpdateUser(ctx context.Context, claims *Claims, membershipID s
 		return User{}, err
 	}
 	var identityID string
-	if err := tx.QueryRow(ctx, `SELECT identity_id FROM user_memberships WHERE id = $1 AND merchant_id = $2`, membershipID, claims.MerchantID).Scan(&identityID); err != nil {
-		return User{}, err
+	var targetMerchantID = claims.MerchantID
+	if claims.PlatformAdmin && membershipID == "" {
+		identityID = claims.IdentityID
+	} else if claims.PlatformAdmin && claims.MerchantID == "" {
+		err = tx.QueryRow(ctx, `SELECT identity_id, merchant_id FROM user_memberships WHERE id = $1`, membershipID).Scan(&identityID, &targetMerchantID)
+		if err != nil {
+			return User{}, err
+		}
+	} else {
+		if err := tx.QueryRow(ctx, `SELECT identity_id FROM user_memberships WHERE id = $1 AND merchant_id = $2`, membershipID, claims.MerchantID).Scan(&identityID); err != nil {
+			return User{}, err
+		}
 	}
+
+	// Password security checks according to role hierarchy:
+	if request.Password != nil {
+		var targetIsAdmin, targetIsSuperAdmin bool
+		_ = tx.QueryRow(ctx, `SELECT true, COALESCE(is_super_admin, false) FROM platform_admin_identities WHERE identity_id = $1`, identityID).Scan(&targetIsAdmin, &targetIsSuperAdmin)
+
+		if claims.SuperAdmin {
+			// Super admin can change any password (admin, merchant, staff, or self)
+		} else if claims.PlatformAdmin {
+			// Regular admin can change merchant & staff passwords, and own password,
+			// but cannot change other admins or super admin passwords.
+			if identityID != claims.IdentityID && (targetIsAdmin || targetIsSuperAdmin) {
+				return User{}, app.NewError("FORBIDDEN", "Administrators cannot change another administrator or super administrator password.", 403)
+			}
+		} else {
+			// Merchant context:
+			isSelf := (membershipID == claims.MembershipID)
+			var isActorMerchant bool
+			_ = tx.QueryRow(ctx, `SELECT EXISTS (
+				SELECT 1 FROM membership_roles mr
+				JOIN roles r ON r.id = mr.role_id
+				WHERE mr.merchant_id = $1::uuid AND mr.membership_id = $2::uuid AND lower(r.code) IN ('merchant', 'owner')
+			)`, claims.MerchantID, claims.MembershipID).Scan(&isActorMerchant)
+
+			if isSelf {
+				if !isActorMerchant {
+					return User{}, app.NewError("FORBIDDEN", "Staff cannot change their own password. Please contact your merchant administrator.", 403)
+				}
+			} else {
+				if !isActorMerchant {
+					return User{}, app.NewError("FORBIDDEN", "Only merchants can change staff passwords.", 403)
+				}
+				if targetIsAdmin || targetIsSuperAdmin {
+					return User{}, app.NewError("FORBIDDEN", "You do not have permission to change this password.", 403)
+				}
+			}
+		}
+	}
+
 	if request.DisplayName != nil || request.Phone != nil || request.IsActive != nil || request.ShopID != nil {
 		if request.ShopID != nil {
 			var found bool
-			if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM shops WHERE merchant_id=$1::uuid AND id=$2 AND is_active)`, claims.MerchantID, *request.ShopID).Scan(&found); err != nil {
+			if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM shops WHERE merchant_id=$1::uuid AND id=$2 AND is_active)`, targetMerchantID, *request.ShopID).Scan(&found); err != nil {
 				return User{}, err
 			}
 			if !found {
 				return User{}, app.Validation("shop_id must reference an active shop in this merchant.", nil)
 			}
 		}
-		_, err = tx.Exec(ctx, `UPDATE user_memberships SET display_name = COALESCE($3, display_name), phone = COALESCE($4, phone), is_active = COALESCE($5, is_active), shop_id=COALESCE($6,shop_id) WHERE id = $1 AND merchant_id = $2`, membershipID, claims.MerchantID, request.DisplayName, request.Phone, request.IsActive, request.ShopID)
-		if err != nil {
-			return User{}, err
+		if membershipID != "" {
+			_, err = tx.Exec(ctx, `UPDATE user_memberships SET display_name = COALESCE($3, display_name), phone = COALESCE($4, phone), is_active = COALESCE($5, is_active), shop_id=COALESCE($6,shop_id) WHERE id = $1 AND merchant_id = $2`, membershipID, targetMerchantID, request.DisplayName, request.Phone, request.IsActive, request.ShopID)
+			if err != nil {
+				return User{}, err
+			}
 		}
 	}
 	if request.Email != nil || request.Password != nil {
@@ -1208,31 +1262,36 @@ func (s *Service) UpdateUser(ctx context.Context, claims *Claims, membershipID s
 			return User{}, err
 		}
 	}
-	if request.RoleIDs != nil {
+	if request.RoleIDs != nil && membershipID != "" {
 		var assignsStaff bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM roles WHERE merchant_id=$1::uuid AND id=ANY($2::uuid[]) AND lower(code)='staff')`, claims.MerchantID, *request.RoleIDs).Scan(&assignsStaff); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM roles WHERE merchant_id=$1::uuid AND id=ANY($2::uuid[]) AND lower(code)='staff')`, targetMerchantID, *request.RoleIDs).Scan(&assignsStaff); err != nil {
 			return User{}, err
 		}
 		if assignsStaff {
 			var effectiveShopID *string
-			if err := tx.QueryRow(ctx, `SELECT COALESCE($3::uuid,shop_id) FROM user_memberships WHERE merchant_id=$1::uuid AND id=$2`, claims.MerchantID, membershipID, request.ShopID).Scan(&effectiveShopID); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT COALESCE($3::uuid,shop_id) FROM user_memberships WHERE merchant_id=$1::uuid AND id=$2`, targetMerchantID, membershipID, request.ShopID).Scan(&effectiveShopID); err != nil {
 				return User{}, err
 			}
 			if effectiveShopID == nil {
 				return User{}, app.Validation("Staff must be assigned to one shop.", map[string]any{"shop_id": "required"})
 			}
 		}
-		if err := assignRoles(ctx, tx, claims.MerchantID, membershipID, *request.RoleIDs, claims.MembershipID); err != nil {
+		if err := assignRoles(ctx, tx, targetMerchantID, membershipID, *request.RoleIDs, claims.MembershipID); err != nil {
 			return User{}, err
 		}
 	}
-	if err := audit(ctx, tx, claims, "UPDATE", membershipID, nil, map[string]any{"membership_id": membershipID}); err != nil {
-		return User{}, err
+	if membershipID != "" {
+		if err := audit(ctx, tx, claims, "UPDATE", membershipID, nil, map[string]any{"membership_id": membershipID}); err != nil {
+			return User{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return User{}, err
 	}
-	return s.getUser(ctx, identityID, claims.MerchantID, membershipID)
+	if membershipID == "" && claims.PlatformAdmin {
+		return s.getPlatformAdminUser(ctx, identityID)
+	}
+	return s.getUser(ctx, identityID, targetMerchantID, membershipID)
 }
 
 func (s *Service) DeleteUser(ctx context.Context, claims *Claims, membershipID string) *app.Error {
@@ -1376,7 +1435,7 @@ func (s *Service) getPlatformAdminUser(ctx context.Context, identityID string) (
 		return User{}, err
 	}
 	var user User
-	err = tx.QueryRow(ctx, `SELECT id, email, is_active, created_at, updated_at FROM user_identities WHERE id = $1`, identityID).Scan(&user.ID, &user.Email, &user.IsActive, &user.CreatedAt, &user.UpdatedAt)
+	err = tx.QueryRow(ctx, `SELECT i.id, i.email, i.is_active, i.created_at, i.updated_at, COALESCE(pai.is_super_admin, false) FROM user_identities i LEFT JOIN platform_admin_identities pai ON pai.identity_id = i.id WHERE i.id = $1`, identityID).Scan(&user.ID, &user.Email, &user.IsActive, &user.CreatedAt, &user.UpdatedAt, &user.SuperAdmin)
 	if err != nil {
 		return User{}, err
 	}
@@ -1398,12 +1457,8 @@ func assignRoles(ctx context.Context, tx pgx.Tx, merchantID, membershipID string
 	if _, err := tx.Exec(ctx, `DELETE FROM membership_roles WHERE merchant_id = $1 AND membership_id = $2`, merchantID, membershipID); err != nil {
 		return err
 	}
-	var grantedByValue any
-	if grantedBy != "" {
-		grantedByValue = grantedBy
-	}
 	for _, roleID := range roleIDs {
-		if _, err := tx.Exec(ctx, `INSERT INTO membership_roles(merchant_id, membership_id, role_id, granted_by_membership_id) VALUES ($1, $2, $3, $4)`, merchantID, membershipID, roleID, grantedByValue); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO membership_roles(merchant_id, membership_id, role_id, granted_by) VALUES ($1, $2, $3, $4)`, merchantID, membershipID, roleID, grantedBy); err != nil {
 			return err
 		}
 	}
@@ -1419,9 +1474,9 @@ func audit(ctx context.Context, tx pgx.Tx, claims *Claims, action, entityID stri
 	return err
 }
 
-func (s *Service) issueAccessToken(identityID, merchantID, membershipID string, platformAdmin bool) (string, time.Time, error) {
+func (s *Service) issueAccessToken(identityID, merchantID, membershipID string, platformAdmin, superAdmin bool) (string, time.Time, error) {
 	expiresAt := time.Now().UTC().Add(s.accessTokenTTL)
-	claims := Claims{IdentityID: identityID, MerchantID: merchantID, MembershipID: membershipID, PlatformAdmin: platformAdmin, RegisteredClaims: jwt.RegisteredClaims{Subject: identityID, Issuer: "business-central-backend", IssuedAt: jwt.NewNumericDate(time.Now().UTC()), ExpiresAt: jwt.NewNumericDate(expiresAt), ID: uuid.NewString()}}
+	claims := Claims{IdentityID: identityID, MerchantID: merchantID, MembershipID: membershipID, PlatformAdmin: platformAdmin, SuperAdmin: superAdmin, RegisteredClaims: jwt.RegisteredClaims{Subject: identityID, Issuer: "business-central-backend", IssuedAt: jwt.NewNumericDate(time.Now().UTC()), ExpiresAt: jwt.NewNumericDate(expiresAt), ID: uuid.NewString()}}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	raw, err := token.SignedString(s.secret)
 	return raw, expiresAt, err

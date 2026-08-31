@@ -22,7 +22,7 @@ start_pre() {
   [ -r /etc/business-central/backend.env ] || { eerror "missing /etc/business-central/backend.env"; return 1; }
   . /etc/business-central/backend.env
   export DATABASE_URL HOST PORT PUBLIC_BASE_URL CORS_ORIGIN
-  export SEAWEEDFS_FILER_URL JWT_SECRET
+  export SEAWEEDFS_FILER_URL SEAWEEDFS_FILER_AUTHORIZATION JWT_SECRET
   export ACCESS_TOKEN_TTL REFRESH_TOKEN_TTL APP_ENV AUTO_MIGRATE AUTO_INIT_SCHEMA
   export BCRYPT_COST ADMIN_EMAIL ADMIN_PASSWORD
   export PLATFORM_ADMIN_EMAIL PLATFORM_ADMIN_PASSWORD

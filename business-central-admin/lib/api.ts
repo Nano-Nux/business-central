@@ -34,6 +34,7 @@ export type User = {
   phone?: string;
   is_active: boolean;
   platform_admin: boolean;
+  super_admin?: boolean;
   roles: Role[];
   created_at: string;
   updated_at: string;

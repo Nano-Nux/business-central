@@ -10,6 +10,8 @@ export type IconName =
   | "chart"
   | "repair"
   | "users"
+  | "user"
+  | "lock"
   | "receipt"
   | "tag"
   | "settings"
@@ -87,6 +89,18 @@ const paths: Record<IconName, React.ReactNode> = {
     <>
       <circle cx="9" cy="8" r="4" />
       <path d="M2 21v-2a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v2M16 4a4 4 0 0 1 0 8M18 14a6 6 0 0 1 4 5v2" />
+    </>
+  ),
+  user: (
+    <>
+      <circle cx="12" cy="7" r="4" />
+      <path d="M4 21v-2a7 7 0 0 1 14 0v2" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
     </>
   ),
   receipt: (

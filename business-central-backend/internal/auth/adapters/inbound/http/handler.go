@@ -499,8 +499,12 @@ func (h *Handler) getUser(c fiber.Ctx) error {
 }
 
 func (h *Handler) updateUser(c fiber.Ctx) error {
-	if err := h.requirePermission(c, "membership.manage"); err != nil {
-		return err
+	cl := claims(c)
+	isSelf := cl != nil && cl.MembershipID != "" && c.Params("id") == cl.MembershipID
+	if !isSelf {
+		if err := h.requirePermission(c, "membership.manage"); err != nil {
+			return err
+		}
 	}
 	var request authdto.UpdateUserRequest
 	if err := c.Bind().JSON(&request); err != nil {
@@ -508,7 +512,7 @@ func (h *Handler) updateUser(c fiber.Ctx) error {
 	}
 	ctx, cancel := contextWithTimeout(c)
 	defer cancel()
-	user, err := h.Authentication.UpdateUser(ctx, claims(c), c.Params("id"), request)
+	user, err := h.Authentication.UpdateUser(ctx, cl, c.Params("id"), request)
 	if err != nil {
 		return databaseError(err)
 	}
