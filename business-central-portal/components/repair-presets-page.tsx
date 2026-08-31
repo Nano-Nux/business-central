@@ -26,7 +26,8 @@ export function RepairPresetsPage({ type }: { type: "ISSUE" | "CONDITION" }) {
       setMessage("Connect to manage repair presets.");
       return;
     }
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const body = {
       shop_id: currentShop.id,
       preset_type: type,
@@ -36,7 +37,7 @@ export function RepairPresetsPage({ type }: { type: "ISSUE" | "CONDITION" }) {
       if (editing) await patch(`/repairs/presets/${editing.id}`, body);
       else await post("/repairs/presets", body);
       setEditing(null);
-      event.currentTarget.reset();
+      formElement.reset();
       setMessage(`${label} preset saved.`);
       await presets.reload();
     } catch (reason) {

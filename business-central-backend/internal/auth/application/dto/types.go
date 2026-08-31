@@ -24,6 +24,7 @@ type User struct {
 	ShopID        *string   `json:"shop_id,omitempty"`
 	IsActive      bool      `json:"is_active"`
 	PlatformAdmin bool      `json:"platform_admin"`
+	SuperAdmin    bool      `json:"super_admin"`
 	Roles         []Role    `json:"roles"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -180,5 +181,6 @@ type Claims struct {
 	MerchantID    string `json:"merchant_id"`
 	MembershipID  string `json:"membership_id"`
 	PlatformAdmin bool   `json:"platform_admin"`
+	SuperAdmin    bool   `json:"super_admin"`
 	jwt.RegisteredClaims
 }

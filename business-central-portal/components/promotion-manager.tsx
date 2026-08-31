@@ -71,7 +71,8 @@ function PromotionConfiguration({
       setError("Offline storage is required to save promotion scopes while disconnected.");
       return;
     }
-    const values = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const values = new FormData(formElement);
     const productID = String(values.get("product_id"));
     const variantID = String(values.get("variant_id") || "");
     try {
@@ -90,7 +91,7 @@ function PromotionConfiguration({
       } else {
         await post("/promotions/products", { promotion_id: promotion.id, ...body });
       }
-      event.currentTarget.reset();
+      formElement.reset();
       setProductId("");
       await scopes.reload();
     } catch (reason) {
@@ -103,7 +104,8 @@ function PromotionConfiguration({
       setError("Offline storage is required to save promotion codes while disconnected.");
       return;
     }
-    const values = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const values = new FormData(formElement);
     try {
       const body = {
         code: String(values.get("code")).trim().toUpperCase(),
@@ -116,7 +118,7 @@ function PromotionConfiguration({
       } else {
         await post("/promotions/codes", { promotion_id: promotion.id, ...body });
       }
-      event.currentTarget.reset();
+      formElement.reset();
       await codes.reload();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Promotion code could not be added.");

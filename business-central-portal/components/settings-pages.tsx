@@ -349,7 +349,8 @@ function RepairFormSettingsPage() {
       setMessage("Connect to update the shared form definition.");
       return;
     }
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const scope = String(form.get("field_scope"));
     const options = String(form.get("options") || "")
       .split(",")
@@ -374,7 +375,7 @@ function RepairFormSettingsPage() {
         visibility_rules: {},
         is_active: true,
       });
-      event.currentTarget.reset();
+      formElement.reset();
       setMessage("Form field created. New tickets will use the updated form version.");
       await definitions.reload();
     } catch (reason) {

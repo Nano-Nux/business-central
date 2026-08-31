@@ -465,6 +465,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <strong>{user.display_name}</strong>
                   <small>{user.email}</small>
                 </div>
+                <Link href="/profile" onClick={() => setProfileOpen(false)}>
+                  <Icon name="user" size={17} />
+                  User profile
+                </Link>
                 <button onClick={() => void signOut()}>
                   <Icon name="logout" size={17} />
                   Sign out

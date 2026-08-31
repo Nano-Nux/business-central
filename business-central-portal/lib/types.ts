@@ -15,6 +15,7 @@ export type User = {
   shop_id?: string;
   is_active: boolean;
   platform_admin: boolean;
+  super_admin?: boolean;
   roles: Role[];
 };
 
