@@ -1204,6 +1204,11 @@ WHERE identity_id = (
 );
 `
 
+const optionalCatalogSlugs = `
+ALTER TABLE catalog_brands ALTER COLUMN slug DROP NOT NULL;
+ALTER TABLE catalog_categories ALTER COLUMN slug DROP NOT NULL;
+`
+
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -1261,6 +1266,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0036_merchant_payment_types", sql: merchantPaymentTypes},
 		{version: "0037_user_identity_bootstrap_rls", sql: userIdentityBootstrapPolicyFix},
 		{version: "0038_super_admin_support", sql: superAdminSupport},
+		{version: "0039_optional_catalog_slugs", sql: optionalCatalogSlugs},
 	}
 	for _, migration := range migrations {
 		var applied bool

@@ -83,7 +83,7 @@ export type Category = {
   id: string;
   parent_category_id?: string;
   name: string;
-  slug: string;
+  slug?: string | null;
   description?: string;
   image_url?: string;
   sort_order: number;
@@ -94,7 +94,7 @@ export type Brand = {
   id: string;
   merchant_id: string;
   name: string;
-  slug: string;
+  slug?: string | null;
   description?: string;
   image_url?: string;
   is_active: boolean;

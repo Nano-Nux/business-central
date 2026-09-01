@@ -383,12 +383,52 @@ export async function discardOfflineOperation(
   notifyOfflineChange();
 }
 
+export async function discardOfflineOperations(
+  scope: OfflineScope,
+  operations: Array<Pick<OfflineOperation, "operationId" | "entityType" | "entityId">>,
+) {
+  if (operations.length === 0) return;
+  const database = await openDatabase();
+  const transaction = database.transaction([STORES.entities, STORES.operations], "readwrite");
+  const opsStore = transaction.objectStore(STORES.operations);
+  const entitiesStore = transaction.objectStore(STORES.entities);
+  for (const operation of operations) {
+    opsStore.delete(operation.operationId);
+    entitiesStore.delete(entityKey(scope, operation.entityType, operation.entityId));
+  }
+  await transactionDone(transaction);
+  database.close();
+  notifyOfflineChange();
+}
+
 export async function retryOfflineOperation(operation: OfflineOperation) {
   await updateOperation(operation.operationId, {
     status: "PENDING",
     nextRetryAt: undefined,
     lastError: undefined,
   });
+}
+
+export async function retryOfflineOperations(operations: OfflineOperation[]) {
+  if (operations.length === 0) return;
+  const database = await openDatabase();
+  const transaction = database.transaction(STORES.operations, "readwrite");
+  const store = transaction.objectStore(STORES.operations);
+  for (const operation of operations) {
+    const current = (await requestResult(store.get(operation.operationId))) as
+      OfflineOperation | undefined;
+    if (current) {
+      store.put({
+        ...current,
+        status: "PENDING",
+        nextRetryAt: undefined,
+        lastError: undefined,
+      });
+    }
+  }
+  await transactionDone(transaction);
+  database.close();
+  notifyOfflineChange();
 }
 
 export async function getMetadata<T>(scope: OfflineScope, name: string): Promise<T | null> {

@@ -70,15 +70,15 @@ func Conversion(fromUnitID, toUnitID, multiplier string) error {
 	return nil
 }
 
-func Brand(name, slug string) error {
-	if !Required(name) || !Required(slug) {
+func Brand(name string, slug *string) error {
+	if !Required(name) {
 		return ErrRequired
 	}
 	return nil
 }
 
-func Category(name, slug string) error {
-	if !Required(name) || !Required(slug) {
+func Category(name string, slug *string) error {
+	if !Required(name) {
 		return ErrRequired
 	}
 	return nil

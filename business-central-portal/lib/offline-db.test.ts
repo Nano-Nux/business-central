@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   applySyncPage,
   clearOfflineScope,
+  discardOfflineOperation,
+  discardOfflineOperations,
   getCachedEntities,
   getCachedResource,
   getEntityVersion,
@@ -12,6 +14,8 @@ import {
   putCachedResource,
   quarantineOfflineScope,
   queueOperationWithEntity,
+  retryOfflineOperation,
+  retryOfflineOperations,
   type OfflineScope,
 } from "./offline-db";
 
@@ -147,5 +151,72 @@ describe("portal offline database", () => {
       { status: "BLOCKED", lastError: "Shop assignment changed." },
     ]);
     await expect(getCachedEntities(owner, "SHOP_SETTINGS")).resolves.toHaveLength(1);
+  });
+
+  it("retries failed operations and resets error and retry timestamps", async () => {
+    const op = await queueOperationWithEntity(
+      owner,
+      {
+        shopId: "shop-a",
+        entityType: "CATALOG_PRODUCT",
+        entityId: "prod-1",
+        operationType: "CREATE",
+        payload: { title: "Test Item" },
+      },
+      { id: "prod-1", title: "Test Item" },
+    );
+    op.status = "FAILED";
+    op.lastError = "Network error";
+    op.nextRetryAt = new Date().toISOString();
+
+    await retryOfflineOperation(op);
+    let operations = await listOperations(owner);
+    expect(operations[0]).toMatchObject({
+      operationId: op.operationId,
+      status: "PENDING",
+    });
+    expect(operations[0].lastError).toBeUndefined();
+    expect(operations[0].nextRetryAt).toBeUndefined();
+
+    // Batch retry
+    op.status = "REJECTED";
+    await retryOfflineOperations([op]);
+    operations = await listOperations(owner);
+    expect(operations[0].status).toBe("PENDING");
+  });
+
+  it("discards single and batch offline operations and cleans up cached entities", async () => {
+    const op1 = await queueOperationWithEntity(
+      owner,
+      {
+        shopId: "shop-a",
+        entityType: "CATALOG_PRODUCT",
+        entityId: "prod-1",
+        operationType: "CREATE",
+        payload: { title: "Test Item 1" },
+      },
+      { id: "prod-1", title: "Test Item 1" },
+    );
+    const op2 = await queueOperationWithEntity(
+      owner,
+      {
+        shopId: "shop-a",
+        entityType: "CATALOG_PRODUCT",
+        entityId: "prod-2",
+        operationType: "CREATE",
+        payload: { title: "Test Item 2" },
+      },
+      { id: "prod-2", title: "Test Item 2" },
+    );
+
+    // Discard single
+    await discardOfflineOperation(owner, op1);
+    expect(await listOperations(owner)).toHaveLength(1);
+    expect(await getCachedEntities(owner, "CATALOG_PRODUCT")).toHaveLength(1);
+
+    // Discard batch
+    await discardOfflineOperations(owner, [op2]);
+    expect(await listOperations(owner)).toHaveLength(0);
+    expect(await getCachedEntities(owner, "CATALOG_PRODUCT")).toHaveLength(0);
   });
 });

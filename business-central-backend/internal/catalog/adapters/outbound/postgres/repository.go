@@ -1412,16 +1412,16 @@ func (s *Service) ListBrands(ctx context.Context, c *authdto.Claims) ([]Brand, e
 	return out, rows.Err()
 }
 func (s *Service) CreateBrand(ctx context.Context, c *authdto.Claims, r BrandRequest) (Brand, error) {
-	if !valid(r.Name) || !validSlug(r.Slug) {
+	if !valid(r.Name) {
 		return Brand{}, pgx.ErrNoRows
 	}
 	var v Brand
-	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$7,true),set_config('app.merchant_id',$1,true)) INSERT INTO catalog_brands(merchant_id,name,slug,description,image_url,is_active) SELECT $1::uuid,$2,$3,$4,$5,COALESCE($6,true) FROM x RETURNING id,merchant_id,name,slug,description,image_url,is_active,created_at,updated_at`, c.MerchantID, strings.TrimSpace(r.Name), strings.ToLower(strings.TrimSpace(r.Slug)), r.Description, r.ImageURL, r.IsActive, c.IdentityID).Scan(&v.ID, &v.MerchantID, &v.Name, &v.Slug, &v.Description, &v.ImageURL, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$7,true),set_config('app.merchant_id',$1,true)) INSERT INTO catalog_brands(merchant_id,name,slug,description,image_url,is_active) SELECT $1::uuid,$2,$3,$4,$5,COALESCE($6,true) FROM x RETURNING id,merchant_id,name,slug,description,image_url,is_active,created_at,updated_at`, c.MerchantID, strings.TrimSpace(r.Name), nullSlug(r.Slug), r.Description, r.ImageURL, r.IsActive, c.IdentityID).Scan(&v.ID, &v.MerchantID, &v.Name, &v.Slug, &v.Description, &v.ImageURL, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	return v, err
 }
 func (s *Service) UpdateBrand(ctx context.Context, c *authdto.Claims, id string, r BrandRequest) (Brand, error) {
 	var v Brand
-	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$8,true),set_config('app.merchant_id',$1,true)) UPDATE catalog_brands b SET name=$3,slug=$4,description=$5,image_url=$6,is_active=COALESCE($7,b.is_active) FROM x WHERE b.merchant_id=$1::uuid AND b.id=$2 RETURNING b.id,b.merchant_id,b.name,b.slug,b.description,b.image_url,b.is_active,b.created_at,b.updated_at`, c.MerchantID, id, strings.TrimSpace(r.Name), strings.ToLower(strings.TrimSpace(r.Slug)), r.Description, r.ImageURL, r.IsActive, c.IdentityID).Scan(&v.ID, &v.MerchantID, &v.Name, &v.Slug, &v.Description, &v.ImageURL, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$8,true),set_config('app.merchant_id',$1,true)) UPDATE catalog_brands b SET name=$3,slug=$4,description=$5,image_url=$6,is_active=COALESCE($7,b.is_active) FROM x WHERE b.merchant_id=$1::uuid AND b.id=$2 RETURNING b.id,b.merchant_id,b.name,b.slug,b.description,b.image_url,b.is_active,b.created_at,b.updated_at`, c.MerchantID, id, strings.TrimSpace(r.Name), nullSlug(r.Slug), r.Description, r.ImageURL, r.IsActive, c.IdentityID).Scan(&v.ID, &v.MerchantID, &v.Name, &v.Slug, &v.Description, &v.ImageURL, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	return v, err
 }
 func (s *Service) DeleteBrand(ctx context.Context, c *authdto.Claims, id string) error {
@@ -1433,6 +1433,17 @@ func (s *Service) DeleteBrand(ctx context.Context, c *authdto.Claims, id string)
 		return pgx.ErrNoRows
 	}
 	return nil
+}
+
+func nullSlug(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	trimmed := strings.ToLower(strings.TrimSpace(*v))
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func validSlug(v string) bool { return strings.TrimSpace(v) != "" }
@@ -1454,7 +1465,7 @@ func (s *Service) ListCategories(ctx context.Context, c *authdto.Claims) ([]Cate
 	return out, rows.Err()
 }
 func (s *Service) CreateCategory(ctx context.Context, c *authdto.Claims, r CategoryRequest) (Category, error) {
-	if !valid(r.Name) || !valid(r.Slug) {
+	if !valid(r.Name) {
 		return Category{}, pgx.ErrNoRows
 	}
 	order := 0
@@ -1470,7 +1481,7 @@ func (s *Service) CreateCategory(ctx context.Context, c *authdto.Claims, r Categ
 		return Category{}, err
 	}
 	var v Category
-	err = tx.QueryRow(ctx, `INSERT INTO catalog_categories(merchant_id,parent_category_id,name,slug,description,image_url,sort_order) VALUES($1::uuid,$2,$3,$4,$5,$6,$7) RETURNING id,merchant_id,parent_category_id,name,slug,description,image_url,sort_order,created_at,updated_at`, c.MerchantID, r.ParentCategoryID, strings.TrimSpace(r.Name), strings.ToLower(strings.TrimSpace(r.Slug)), r.Description, r.ImageURL, order).Scan(&v.ID, &v.MerchantID, &v.ParentCategoryID, &v.Name, &v.Slug, &v.Description, &v.ImageURL, &v.SortOrder, &v.CreatedAt, &v.UpdatedAt)
+	err = tx.QueryRow(ctx, `INSERT INTO catalog_categories(merchant_id,parent_category_id,name,slug,description,image_url,sort_order) VALUES($1::uuid,$2,$3,$4,$5,$6,$7) RETURNING id,merchant_id,parent_category_id,name,slug,description,image_url,sort_order,created_at,updated_at`, c.MerchantID, r.ParentCategoryID, strings.TrimSpace(r.Name), nullSlug(r.Slug), r.Description, r.ImageURL, order).Scan(&v.ID, &v.MerchantID, &v.ParentCategoryID, &v.Name, &v.Slug, &v.Description, &v.ImageURL, &v.SortOrder, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return Category{}, err
 	}
@@ -1499,7 +1510,7 @@ func (s *Service) UpdateCategory(ctx context.Context, c *authdto.Claims, id stri
 		return Category{}, err
 	}
 	var v Category
-	err = tx.QueryRow(ctx, `UPDATE catalog_categories SET parent_category_id=$3,name=$4,slug=$5,description=$6,image_url=$7,sort_order=$8,updated_at=now() WHERE merchant_id=$1::uuid AND id=$2 RETURNING id,merchant_id,parent_category_id,name,slug,description,image_url,sort_order,created_at,updated_at`, c.MerchantID, id, r.ParentCategoryID, strings.TrimSpace(r.Name), strings.ToLower(strings.TrimSpace(r.Slug)), r.Description, r.ImageURL, order).Scan(&v.ID, &v.MerchantID, &v.ParentCategoryID, &v.Name, &v.Slug, &v.Description, &v.ImageURL, &v.SortOrder, &v.CreatedAt, &v.UpdatedAt)
+	err = tx.QueryRow(ctx, `UPDATE catalog_categories SET parent_category_id=$3,name=$4,slug=$5,description=$6,image_url=$7,sort_order=$8,updated_at=now() WHERE merchant_id=$1::uuid AND id=$2 RETURNING id,merchant_id,parent_category_id,name,slug,description,image_url,sort_order,created_at,updated_at`, c.MerchantID, id, r.ParentCategoryID, strings.TrimSpace(r.Name), nullSlug(r.Slug), r.Description, r.ImageURL, order).Scan(&v.ID, &v.MerchantID, &v.ParentCategoryID, &v.Name, &v.Slug, &v.Description, &v.ImageURL, &v.SortOrder, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return Category{}, err
 	}

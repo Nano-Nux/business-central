@@ -406,7 +406,7 @@ func (h *Handler) listBrands(c fiber.Ctx) error {
 		return app.Internal(err)
 	}
 	return catalogListPage(c, v, listQuery(c), func(item catalogdto.Brand, q app.ListQuery) bool {
-		return catalogMatches(q, map[string]string{"name": item.Name, "slug": item.Slug, "is_active": catalogBool(item.IsActive)})
+		return catalogMatches(q, map[string]string{"name": item.Name, "slug": catalogPtr(item.Slug), "is_active": catalogBool(item.IsActive)})
 	})
 }
 
@@ -439,7 +439,7 @@ func (h *Handler) listCategories(c fiber.Ctx) error {
 		return app.Internal(err)
 	}
 	return catalogListPage(c, v, listQuery(c), func(item catalogdto.Category, q app.ListQuery) bool {
-		return catalogMatches(q, map[string]string{"name": item.Name, "slug": item.Slug, "parent_category_id": catalogPtr(item.ParentCategoryID)})
+		return catalogMatches(q, map[string]string{"name": item.Name, "slug": catalogPtr(item.Slug), "parent_category_id": catalogPtr(item.ParentCategoryID)})
 	})
 }
 

@@ -838,6 +838,26 @@ textarea:focus-visible {
   min-height: 32px;
   padding: 6px 8px;
 }
+.sync-operation-actions,
+.sync-bulk-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.sync-operation-actions .button,
+.sync-bulk-actions .button {
+  flex: 1;
+  font-size: 9px;
+  min-height: 28px;
+  padding: 5px 8px;
+  justify-content: center;
+}
+.sync-status-error-block {
+  margin-bottom: 8px;
+}
+.sync-status-error-block .sync-status-error {
+  margin-bottom: 6px;
+}
 .profile-wrap {
   position: relative;
 }

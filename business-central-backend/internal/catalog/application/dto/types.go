@@ -93,7 +93,7 @@ type Brand struct {
 	ID          string    `json:"id"`
 	MerchantID  string    `json:"merchant_id"`
 	Name        string    `json:"name"`
-	Slug        string    `json:"slug"`
+	Slug        *string   `json:"slug,omitempty"`
 	Description *string   `json:"description,omitempty"`
 	ImageURL    *string   `json:"image_url,omitempty"`
 	IsActive    bool      `json:"is_active"`
@@ -105,7 +105,7 @@ type Category struct {
 	MerchantID       string    `json:"merchant_id"`
 	ParentCategoryID *string   `json:"parent_category_id,omitempty"`
 	Name             string    `json:"name"`
-	Slug             string    `json:"slug"`
+	Slug             *string   `json:"slug,omitempty"`
 	Description      *string   `json:"description,omitempty"`
 	ImageURL         *string   `json:"image_url,omitempty"`
 	SortOrder        int       `json:"sort_order"`
@@ -208,7 +208,7 @@ type ConversionRequest struct {
 }
 type BrandRequest struct {
 	Name        string  `json:"name"`
-	Slug        string  `json:"slug"`
+	Slug        *string `json:"slug,omitempty"`
 	Description *string `json:"description,omitempty"`
 	ImageURL    *string `json:"image_url,omitempty"`
 	IsActive    *bool   `json:"is_active,omitempty"`
@@ -216,7 +216,7 @@ type BrandRequest struct {
 type CategoryRequest struct {
 	ParentCategoryID *string `json:"parent_category_id,omitempty"`
 	Name             string  `json:"name"`
-	Slug             string  `json:"slug"`
+	Slug             *string `json:"slug,omitempty"`
 	Description      *string `json:"description,omitempty"`
 	ImageURL         *string `json:"image_url,omitempty"`
 	SortOrder        *int    `json:"sort_order,omitempty"`

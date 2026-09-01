@@ -1,0 +1,2 @@
+ALTER TABLE catalog_brands ALTER COLUMN slug DROP NOT NULL;
+ALTER TABLE catalog_categories ALTER COLUMN slug DROP NOT NULL;

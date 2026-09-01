@@ -29,7 +29,7 @@ export function BrandsPage() {
       .filter(
         (brand) =>
           !needle ||
-          `${brand.name} ${brand.slug} ${brand.description ?? ""}`.toLowerCase().includes(needle),
+          `${brand.name} ${brand.slug ?? ""} ${brand.description ?? ""}`.toLowerCase().includes(needle),
       )
       .filter(
         (brand) =>
@@ -40,7 +40,7 @@ export function BrandsPage() {
         sort === "NAME_DESC"
           ? right.name.localeCompare(left.name)
           : sort === "SLUG_ASC"
-            ? left.slug.localeCompare(right.slug)
+            ? (left.slug || "").localeCompare(right.slug || "")
             : left.name.localeCompare(right.name),
       );
   }, [brands.data, filter, query, sort]);
@@ -55,9 +55,11 @@ export function BrandsPage() {
     setBusy(true);
     setError("");
     const values = new FormData(event.currentTarget);
+    const rawSlug = values.get("slug");
+    const slug = rawSlug ? String(rawSlug).trim().toLowerCase() || undefined : undefined;
     const body = {
       name: String(values.get("name")).trim(),
-      slug: String(values.get("slug")).trim().toLowerCase(),
+      slug,
       description: String(values.get("description") || "").trim() || undefined,
     };
     try {
@@ -146,7 +148,7 @@ export function BrandsPage() {
                   <td>
                     <strong>{brand.name}</strong>
                   </td>
-                  <td>/{brand.slug}</td>
+                  <td>{brand.slug ? `/${brand.slug}` : "—"}</td>
                   <td>
                     <div className="row-actions">
                       <button
@@ -188,14 +190,13 @@ export function BrandsPage() {
             <Field label="Name">
               <input name="name" defaultValue={editing?.name} required />
             </Field>
-            <Field label="URL slug">
+            {/* <Field label="URL slug">
               <input
                 name="slug"
-                defaultValue={editing?.slug}
+                defaultValue={editing?.slug ?? ""}
                 pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                required
               />
-            </Field>
+            </Field> */}
             <div className="wide">
               <Field label="Description">
                 <textarea name="description" defaultValue={editing?.description} />

@@ -41,7 +41,7 @@ export function CategoriesPage() {
       categories.data.forEach((item) => included.add(item.id));
     } else {
       categories.data.forEach((item) => {
-        if (`${item.name} ${item.slug}`.toLowerCase().includes(normalizedQuery)) {
+        if (`${item.name} ${item.slug ?? ""}`.toLowerCase().includes(normalizedQuery)) {
           let current: Category | undefined = item;
           while (current && !included.has(current.id)) {
             included.add(current.id);
@@ -93,9 +93,11 @@ export function CategoriesPage() {
     setBusy(true);
     setError("");
     const form = new FormData(event.currentTarget);
+    const rawSlug = form.get("slug");
+    const slug = rawSlug ? String(rawSlug).trim().toLowerCase() || undefined : undefined;
     const body = {
       name: String(form.get("name")),
-      slug: String(form.get("slug")).toLowerCase(),
+      slug,
       parent_category_id: String(form.get("parent") || "") || undefined,
       description: String(form.get("description") || "") || undefined,
       sort_order: Number(form.get("sort_order") || 0),
@@ -228,10 +230,13 @@ export function CategoriesPage() {
                       </span>
                       <div className="cell-main">
                         <strong>{item.name}</strong>
-                        <small>
-                          /{item.slug}
-                          {item.description ? ` · ${item.description}` : ""}
-                        </small>
+                        {(item.slug || item.description) && (
+                          <small>
+                            {item.slug ? `/${item.slug}` : ""}
+                            {item.slug && item.description ? " · " : ""}
+                            {item.description ?? ""}
+                          </small>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -280,14 +285,13 @@ export function CategoriesPage() {
             <Field label="Name">
               <input name="name" defaultValue={editing?.name} required />
             </Field>
-            <Field label="URL slug">
+            {/* <Field label="URL slug">
               <input
                 name="slug"
-                defaultValue={editing?.slug}
+                defaultValue={editing?.slug ?? ""}
                 pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                required
               />
-            </Field>
+            </Field> */}
             <Field label="Parent category">
               <select name="parent" defaultValue={editing?.parent_category_id ?? ""}>
                 <option value="">Top level</option>
