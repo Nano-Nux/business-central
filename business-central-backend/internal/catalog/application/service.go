@@ -142,28 +142,28 @@ func (s *Service) UpdateConversion(ctx context.Context, claims *authdto.Claims, 
 
 func (s *Service) CreateBrand(ctx context.Context, claims *authdto.Claims, request catalogdto.BrandRequest) (catalogdto.Brand, error) {
 	if err := domaincatalog.Brand(request.Name, request.Slug); err != nil {
-		return catalogdto.Brand{}, invalid("Brand name and slug are required.")
+		return catalogdto.Brand{}, invalid("Brand name is required.")
 	}
 	return s.Repository.CreateBrand(ctx, claims, request)
 }
 
 func (s *Service) UpdateBrand(ctx context.Context, claims *authdto.Claims, id string, request catalogdto.BrandRequest) (catalogdto.Brand, error) {
 	if err := domaincatalog.Brand(request.Name, request.Slug); err != nil {
-		return catalogdto.Brand{}, invalid("Brand name and slug are required.")
+		return catalogdto.Brand{}, invalid("Brand name is required.")
 	}
 	return s.Repository.UpdateBrand(ctx, claims, id, request)
 }
 
 func (s *Service) CreateCategory(ctx context.Context, claims *authdto.Claims, request catalogdto.CategoryRequest) (catalogdto.Category, error) {
 	if err := domaincatalog.Category(request.Name, request.Slug); err != nil {
-		return catalogdto.Category{}, invalid("Category name and slug are required.")
+		return catalogdto.Category{}, invalid("Category name is required.")
 	}
 	return s.Repository.CreateCategory(ctx, claims, request)
 }
 
 func (s *Service) UpdateCategory(ctx context.Context, claims *authdto.Claims, id string, request catalogdto.CategoryRequest) (catalogdto.Category, error) {
 	if err := domaincatalog.Category(request.Name, request.Slug); err != nil {
-		return catalogdto.Category{}, invalid("Category name and slug are required.")
+		return catalogdto.Category{}, invalid("Category name is required.")
 	}
 	return s.Repository.UpdateCategory(ctx, claims, id, request)
 }

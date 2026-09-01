@@ -25,6 +25,10 @@ export function SyncStatusPanel() {
   const offline = useOffline();
   const [resolving, setResolving] = useState<string | null>(null);
   const visible = offline.operations.filter((operation) => operation.status !== "SYNCED");
+  const unsuccessful = visible.filter((operation) =>
+    ["FAILED", "REJECTED", "CONFLICT", "BLOCKED"].includes(operation.status),
+  );
+
   if (
     visible.length === 0 &&
     !offline.lastError &&
@@ -59,7 +63,34 @@ export function SyncStatusPanel() {
               : "Backend-authoritative temporary offline mode"}
           </small>
         </div>
-        {offline.lastError && <p className="sync-status-error">{offline.lastError}</p>}
+        {offline.lastError && (
+          <div className="sync-status-error-block">
+            <p className="sync-status-error">{offline.lastError}</p>
+            <div className="sync-operation-actions">
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={
+                  Boolean(resolving) || offline.status === "offline" || offline.status === "syncing"
+                }
+                onClick={() => {
+                  setResolving("sync-error");
+                  void offline.syncNow().finally(() => setResolving(null));
+                }}
+              >
+                Retry sync
+              </button>
+              <button
+                type="button"
+                className="button button-danger"
+                disabled={Boolean(resolving)}
+                onClick={() => offline.clearLastError()}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
         {offline.storage.warning && (
           <p className="sync-storage-warning">{offline.storage.warning}</p>
         )}
@@ -77,125 +108,221 @@ export function SyncStatusPanel() {
             automatically after reconnection.
           </p>
         )}
+        {unsuccessful.length > 1 && (
+          <div className="sync-bulk-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={
+                Boolean(resolving) || offline.status === "offline" || offline.status === "syncing"
+              }
+              onClick={() => {
+                setResolving("bulk-retry");
+                void offline.retryAllUnsuccessful().finally(() => setResolving(null));
+              }}
+            >
+              {resolving === "bulk-retry" ? "Retrying all…" : `Retry all (${unsuccessful.length})`}
+            </button>
+            <button
+              type="button"
+              className="button button-danger"
+              disabled={Boolean(resolving)}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Delete all ${unsuccessful.length} unsuccessful offline records? This action cannot be undone.`,
+                  )
+                ) {
+                  return;
+                }
+                setResolving("bulk-delete");
+                void offline.discardAllUnsuccessful().finally(() => setResolving(null));
+              }}
+            >
+              {resolving === "bulk-delete"
+                ? "Deleting all…"
+                : `Delete all (${unsuccessful.length})`}
+            </button>
+          </div>
+        )}
         <div className="sync-operation-list">
-          {visible.map((operation) => (
-            <article key={operation.operationId}>
-              <div>
-                <strong>{operationLabel(operation.entityType)}</strong>
-                <span className={`sync-state sync-state-${operation.status.toLowerCase()}`}>
-                  {operation.operationType} · {operation.status}
-                </span>
-              </div>
-              <small>
-                Saved{" "}
-                {new Intl.DateTimeFormat("en", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }).format(new Date(operation.clientCreatedAt))}
-              </small>
-              {operation.lastError && <p>{operation.lastError}</p>}
-              {operation.entityType === "REPAIR_ORDER" &&
-                operation.operationType === "CREATE" &&
-                (operation.status === "REJECTED" || operation.status === "FAILED") && (
-                  <Link
-                    className="button button-secondary"
-                    href={`/repairs/sync-review/${encodeURIComponent(operation.operationId)}`}
-                  >
-                    Review and edit repair
-                  </Link>
-                )}
-              {operation.entityType === "POS_CHECKOUT" && operation.status === "REJECTED" && (
-                <div className="sync-checkout-review">
-                  {Boolean(operation.serverPayload?.payment_authorization_required) && (
-                    <p>
-                      No external payment was captured. Complete provider authorization before
-                      retrying this checkout.
-                    </p>
-                  )}
-                  {Boolean(operation.serverPayload?.authoritative_quote) && (
-                    <p>
-                      Authoritative total:{" "}
-                      <strong>
-                        {String(
-                          (
-                            (operation.serverPayload?.authoritative_quote ?? {}) as Record<
-                              string,
-                              unknown
-                            >
-                          ).grand_total ?? "Review required",
-                        )}
-                      </strong>
-                      . The provisional record remains saved.
-                    </p>
-                  )}
-                  <Link className="button button-secondary" href="/pos">
-                    Review checkout
-                  </Link>
+          {visible.map((operation) => {
+            const isProcessing = resolving === operation.operationId;
+            return (
+              <article key={operation.operationId}>
+                <div>
+                  <strong>{operationLabel(operation.entityType)}</strong>
+                  <span className={`sync-state sync-state-${operation.status.toLowerCase()}`}>
+                    {operation.operationType} · {operation.status}
+                  </span>
                 </div>
-              )}
-              {operation.status === "CONFLICT" && (
-                <>
-                  {operation.serverOperationId ? (
-                    <>
+                <small>
+                  Saved{" "}
+                  {new Intl.DateTimeFormat("en", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(operation.clientCreatedAt))}
+                </small>
+                {operation.lastError && <p>{operation.lastError}</p>}
+                {operation.entityType === "REPAIR_ORDER" &&
+                  operation.operationType === "CREATE" &&
+                  (operation.status === "REJECTED" || operation.status === "FAILED") && (
+                    <Link
+                      className="button button-secondary"
+                      href={`/repairs/sync-review/${encodeURIComponent(operation.operationId)}`}
+                    >
+                      Review and edit repair
+                    </Link>
+                  )}
+                {operation.entityType === "POS_CHECKOUT" && operation.status === "REJECTED" && (
+                  <div className="sync-checkout-review">
+                    {Boolean(operation.serverPayload?.payment_authorization_required) && (
                       <p>
-                        The server copy is being shown. Keep it or intentionally apply your saved
-                        change over the latest server version.
+                        No external payment was captured. Complete provider authorization before
+                        retrying this checkout.
                       </p>
-                      <div className="sync-conflict-actions">
-                        <button
-                          className="button button-secondary"
-                          disabled={Boolean(resolving) || offline.status === "offline"}
-                          onClick={() => {
-                            setResolving(operation.operationId);
-                            void offline
-                              .resolveConflict(operation, "KEEP_SERVER")
-                              .finally(() => setResolving(null));
-                          }}
-                        >
-                          Keep server copy
-                        </button>
-                        <button
-                          className="button button-primary"
-                          disabled={Boolean(resolving) || offline.status === "offline"}
-                          onClick={() => {
-                            if (
-                              !window.confirm(
-                                "Apply your saved change over the latest server version?",
+                    )}
+                    {Boolean(operation.serverPayload?.authoritative_quote) && (
+                      <p>
+                        Authoritative total:{" "}
+                        <strong>
+                          {String(
+                            (
+                              (operation.serverPayload?.authoritative_quote ?? {}) as Record<
+                                string,
+                                unknown
+                              >
+                            ).grand_total ?? "Review required",
+                          )}
+                        </strong>
+                        . The provisional record remains saved.
+                      </p>
+                    )}
+                    <Link className="button button-secondary" href="/pos">
+                      Review checkout
+                    </Link>
+                  </div>
+                )}
+                {operation.status === "CONFLICT" ? (
+                  <>
+                    {operation.serverOperationId ? (
+                      <>
+                        <p>
+                          The server copy is being shown. Keep it or intentionally apply your saved
+                          change over the latest server version.
+                        </p>
+                        <div className="sync-conflict-actions">
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            disabled={Boolean(resolving) || offline.status === "offline"}
+                            onClick={() => {
+                              setResolving(operation.operationId);
+                              void offline
+                                .resolveConflict(operation, "KEEP_SERVER")
+                                .finally(() => setResolving(null));
+                            }}
+                          >
+                            Keep server copy
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            disabled={Boolean(resolving) || offline.status === "offline"}
+                            onClick={() => {
+                              if (
+                                !window.confirm(
+                                  "Apply your saved change over the latest server version?",
+                                )
                               )
-                            )
-                              return;
-                            setResolving(operation.operationId);
-                            void offline
-                              .resolveConflict(operation, "APPLY_CLIENT")
-                              .finally(() => setResolving(null));
-                          }}
-                        >
-                          Apply my change
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="sync-conflict-actions">
+                                return;
+                              setResolving(operation.operationId);
+                              void offline
+                                .resolveConflict(operation, "APPLY_CLIENT")
+                                .finally(() => setResolving(null));
+                            }}
+                          >
+                            Apply my change
+                          </button>
+                        </div>
+                      </>
+                    ) : (
                       <p>This change needs review before it can be replayed.</p>
+                    )}
+                    <div className="sync-operation-actions">
                       <button
+                        type="button"
                         className="button button-secondary"
-                        disabled={Boolean(resolving) || offline.status === "offline"}
+                        disabled={Boolean(resolving) || offline.status === "syncing"}
                         onClick={() => {
                           setResolving(operation.operationId);
                           void offline.retryOperation(operation).finally(() => setResolving(null));
                         }}
                       >
-                        Retry after review
+                        {isProcessing ? "Retrying…" : "Retry"}
+                      </button>
+                      <button
+                        type="button"
+                        className="button button-danger"
+                        disabled={Boolean(resolving)}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              "Delete this offline record? This action cannot be undone.",
+                            )
+                          ) {
+                            return;
+                          }
+                          setResolving(operation.operationId);
+                          void offline
+                            .discardOperation(operation)
+                            .finally(() => setResolving(null));
+                        }}
+                      >
+                        {isProcessing ? "Deleting…" : "Delete"}
                       </button>
                     </div>
-                  )}
-                </>
-              )}
-            </article>
-          ))}
+                  </>
+                ) : (
+                  <div className="sync-operation-actions">
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      disabled={Boolean(resolving) || offline.status === "syncing"}
+                      onClick={() => {
+                        setResolving(operation.operationId);
+                        void offline.retryOperation(operation).finally(() => setResolving(null));
+                      }}
+                    >
+                      {isProcessing ? "Retrying…" : "Retry"}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-danger"
+                      disabled={Boolean(resolving)}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            "Delete this offline record? This action cannot be undone.",
+                          )
+                        ) {
+                          return;
+                        }
+                        setResolving(operation.operationId);
+                        void offline.discardOperation(operation).finally(() => setResolving(null));
+                      }}
+                    >
+                      {isProcessing ? "Deleting…" : "Delete"}
+                    </button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
         {offline.status !== "offline" && offline.pending > 0 && (
           <button
+            type="button"
             className="button button-primary"
             onClick={() => void offline.syncNow()}
             disabled={offline.status === "syncing"}

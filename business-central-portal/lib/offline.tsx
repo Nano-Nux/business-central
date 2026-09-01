@@ -11,10 +11,13 @@ import {
 } from "react";
 import { useAuth } from "./auth";
 import {
+  discardOfflineOperation,
+  discardOfflineOperations,
   getMetadata,
   isIndexedDbAvailable,
   listOperations,
   retryOfflineOperation,
+  retryOfflineOperations,
   type OfflineOperation,
   type OfflineScope,
 } from "./offline-db";
@@ -42,6 +45,10 @@ type OfflineValue = {
     strategy: "KEEP_SERVER" | "APPLY_CLIENT",
   ) => Promise<boolean>;
   retryOperation: (operation: OfflineOperation) => Promise<void>;
+  discardOperation: (operation: OfflineOperation) => Promise<void>;
+  retryAllUnsuccessful: () => Promise<void>;
+  discardAllUnsuccessful: () => Promise<void>;
+  clearLastError: () => void;
   refresh: () => Promise<void>;
 };
 
@@ -171,9 +178,49 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     async (operation: OfflineOperation) => {
       await retryOfflineOperation(operation);
       await refresh();
+      if (navigator.onLine && status !== "offline") {
+        void syncNow();
+      }
     },
-    [refresh],
+    [refresh, status, syncNow],
   );
+
+  const discardOperation = useCallback(
+    async (operation: OfflineOperation) => {
+      if (!scope) return;
+      await discardOfflineOperation(scope, operation);
+      await refresh();
+      window.dispatchEvent(new Event("bc-resource-refresh"));
+    },
+    [refresh, scope],
+  );
+
+  const retryAllUnsuccessful = useCallback(async () => {
+    const unsuccessful = operations.filter((op) =>
+      ["FAILED", "REJECTED", "CONFLICT", "BLOCKED"].includes(op.status),
+    );
+    if (unsuccessful.length === 0) return;
+    await retryOfflineOperations(unsuccessful);
+    await refresh();
+    if (navigator.onLine && status !== "offline") {
+      void syncNow();
+    }
+  }, [operations, refresh, status, syncNow]);
+
+  const discardAllUnsuccessful = useCallback(async () => {
+    if (!scope) return;
+    const unsuccessful = operations.filter((op) =>
+      ["FAILED", "REJECTED", "CONFLICT", "BLOCKED"].includes(op.status),
+    );
+    if (unsuccessful.length === 0) return;
+    await discardOfflineOperations(scope, unsuccessful);
+    await refresh();
+    window.dispatchEvent(new Event("bc-resource-refresh"));
+  }, [operations, refresh, scope]);
+
+  const clearLastError = useCallback(() => {
+    setLastError("");
+  }, []);
 
   useEffect(() => {
     const cachedResources = new Map<string, { path: string; cachedAt: string }>();
@@ -282,6 +329,10 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       syncNow,
       resolveConflict,
       retryOperation,
+      discardOperation,
+      retryAllUnsuccessful,
+      discardAllUnsuccessful,
+      clearLastError,
       refresh,
     }),
     [
@@ -297,6 +348,10 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       syncNow,
       resolveConflict,
       retryOperation,
+      discardOperation,
+      retryAllUnsuccessful,
+      discardAllUnsuccessful,
+      clearLastError,
       refresh,
     ],
   );

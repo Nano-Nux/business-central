@@ -880,13 +880,16 @@ func (r *Repository) applyCatalogCategoryOperation(ctx context.Context, tx pgx.T
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_BASE_VERSION", "Category creation must start at version zero.")
 	}
 	if operation.OperationType == "CREATE" {
-		var conflictingID string
-		err := tx.QueryRow(ctx, `SELECT id::text FROM catalog_categories WHERE merchant_id=$1::uuid AND slug=$2 LIMIT 1`, claims.MerchantID, strings.ToLower(strings.TrimSpace(payload.Slug))).Scan(&conflictingID)
-		if err == nil {
-			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "ALREADY_EXISTS", "A category with this slug already exists.")
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return dto.OperationResult{}, err
+		slug := strings.ToLower(strings.TrimSpace(payload.Slug))
+		if slug != "" {
+			var conflictingID string
+			err := tx.QueryRow(ctx, `SELECT id::text FROM catalog_categories WHERE merchant_id=$1::uuid AND slug=$2 LIMIT 1`, claims.MerchantID, slug).Scan(&conflictingID)
+			if err == nil {
+				return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "ALREADY_EXISTS", "A category with this slug already exists.")
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return dto.OperationResult{}, err
+			}
 		}
 	}
 	var serverID string
@@ -895,11 +898,11 @@ func (r *Repository) applyCatalogCategoryOperation(ctx context.Context, tx pgx.T
 		return dto.OperationResult{}, err
 	}
 	if operation.OperationType == "CREATE" {
-		if _, err := tx.Exec(ctx, `INSERT INTO catalog_categories(id,merchant_id,parent_category_id,name,slug,description,image_url,sort_order) VALUES($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8)`, operation.EntityID, claims.MerchantID, payload.ParentCategoryID, strings.TrimSpace(payload.Name), strings.ToLower(strings.TrimSpace(payload.Slug)), payload.Description, payload.ImageURL, payload.SortOrder); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO catalog_categories(id,merchant_id,parent_category_id,name,slug,description,image_url,sort_order) VALUES($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8)`, operation.EntityID, claims.MerchantID, payload.ParentCategoryID, strings.TrimSpace(payload.Name), nullSyncSlug(payload.Slug), payload.Description, payload.ImageURL, payload.SortOrder); err != nil {
 			return dto.OperationResult{}, err
 		}
 	} else if operation.OperationType == "UPDATE" {
-		if _, err := tx.Exec(ctx, `UPDATE catalog_categories SET parent_category_id=$3,name=$4,slug=$5,description=$6,image_url=$7,sort_order=$8,updated_at=now() WHERE merchant_id=$1::uuid AND id=$2`, claims.MerchantID, operation.EntityID, payload.ParentCategoryID, strings.TrimSpace(payload.Name), strings.ToLower(strings.TrimSpace(payload.Slug)), payload.Description, payload.ImageURL, payload.SortOrder); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE catalog_categories SET parent_category_id=$3,name=$4,slug=$5,description=$6,image_url=$7,sort_order=$8,updated_at=now() WHERE merchant_id=$1::uuid AND id=$2`, claims.MerchantID, operation.EntityID, payload.ParentCategoryID, strings.TrimSpace(payload.Name), nullSyncSlug(payload.Slug), payload.Description, payload.ImageURL, payload.SortOrder); err != nil {
 			return dto.OperationResult{}, err
 		}
 	} else if operation.OperationType == "DELETE" {
@@ -942,9 +945,17 @@ func (r *Repository) applyCatalogCategoryOperation(ctx context.Context, tx pgx.T
 	return dto.OperationResult{ClientOperationID: operation.ClientOperationID, ServerOperationID: serverID, Status: "APPLIED", ServerSequence: &sequence, EntityVersion: &newVersion, ServerPayload: updatedPayload}, nil
 }
 
+func nullSyncSlug(s string) *string {
+	trimmed := strings.ToLower(strings.TrimSpace(s))
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
 func validateCatalogCategoryPayload(payload catalogCategorySyncPayload) error {
-	if strings.TrimSpace(payload.Name) == "" || strings.TrimSpace(payload.Slug) == "" || payload.SortOrder < 0 {
-		return errors.New("category name, slug, and non-negative sort order are required")
+	if strings.TrimSpace(payload.Name) == "" || payload.SortOrder < 0 {
+		return errors.New("category name and non-negative sort order are required")
 	}
 	return nil
 }
