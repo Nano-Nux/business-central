@@ -64,6 +64,24 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
           shop.address?.show_device_brand_in_repair_invoice === "true",
         contact_info: shop.contact_info ?? shop.address?.contact_info,
         footer_note: shop.footer_note ?? shop.address?.footer_note,
+        default_view: shop.default_view ?? shop.address?.default_view,
+        currency_display: shop.currency_display ?? shop.address?.currency_display,
+        default_status: shop.default_status ?? shop.address?.default_status,
+        confirmation: shop.confirmation ?? shop.address?.confirmation,
+        show_repair_ticket_id:
+          shop.show_repair_ticket_id ??
+          shop.address?.show_repair_ticket_id === "true",
+        waiting_time_format:
+          (shop.waiting_time_format ?? shop.address?.waiting_time_format ?? "DAYS") as "DAYS" | "DATE_RANGE",
+        show_full_customer_labels:
+          shop.show_full_customer_labels ??
+          shop.address?.show_full_customer_labels === "true",
+        show_model_label:
+          shop.show_model_label !== undefined
+            ? shop.show_model_label
+            : shop.address?.show_model_label !== undefined
+              ? shop.address.show_model_label !== "false"
+              : true,
       })),
     [],
   );

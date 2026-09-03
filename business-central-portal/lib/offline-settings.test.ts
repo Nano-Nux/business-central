@@ -79,4 +79,74 @@ describe("offline shop settings", () => {
       },
     ]);
   });
+
+  it("persists operational and printer settings to the offline entity projection and sync payload", async () => {
+    const operation = await queueShopSettingsUpdate(
+      scope,
+      shop,
+      {
+        name: shop.name,
+        code: shop.code,
+        address: {
+          line1: "Shop address",
+          default_view: "/pos",
+          currency_display: "SYMBOL",
+          default_status: "DIAGNOSING",
+          confirmation: "always",
+          printer_paper_width_mm: "80",
+          printer_font_size_px: "16",
+        },
+        is_active: true,
+        include_tax: true,
+        tax_rate: "7",
+        tax_label: "VAT",
+        receipt_note: "Thank you!",
+      },
+    );
+
+    await expect(listOperations(scope)).resolves.toMatchObject([
+      {
+        operationId: operation.operationId,
+        entityType: "SHOP_SETTINGS",
+        payload: {
+          include_tax: true,
+          tax_rate: "7",
+          tax_label: "VAT",
+          receipt_note: "Thank you!",
+          address: {
+            default_view: "/pos",
+            currency_display: "SYMBOL",
+            default_status: "DIAGNOSING",
+            confirmation: "always",
+            printer_paper_width_mm: "80",
+            printer_font_size_px: "16",
+          },
+        },
+      },
+    ]);
+
+    await expect(getCachedEntities<Shop>(scope, "SHOP_SETTINGS")).resolves.toMatchObject([
+      {
+        entityId: shop.id,
+        payload: {
+          include_tax: true,
+          tax_rate: "7",
+          tax_label: "VAT",
+          receipt_note: "Thank you!",
+          default_view: "/pos",
+          currency_display: "SYMBOL",
+          default_status: "DIAGNOSING",
+          confirmation: "always",
+          address: {
+            default_view: "/pos",
+            currency_display: "SYMBOL",
+            default_status: "DIAGNOSING",
+            confirmation: "always",
+            printer_paper_width_mm: "80",
+            printer_font_size_px: "16",
+          },
+        },
+      },
+    ]);
+  });
 });

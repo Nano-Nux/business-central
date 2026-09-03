@@ -71,6 +71,32 @@ export async function queueShopSettingsUpdate(
     show_device_type_in_repair_invoice: updateAddress.show_device_type_in_repair_invoice === "true",
     show_device_brand_in_repair_invoice:
       updateAddress.show_device_brand_in_repair_invoice === "true",
+    default_view:
+      typeof updateAddress.default_view === "string"
+        ? updateAddress.default_view
+        : shop.default_view,
+    currency_display:
+      typeof updateAddress.currency_display === "string"
+        ? updateAddress.currency_display
+        : shop.currency_display,
+    default_status:
+      typeof updateAddress.default_status === "string"
+        ? updateAddress.default_status
+        : shop.default_status,
+    confirmation:
+      typeof updateAddress.confirmation === "string"
+        ? updateAddress.confirmation
+        : shop.confirmation,
+    show_repair_ticket_id: updateAddress.show_repair_ticket_id === "true",
+    waiting_time_format:
+      typeof updateAddress.waiting_time_format === "string"
+        ? (updateAddress.waiting_time_format as "DAYS" | "DATE_RANGE")
+        : (shop.waiting_time_format ?? "DAYS"),
+    show_full_customer_labels: updateAddress.show_full_customer_labels === "true",
+    show_model_label:
+      typeof updateAddress.show_model_label === "string"
+        ? updateAddress.show_model_label !== "false"
+        : (shop.show_model_label ?? true),
   };
   const payload = options.offlineImageUploads?.length
     ? { ...update, [PORTAL_IMAGE_UPLOADS]: options.offlineImageUploads }

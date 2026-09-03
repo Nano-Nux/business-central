@@ -304,4 +304,54 @@ describe("repair invoice service lines", () => {
 
     expect(invoice.items.map((item) => item.name)).toEqual(["Port cleaning", "Charging port"]);
   });
+
+  it("projects showRepairTicketId and waitingTimeFormat from shop settings", () => {
+    const repair = {
+      id: "repair-opt-1",
+      service_order_id: "service-order-opt-1",
+      device_id: "device-opt-1",
+      order_number: "REP-OPT-1",
+      status: "RECEIVED",
+      issue_description: "Screen",
+      received_at: "2026-08-12T00:00:00.000Z",
+      deposit_paid: "0.00",
+      payment_status: "UNPAID",
+      labor_fee: "0.00",
+      additional_fee: "0.00",
+      tax_amount: "0.00",
+      total_cost: "0.00",
+    } satisfies RepairOrder;
+
+    const defaultInvoice = createRepairInvoice({
+      repair,
+      currencyCode: "USD",
+    });
+    expect(defaultInvoice.showRepairTicketId).toBe(false);
+    expect(defaultInvoice.showFullCustomerLabels).toBe(false);
+    expect(defaultInvoice.showModelLabel).toBe(true);
+    expect(defaultInvoice.waitingTimeFormat).toBe("DAYS");
+
+    const configuredInvoice = createRepairInvoice({
+      repair,
+      shop: {
+        id: "shop-1",
+        name: "Test Shop",
+        code: "SHOP-1",
+        timezone: "UTC",
+        is_active: true,
+        module_codes: [],
+        include_tax: false,
+        tax_rate: "0",
+        show_repair_ticket_id: true,
+        show_full_customer_labels: true,
+        show_model_label: false,
+        waiting_time_format: "DATE_RANGE",
+      },
+      currencyCode: "USD",
+    });
+    expect(configuredInvoice.showRepairTicketId).toBe(true);
+    expect(configuredInvoice.showFullCustomerLabels).toBe(true);
+    expect(configuredInvoice.showModelLabel).toBe(false);
+    expect(configuredInvoice.waitingTimeFormat).toBe("DATE_RANGE");
+  });
 });

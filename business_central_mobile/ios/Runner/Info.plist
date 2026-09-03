@@ -10,6 +10,8 @@
 	<string>Business Central uses Bluetooth to connect to thermal receipt printers.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Business Central uses the camera to scan product and stock barcodes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Business Central uses your photo library to select and upload product and receipt images.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

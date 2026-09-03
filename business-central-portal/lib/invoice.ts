@@ -1,6 +1,6 @@
 import type { Invoice } from "./types";
 import { formatMoney, formatQuantity } from "./currency";
-import { formatDateOnly, formatShopDateTime } from "./date-time";
+import { dateOnlyDaysBetween, formatDateOnly, formatShopDateTime } from "./date-time";
 import { resolveMediaURL } from "./media-url";
 
 export const INVOICE_FOOTER_PROMOTION = "More business solution? Contact to https://nanonux.com";
@@ -296,42 +296,87 @@ function drawPosInvoice(painter: ReceiptPainter, invoice: Invoice, logo: HTMLIma
   });
 }
 
+function formatWaitingTime(
+  format: "DAYS" | "DATE_RANGE" = "DAYS",
+  days?: number,
+  startDate?: string,
+  endDate?: string,
+) {
+  if (format === "DATE_RANGE") {
+    if (startDate && endDate) {
+      return `${formatDateOnly(startDate)} – ${formatDateOnly(endDate)}`;
+    }
+    if (startDate) return formatDateOnly(startDate);
+  }
+  const count =
+    days !== undefined
+      ? days
+      : startDate && endDate
+        ? dateOnlyDaysBetween(startDate, endDate)
+        : 0;
+  return `${count} - days`;
+}
+
 function drawRepairInvoice(
   painter: ReceiptPainter,
   invoice: Invoice,
   logo: HTMLImageElement | null,
 ) {
   drawHeader(painter, invoice, "Repair ticket invoice", logo);
-  painter.row("Customer name", invoice.customer || "Not recorded", { bold: true });
-  painter.row("Customer phone", invoice.customerPhone || "Not recorded");
-  painter.row("Current date", formatShopDateTime(invoice.createdAt, invoice.shopTimezone));
-  painter.row("Ticket number", invoice.number, { bold: true });
-  if (invoice.waitingStartDate && invoice.waitingEndDate)
-    painter.row(
-      "Ticket waiting period",
-      `${formatDateOnly(invoice.waitingStartDate)} – ${formatDateOnly(invoice.waitingEndDate)} (${invoice.waitingDays ?? 0} days)`,
-    );
+  const nameLabel = invoice.showFullCustomerLabels ? "Customer Name" : "Name";
+  const phoneLabel = invoice.showFullCustomerLabels ? "Customer Phone" : "Phone";
+  painter.row(nameLabel, invoice.customer || "Not recorded", { bold: true });
+  painter.row(phoneLabel, invoice.customerPhone || "Not recorded");
+  painter.row("Date", formatShopDateTime(invoice.createdAt, invoice.shopTimezone));
+  if (invoice.showRepairTicketId) {
+    painter.row("Ticket ID", invoice.number, { bold: true });
+  }
   painter.rule(true);
 
   if (invoice.work_items?.length) {
+    const workItems = invoice.work_items;
     painter.heading("Devices / work items");
-    for (const [index, item] of invoice.work_items.entries()) {
+    for (const [index, item] of workItems.entries()) {
       painter.dottedBox(() => {
-        const deviceHeading = [
-          ...(invoice.showDeviceType ? [item.device_type] : []),
-          ...(invoice.showDeviceBrand ? [item.manufacturer] : []),
+        const brandModelParts = [
+          ...(invoice.showDeviceBrand && item.manufacturer ? [item.manufacturer] : []),
           item.model,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-        painter.text(`${index + 1}. ${deviceHeading || "Work item"}`, { bold: true, size: 13 });
+        ].filter(Boolean);
+        const modelValue = brandModelParts.join(" - ") || item.model || "Not recorded";
+
+        if (invoice.showModelLabel !== false) {
+          if (invoice.showDeviceType && item.device_type) {
+            painter.text(
+              workItems.length > 1 ? `${index + 1}. ${item.device_type}` : item.device_type,
+              { bold: true, size: 13 },
+            );
+          } else if (workItems.length > 1) {
+            painter.text(`Device ${index + 1}`, { bold: true, size: 13 });
+          }
+          painter.row("Model", modelValue, { bold: true });
+        } else {
+          const deviceHeading = [
+            ...(invoice.showDeviceType ? [item.device_type] : []),
+            modelValue,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          painter.text(`${index + 1}. ${deviceHeading || "Work item"}`, { bold: true, size: 13 });
+        }
+
         if (invoice.showDeviceCompletionStatus)
           painter.row("Status", item.status.replaceAll("_", " "));
-        if (item.waiting_start_date && item.waiting_end_date)
+        if (item.waiting_start_date || item.waiting_end_date || item.waiting_days !== undefined) {
           painter.row(
             "Waiting time",
-            `${item.waiting_days ?? 0} days · ${formatDateOnly(item.waiting_start_date)} – ${formatDateOnly(item.waiting_end_date)}`,
+            formatWaitingTime(
+              invoice.waitingTimeFormat,
+              item.waiting_days,
+              item.waiting_start_date,
+              item.waiting_end_date,
+            ),
           );
+        }
         painter.row("Serial / IMEI", item.serial_number || "Not recorded");
         const issues =
           item.issues?.filter((value) => value.trim()) ??
@@ -360,7 +405,11 @@ function drawRepairInvoice(
     }
   } else {
     painter.dottedBox(() => {
-      painter.row("Model number", invoice.modelNumber || "Not recorded", { bold: true });
+      if (invoice.showModelLabel !== false) {
+        painter.row("Model", invoice.modelNumber || "Not recorded", { bold: true });
+      } else {
+        painter.text(invoice.modelNumber || "Not recorded", { bold: true, size: 13 });
+      }
       painter.row("Error", invoice.errorDescription || "Not recorded");
       painter.row("IMEI number", invoice.imeiNumber || "Not recorded");
     });
@@ -410,7 +459,22 @@ function drawRepairInvoice(
     );
   }
   painter.rule();
-  painter.row("Status", paymentStatus(invoice), { bold: true });
+  if (
+    invoice.waitingStartDate ||
+    invoice.waitingEndDate ||
+    invoice.waitingDays !== undefined
+  ) {
+    painter.row(
+      "Ticket waiting period",
+      formatWaitingTime(
+        invoice.waitingTimeFormat,
+        invoice.waitingDays,
+        invoice.waitingStartDate,
+        invoice.waitingEndDate,
+      ),
+    );
+  }
+  painter.row("Payment Status", paymentStatus(invoice), { bold: true });
   if (invoice.note) {
     painter.heading("Repair ticket note");
     painter.text(invoice.note, { size: 12 });

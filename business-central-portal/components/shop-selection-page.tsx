@@ -22,7 +22,9 @@ export function ShopSelectionPage() {
 
   function choose(shopId: string) {
     selectShop(shopId);
-    router.replace(dashboard);
+    const chosen = shops.find((s) => s.id === shopId);
+    const landing = chosen?.default_view || chosen?.address?.default_view;
+    router.replace(landing && landing.startsWith("/") ? landing : dashboard);
   }
 
   if (!ready || !user || loading) {
