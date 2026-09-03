@@ -182,6 +182,14 @@ export type Shop = {
   footer_note?: string;
   tax_label?: string;
   receipt_note?: string;
+  default_view?: string;
+  currency_display?: string;
+  default_status?: string;
+  confirmation?: string;
+  show_repair_ticket_id?: boolean;
+  waiting_time_format?: "DAYS" | "DATE_RANGE";
+  show_full_customer_labels?: boolean;
+  show_model_label?: boolean;
 };
 export type Location = {
   id: string;
@@ -621,6 +629,10 @@ export type Invoice = {
   showDeviceCompletionStatus?: boolean;
   showDeviceType?: boolean;
   showDeviceBrand?: boolean;
+  showRepairTicketId?: boolean;
+  showFullCustomerLabels?: boolean;
+  showModelLabel?: boolean;
+  waitingTimeFormat?: "DAYS" | "DATE_RANGE";
   waitingStartDate?: string;
   waitingEndDate?: string;
   waitingDays?: number;

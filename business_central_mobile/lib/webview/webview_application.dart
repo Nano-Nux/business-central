@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'native_file_selector_bridge.dart';
 import 'native_printer_bridge.dart';
 import 'native_refresh_bridge.dart';
 import 'native_scanner_bridge.dart';
@@ -205,6 +206,8 @@ class _PortalWebViewState extends State<_PortalWebView> {
   final NativePrinterBridge _printerBridge = NativePrinterBridge();
   final NativeRefreshBridge _refreshBridge = NativeRefreshBridge();
   final NativeScannerBridge _scannerBridge = NativeScannerBridge();
+  final NativeFileSelectorBridge _fileSelectorBridge =
+      NativeFileSelectorBridge();
   late final WebViewController _controller;
   int _progress = 0;
   String? _error;
@@ -285,6 +288,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
     _printerBridge.attach(_controller);
     _refreshBridge.attach(_controller);
     _scannerBridge.attach(_controller);
+    _fileSelectorBridge.attach(_controller);
   }
 
   bool _sameOrigin(Uri? target, Uri portal) =>

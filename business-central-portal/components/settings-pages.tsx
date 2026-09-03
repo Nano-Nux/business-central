@@ -125,77 +125,116 @@ export function OperationalSettingsPage({
   const [message, setMessage] = useState("");
   const { currentShop, shops, selectShop } = useShop();
   const offline = useOffline();
-  const [values, setValues] = useState<Record<string, string>>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(localStorage.getItem(`bc.settings.${section}`) ?? "{}");
-    } catch {
-      return {};
-    }
-  });
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!currentShop) return;
+    const timer = window.setTimeout(() => {
+      if (section === "application") {
+        setValues({
+          defaultView:
+            currentShop.default_view ?? currentShop.address?.default_view ?? "/dashboard",
+          currencyDisplay:
+            currentShop.currency_display ?? currentShop.address?.currency_display ?? "SYMBOL",
+        });
+      } else if (section === "staff") {
+        setValues({
+          defaultStatus:
+            currentShop.default_status ?? currentShop.address?.default_status ?? "DIAGNOSING",
+          confirmation:
+            currentShop.confirmation ?? currentShop.address?.confirmation ?? "always",
+        });
+      } else if (section === "tax-notes") {
+        setValues({
+          includeTax: String(Boolean(currentShop.include_tax)),
+          taxRate: currentShop.tax_rate ?? "0",
+          taxLabel: currentShop.tax_label ?? "Tax",
+          receiptNote: currentShop.receipt_note ?? "",
+        });
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [currentShop, section]);
+
+  if (section === "repair-specs") return <RepairFormSettingsPage />;
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (section === "tax-notes" && currentShop) {
-      try {
-        if (!offline.scope) {
-          throw new Error("An authenticated merchant workspace is required.");
-        }
-        await queueShopSettingsUpdate(offline.scope, currentShop, {
-          name: currentShop.name,
-          code: currentShop.code,
-          timezone: currentShop.timezone,
-          address: currentShop.address ?? {},
-          is_active: currentShop.is_active,
-          include_tax: (values.includeTax ?? String(Boolean(currentShop.include_tax))) === "true",
-          tax_rate: values.taxRate ?? currentShop.tax_rate ?? "0",
-          tax_label: values.taxLabel ?? currentShop.tax_label ?? "Tax",
-          receipt_note: values.receiptNote ?? currentShop.receipt_note ?? "",
-          footer_note: currentShop.footer_note ?? "",
-        });
-        if (!navigator.onLine) {
-          setMessage("Saved on this device. The change is pending sync.");
-          return;
-        }
-        const result = await offline.syncNow();
-        setMessage(
-          result && result.conflicts === 0 && result.rejected === 0
-            ? "Tax settings saved and synchronized for this shop."
-            : result?.conflicts
-              ? "Saved locally, but the server reported a settings conflict."
-              : result?.rejected
-                ? "Saved locally, but the server rejected this change."
-                : "Saved on this device. Synchronization will retry.",
-        );
-      } catch (reason) {
-        setMessage(reason instanceof Error ? reason.message : "Tax settings could not be saved.");
+    if (!currentShop) return;
+    try {
+      if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
+        throw new Error("Offline storage is required to save settings while disconnected.");
       }
-      return;
+
+      let updateAddress: Record<string, string> = { ...(currentShop.address ?? {}) };
+      let includeTax = currentShop.include_tax ?? false;
+      let taxRate = currentShop.tax_rate ?? "0";
+      let taxLabel = currentShop.tax_label ?? "Tax";
+      let receiptNote = currentShop.receipt_note ?? "";
+      let successMsg = "Settings saved for this shop.";
+
+      if (section === "application") {
+        updateAddress = {
+          ...updateAddress,
+          default_view: values.defaultView || "/dashboard",
+          currency_display: values.currencyDisplay || "SYMBOL",
+        };
+        successMsg = "Application settings saved and recorded in the database for this shop.";
+      } else if (section === "staff") {
+        updateAddress = {
+          ...updateAddress,
+          default_status: values.defaultStatus || "DIAGNOSING",
+          confirmation: values.confirmation || "always",
+        };
+        successMsg = "Staff settings saved and recorded in the database for this shop.";
+      } else if (section === "tax-notes") {
+        includeTax = values.includeTax === "true";
+        taxRate = values.taxRate ?? currentShop.tax_rate ?? "0";
+        taxLabel = values.taxLabel ?? currentShop.tax_label ?? "Tax";
+        receiptNote = values.receiptNote ?? currentShop.receipt_note ?? "";
+        successMsg = "Tax settings saved and recorded in the database for this shop.";
+      }
+
+      const update = {
+        name: currentShop.name,
+        code: currentShop.code,
+        timezone: currentShop.timezone,
+        address: updateAddress,
+        is_active: currentShop.is_active,
+        include_tax: includeTax,
+        tax_rate: taxRate,
+        tax_label: taxLabel,
+        receipt_note: receiptNote,
+        footer_note: currentShop.footer_note ?? "",
+      };
+
+      if (offline.scope && offline.storageAvailable) {
+        await queueShopSettingsUpdate(offline.scope, currentShop, update);
+        if (navigator.onLine) await offline.syncNow();
+        setMessage(
+          navigator.onLine
+            ? successMsg
+            : "Saved on this device. The change will sync to the database once reconnected.",
+        );
+      } else {
+        await patch(`/shops/${currentShop.id}`, {
+          ...update,
+          module_codes: currentShop.module_codes,
+        });
+        setMessage(successMsg);
+      }
+
+      // Keep localStorage in sync as local cache
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`bc.settings.${section}`, JSON.stringify(values));
+        localStorage.setItem(`bc.settings.${section}.${currentShop.id}`, JSON.stringify(values));
+      }
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Settings could not be saved.");
     }
-    localStorage.setItem(`bc.settings.${section}`, JSON.stringify(values));
-    setMessage("Settings saved for this shop.");
   }
-  const fields =
-    section === "application"
-      ? [
-          ["defaultView", "Default landing view"],
-          ["currencyDisplay", "Currency display"],
-        ]
-      : section === "tax-notes"
-        ? [
-            ["receiptNote", "Receipt footer note"],
-            ["taxLabel", "Tax label"],
-          ]
-        : section === "staff"
-          ? [
-              ["defaultStatus", "Default ticket status"],
-              ["confirmation", "Confirmation behavior"],
-            ]
-          : [
-              ["faultPresets", "Fault presets (comma separated)"],
-              ["defaultDuration", "Default repair duration"],
-            ];
-  if (section === "repair-specs") return <RepairFormSettingsPage />;
-  if (section === "tax-notes")
+
+  if (section === "tax-notes") {
     return (
       <>
         <PageHeader
@@ -219,10 +258,7 @@ export function OperationalSettingsPage({
           <label className="check-field">
             <input
               type="checkbox"
-              checked={
-                values.includeTax === "true" ||
-                (values.includeTax === undefined && Boolean(currentShop?.include_tax))
-              }
+              checked={values.includeTax === "true"}
               onChange={(event) =>
                 setValues({
                   ...values,
@@ -241,19 +277,19 @@ export function OperationalSettingsPage({
               min="0"
               max="100"
               step="0.01"
-              value={values.taxRate ?? currentShop?.tax_rate ?? "0"}
+              value={values.taxRate ?? "0"}
               onChange={(event) => setValues({ ...values, taxRate: event.target.value })}
             />
           </Field>
           <Field label="Tax label">
             <input
-              value={values.taxLabel ?? currentShop?.tax_label ?? "Tax"}
+              value={values.taxLabel ?? "Tax"}
               onChange={(event) => setValues({ ...values, taxLabel: event.target.value })}
             />
           </Field>
           <Field label="Receipt footer note">
             <input
-              value={values.receiptNote ?? currentShop?.receipt_note ?? ""}
+              value={values.receiptNote ?? ""}
               onChange={(event) => setValues({ ...values, receiptNote: event.target.value })}
             />
           </Field>
@@ -262,18 +298,91 @@ export function OperationalSettingsPage({
         </Form>
       </>
     );
+  }
+
+  if (section === "application") {
+    return (
+      <>
+        <PageHeader eyebrow="Settings" title={labels[section][0]} description={labels[section][1]} />
+        <Form className="card settings-stack" onSubmit={save}>
+          <Field label="Shop">
+            <select
+              value={currentShop?.id ?? ""}
+              onChange={(event) => selectShop(event.target.value)}
+            >
+              {shops.map((shop) => (
+                <option key={shop.id} value={shop.id}>
+                  {shop.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Default landing view">
+            <select
+              value={values.defaultView ?? "/dashboard"}
+              onChange={(event) => setValues({ ...values, defaultView: event.target.value })}
+            >
+              <option value="/dashboard">Dashboard</option>
+              <option value="/pos">Point of Sale (POS)</option>
+              <option value="/repairs">Repairs & Tickets</option>
+              <option value="/invoices">Invoices</option>
+              <option value="/catalog">Catalog & Products</option>
+              <option value="/customers">Customers</option>
+            </select>
+          </Field>
+          <Field label="Currency display">
+            <select
+              value={values.currencyDisplay ?? "SYMBOL"}
+              onChange={(event) => setValues({ ...values, currencyDisplay: event.target.value })}
+            >
+              <option value="SYMBOL">Currency Symbol (e.g. $ / ฿)</option>
+              <option value="CODE">Currency Code (e.g. USD / THB)</option>
+              <option value="BOTH">Both Symbol & Code (e.g. $ USD)</option>
+            </select>
+          </Field>
+          <Button type="submit">Save settings</Button>
+          {message && <div className="notice">{message}</div>}
+        </Form>
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader eyebrow="Settings" title={labels[section][0]} description={labels[section][1]} />
       <Form className="card settings-stack" onSubmit={save}>
-        {fields.map(([key, label]) => (
-          <Field key={key} label={label}>
-            <input
-              value={values[key] ?? ""}
-              onChange={(event) => setValues({ ...values, [key]: event.target.value })}
-            />
-          </Field>
-        ))}
+        <Field label="Shop">
+          <select
+            value={currentShop?.id ?? ""}
+            onChange={(event) => selectShop(event.target.value)}
+          >
+            {shops.map((shop) => (
+              <option key={shop.id} value={shop.id}>
+                {shop.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Default ticket status">
+          <select
+            value={values.defaultStatus ?? "DIAGNOSING"}
+            onChange={(event) => setValues({ ...values, defaultStatus: event.target.value })}
+          >
+            <option value="DIAGNOSING">Diagnosing — Initial intake inspection</option>
+            <option value="RECEIVED">Received — Awaiting queue</option>
+            <option value="IN_PROGRESS">In progress — Active repair</option>
+          </select>
+        </Field>
+        <Field label="Confirmation behavior">
+          <select
+            value={values.confirmation ?? "always"}
+            onChange={(event) => setValues({ ...values, confirmation: event.target.value })}
+          >
+            <option value="always">Always require confirmation for key workflow actions</option>
+            <option value="critical_only">Require confirmation only for cancellations & deletes</option>
+            <option value="never">Fast counter flow — minimal confirmation prompts</option>
+          </select>
+        </Field>
         <Button type="submit">Save settings</Button>
         {message && <div className="notice">{message}</div>}
       </Form>
@@ -283,17 +392,27 @@ export function OperationalSettingsPage({
 
 function RepairFormSettingsPage() {
   const offline = useOffline();
-  const { currentShop } = useShop();
+  const { currentShop, shops, selectShop } = useShop();
   const definitions = useResource<CustomFieldDefinition>(
     "/services/forms/definitions?page_index=0&page_size=200&filter=service_type:REPAIR",
   );
   const [message, setMessage] = useState("");
   const [showDeviceType, setShowDeviceType] = useState(false);
   const [showDeviceBrand, setShowDeviceBrand] = useState(false);
+  const [showRepairTicketId, setShowRepairTicketId] = useState(false);
+  const [showFullCustomerLabels, setShowFullCustomerLabels] = useState(false);
+  const [showModelLabel, setShowModelLabel] = useState(true);
+  const [waitingTimeFormat, setWaitingTimeFormat] = useState<"DAYS" | "DATE_RANGE">("DAYS");
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setShowDeviceType(currentShop?.show_device_type_in_repair_invoice === true);
       setShowDeviceBrand(currentShop?.show_device_brand_in_repair_invoice === true);
+      setShowRepairTicketId(currentShop?.show_repair_ticket_id === true);
+      setShowFullCustomerLabels(currentShop?.show_full_customer_labels === true);
+      setShowModelLabel(currentShop?.show_model_label !== false);
+      setWaitingTimeFormat(
+        (currentShop?.waiting_time_format === "DATE_RANGE" ? "DATE_RANGE" : "DAYS") as "DAYS" | "DATE_RANGE",
+      );
     }, 0);
     return () => window.clearTimeout(timer);
   }, [currentShop]);
@@ -312,6 +431,10 @@ function RepairFormSettingsPage() {
           ...(currentShop.address ?? {}),
           show_device_type_in_repair_invoice: String(showDeviceType),
           show_device_brand_in_repair_invoice: String(showDeviceBrand),
+          show_repair_ticket_id: String(showRepairTicketId),
+          show_full_customer_labels: String(showFullCustomerLabels),
+          show_model_label: String(showModelLabel),
+          waiting_time_format: waitingTimeFormat,
         },
         footer_note: currentShop.footer_note ?? "",
         is_active: currentShop.is_active,
@@ -402,13 +525,70 @@ function RepairFormSettingsPage() {
         title="Repair form specifications"
         description="Configure versioned ticket and device fields rendered during repair intake and on printable invoices."
       />
+      <div className="button-group" style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}>
+        <Link href="/repairs/issue-presets" className="button secondary">
+          Manage Issue Presets
+        </Link>
+        <Link href="/repairs/condition-presets" className="button secondary">
+          Manage Condition Presets
+        </Link>
+      </div>
       <Form className="card settings-stack" onSubmit={saveInvoiceDisplaySetting}>
         <div className="card-head">
           <div>
             <h2>Repair invoice display</h2>
-            <p>Choose which device details customers see in previews and printed invoices.</p>
+            <p>Choose which device details and ticket identifiers customers see in previews and printed invoices.</p>
           </div>
         </div>
+        <Field label="Shop">
+          <select
+            value={currentShop?.id ?? ""}
+            onChange={(event) => selectShop(event.target.value)}
+          >
+            {shops.map((shop) => (
+              <option key={shop.id} value={shop.id}>
+                {shop.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <label className="check-field switch-field">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={showRepairTicketId}
+            onChange={(event) => setShowRepairTicketId(event.target.checked)}
+          />
+          <span>
+            <strong>Show repair ticket ID</strong>
+            <small>
+              Shows the repair ticket ID on repair invoice previews and prints. Off by default.
+            </small>
+          </span>
+        </label>
+        <label className="check-field switch-field">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={showFullCustomerLabels}
+            onChange={(event) => setShowFullCustomerLabels(event.target.checked)}
+          />
+          <span>
+            <strong>Show full customer labels</strong>
+            <small>
+              When off (default), customer info is short (&ldquo;Name&rdquo; and &ldquo;Phone&rdquo;). When on, shows &ldquo;Customer Name&rdquo; and &ldquo;Customer Phone&rdquo;.
+            </small>
+          </span>
+        </label>
+        <Field label="Waiting time period display">
+          <select
+            value={waitingTimeFormat}
+            onChange={(event) => setWaitingTimeFormat(event.target.value as "DAYS" | "DATE_RANGE")}
+          >
+            <option value="DAYS">Number of days - days (e.g. 3 - days)</option>
+            <option value="DATE_RANGE">Start date - end date (e.g. Aug 26, 2026 – Aug 29, 2026)</option>
+          </select>
+        </Field>
         <label className="check-field switch-field">
           <input
             type="checkbox"
@@ -438,9 +618,24 @@ function RepairFormSettingsPage() {
             </small>
           </span>
         </label>
+        <label className="check-field switch-field">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={showModelLabel}
+            onChange={(event) => setShowModelLabel(event.target.checked)}
+          />
+          <span>
+            <strong>Show &ldquo;Model&rdquo; label</strong>
+            <small>
+              Shows the &ldquo;Model&rdquo; label in the same row with the model name. On by default.
+            </small>
+          </span>
+        </label>
         <Button type="submit" disabled={offline.status === "offline" && !offline.storageAvailable}>
           Save invoice display
         </Button>
+        {message && <div className="notice">{message}</div>}
       </Form>
       <Form className="card settings-stack" onSubmit={createDefinition}>
         <div className="form-grid">
@@ -613,6 +808,7 @@ export function MerchantSettingsPage() {
         timezone: String(values.get("timezone")),
         is_active: values.get("active") === "on",
         address: {
+          ...(shop.address ?? {}),
           line1: String(values.get("address") || ""),
           city: String(values.get("city") || ""),
           logo_url: logoUrl,
@@ -801,7 +997,7 @@ export function MerchantSettingsPage() {
 }
 
 export function PrinterSettingsPage() {
-  const { currentShop } = useShop();
+  const { currentShop, shops, selectShop } = useShop();
   const { merchant } = useAuth();
   const offline = useOffline();
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -1085,34 +1281,46 @@ export function PrinterSettingsPage() {
             <Icon name="arrow" />
             <span>ESC/POS</span>
           </div>
-          <Field label="Paper width">
-            <select
-              value={paperWidthMm}
-              onChange={(event) => changePaperWidth(Number(event.target.value))}
-            >
-              <option value={58}>57–58 mm (≈ 2¼ in) — small and mobile receipt printers</option>
-              <option value={80}>80 mm (≈ 3⅛ in) — portable and desktop receipt printers</option>
-              <option value={44}>38–44 mm (≈ 1½–1¾ in) — mini, label and tax-meter printers</option>
-              <option value={110}>110 mm (≈ 4.3 in) — wide portable document printers</option>
-              <option value={210}>210 mm (≈ 8.3 in) — mobile A4 document printers</option>
-            </select>
-          </Field>
-          <Field label="Font size">
-            <input
-              type="range"
-              min="10"
-              max="24"
-              step="1"
-              value={fontSizePx}
-              onChange={(event) => changeFontSize(Number(event.target.value))}
-            />
-            <div className="range-labels">
-              <small>10 px</small>
-              <strong>{fontSizePx} px</strong>
-              <small>24 px</small>
-            </div>
-          </Field>
           <Form onSubmit={savePrinterSettings}>
+            <Field label="Shop">
+              <select
+                value={currentShop?.id ?? ""}
+                onChange={(event) => selectShop(event.target.value)}
+              >
+                {shops.map((shop) => (
+                  <option key={shop.id} value={shop.id}>
+                    {shop.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Paper width">
+              <select
+                value={paperWidthMm}
+                onChange={(event) => changePaperWidth(Number(event.target.value))}
+              >
+                <option value={58}>57–58 mm (≈ 2¼ in) — small and mobile receipt printers</option>
+                <option value={80}>80 mm (≈ 3⅛ in) — portable and desktop receipt printers</option>
+                <option value={44}>38–44 mm (≈ 1½–1¾ in) — mini, label and tax-meter printers</option>
+                <option value={110}>110 mm (≈ 4.3 in) — wide portable document printers</option>
+                <option value={210}>210 mm (≈ 8.3 in) — mobile A4 document printers</option>
+              </select>
+            </Field>
+            <Field label="Font size">
+              <input
+                type="range"
+                min="10"
+                max="24"
+                step="1"
+                value={fontSizePx}
+                onChange={(event) => changeFontSize(Number(event.target.value))}
+              />
+              <div className="range-labels">
+                <small>10 px</small>
+                <strong>{fontSizePx} px</strong>
+                <small>24 px</small>
+              </div>
+            </Field>
             <label className="check-field">
               <input
                 type="checkbox"
@@ -1149,8 +1357,9 @@ export function PrinterSettingsPage() {
               type="submit"
               disabled={offline.status === "offline" && !offline.storageAvailable}
             >
-              Save Setting
+              Save printer settings
             </Button>
+            {message && <div className="notice">{message}</div>}
           </Form>
           <div className="notice">
             The complete invoice is rendered to a high-contrast monochrome image before
