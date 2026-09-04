@@ -126,7 +126,7 @@ export function UserProfilePage() {
         description="Manage your personal account details, preferences, and workspace credentials."
       />
 
-      <div className="profile-page-grid" style={{ display: "grid", gap: "1.5rem" }}>
+      <div className="profile-page-grid" style={{ display: "grid", gap: "12px" }}>
         {/* Profile Hero Header Card */}
         <section
           className="card"
@@ -134,16 +134,16 @@ export function UserProfilePage() {
             display: "flex",
             flexWrap: "wrap",
             alignItems: "center",
-            gap: "1.5rem",
-            padding: "1.5rem 2rem",
+            gap: "14px",
+            padding: "14px 18px",
             background: "linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(16,185,129,0.04) 100%)",
-            border: "1px solid var(--border-subtle, rgba(226,232,240,0.8))",
+            border: "1px solid var(--border)",
           }}
         >
           <div
             style={{
-              width: "4.5rem",
-              height: "4.5rem",
+              width: "44px",
+              height: "44px",
               borderRadius: "50%",
               background: isMerchant
                 ? "linear-gradient(135deg, #2563eb, #1d4ed8)"
@@ -152,26 +152,26 @@ export function UserProfilePage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "1.6rem",
-              fontWeight: 700,
+              fontSize: "14px",
+              fontWeight: 750,
               letterSpacing: "0.05em",
-              boxShadow: "0 4px 14px rgba(37,99,235,0.25)",
+              boxShadow: "0 2px 8px rgba(37,99,235,0.2)",
             }}
           >
             {initials}
           </div>
-          <div style={{ flex: 1, minWidth: "200px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
-              <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>{user.display_name}</h2>
+          <div style={{ flex: 1, minWidth: "180px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "2px" }}>
+              <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 750 }}>{user.display_name}</h2>
               <Badge tone={isMerchant ? "success" : "info"}>{roleName}</Badge>
               <Badge tone={user.is_active ? "success" : "danger"}>
                 {user.is_active ? "Active account" : "Inactive"}
               </Badge>
             </div>
-            <p style={{ margin: 0, color: "var(--text-muted, #64748b)", fontSize: "0.95rem" }}>
+            <p style={{ margin: 0, color: "var(--muted)", fontSize: "12px" }}>
               {user.email} {user.phone ? `· ${user.phone}` : ""}
             </p>
-            <div style={{ marginTop: "0.5rem", display: "flex", gap: "1.5rem", flexWrap: "wrap", fontSize: "0.85rem", color: "var(--text-secondary, #475569)" }}>
+            <div style={{ marginTop: "4px", display: "flex", gap: "14px", flexWrap: "wrap", fontSize: "11px", color: "var(--muted)" }}>
               <span>
                 <strong>Merchant:</strong> {merchant?.name || "Business Central"}
               </span>
@@ -184,34 +184,34 @@ export function UserProfilePage() {
           </div>
         </section>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.5rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
           {/* Card 1: Personal Details */}
-          <section className="card" style={{ padding: "1.5rem 1.75rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem" }}>
-              <span className="stat-icon blue" style={{ width: "2.25rem", height: "2.25rem", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "8px" }}>
-                <Icon name="user" size={18} />
+          <section className="card" style={{ padding: "14px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span className="stat-icon blue" style={{ width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "6px" }}>
+                <Icon name="user" size={15} />
               </span>
               <div>
-                <h3 style={{ margin: 0, fontSize: "1.1rem" }}>Personal Information</h3>
-                <small style={{ color: "var(--text-muted, #64748b)" }}>Your name and contact details</small>
+                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700 }}>Personal Information</h3>
+                <small style={{ color: "var(--muted)", fontSize: "11px" }}>Your name and contact details</small>
               </div>
             </div>
 
             {profileError && (
-              <div style={{ padding: "0.75rem 1rem", marginBottom: "1rem", borderRadius: "6px", backgroundColor: "#fef2f2", color: "#b91c1c", fontSize: "0.9rem", border: "1px solid #fecaca" }}>
+              <div style={{ padding: "8px 10px", marginBottom: "10px", borderRadius: "6px", backgroundColor: "var(--status-danger-soft)", color: "var(--status-danger)", fontSize: "11px", border: "1px solid var(--status-danger-border)" }}>
                 {profileError}
               </div>
             )}
             {profileSuccess && (
-              <div style={{ padding: "0.75rem 1rem", marginBottom: "1rem", borderRadius: "6px", backgroundColor: "#f0fdf4", color: "#15803d", fontSize: "0.9rem", border: "1px solid #bbf7d0" }}>
+              <div style={{ padding: "8px 10px", marginBottom: "10px", borderRadius: "6px", backgroundColor: "var(--status-success-soft)", color: "var(--status-success)", fontSize: "11px", border: "1px solid var(--status-success-border)" }}>
                 {profileSuccess}
               </div>
             )}
 
             <Form onSubmit={handleUpdateProfile}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 <Field label="Email address" hint="Email is managed centrally and used for sign-in">
-                  <input type="email" value={user.email} disabled style={{ backgroundColor: "var(--bg-subtle, #f8fafc)", cursor: "not-allowed" }} />
+                  <input type="email" value={user.email} disabled style={{ backgroundColor: "var(--surface-muted)", cursor: "not-allowed" }} />
                 </Field>
 
                 <Field label="Display name" hint="How your name appears across orders, receipts, and staff lists">
@@ -233,7 +233,7 @@ export function UserProfilePage() {
                   />
                 </Field>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
                   <Button
                     type="submit"
                     variant="primary"
@@ -248,14 +248,14 @@ export function UserProfilePage() {
           </section>
 
           {/* Card 2: Password & Security */}
-          <section className="card" style={{ padding: "1.5rem 1.75rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem" }}>
-              <span className="stat-icon amber" style={{ width: "2.25rem", height: "2.25rem", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "8px" }}>
-                <Icon name="lock" size={18} />
+          <section className="card" style={{ padding: "14px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span className="stat-icon amber" style={{ width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "6px" }}>
+                <Icon name="lock" size={15} />
               </span>
               <div>
-                <h3 style={{ margin: 0, fontSize: "1.1rem" }}>Password & Security</h3>
-                <small style={{ color: "var(--text-muted, #64748b)" }}>
+                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700 }}>Password & Security</h3>
+                <small style={{ color: "var(--muted)", fontSize: "11px" }}>
                   {isMerchant ? "Change your account sign-in password" : "Staff credential policy"}
                 </small>
               </div>
@@ -264,18 +264,18 @@ export function UserProfilePage() {
             {isMerchant ? (
               <>
                 {passwordError && (
-                  <div style={{ padding: "0.75rem 1rem", marginBottom: "1rem", borderRadius: "6px", backgroundColor: "#fef2f2", color: "#b91c1c", fontSize: "0.9rem", border: "1px solid #fecaca" }}>
+                  <div style={{ padding: "8px 10px", marginBottom: "10px", borderRadius: "6px", backgroundColor: "var(--status-danger-soft)", color: "var(--status-danger)", fontSize: "11px", border: "1px solid var(--status-danger-border)" }}>
                     {passwordError}
                   </div>
                 )}
                 {passwordSuccess && (
-                  <div style={{ padding: "0.75rem 1rem", marginBottom: "1rem", borderRadius: "6px", backgroundColor: "#f0fdf4", color: "#15803d", fontSize: "0.9rem", border: "1px solid #bbf7d0" }}>
+                  <div style={{ padding: "8px 10px", marginBottom: "10px", borderRadius: "6px", backgroundColor: "var(--status-success-soft)", color: "var(--status-success)", fontSize: "11px", border: "1px solid var(--status-success-border)" }}>
                     {passwordSuccess}
                   </div>
                 )}
 
                 <Form onSubmit={handleChangePassword}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     <Field label="New password" hint="Minimum 8 characters">
                       <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                         <input
@@ -297,13 +297,13 @@ export function UserProfilePage() {
                             background: "transparent",
                             border: "none",
                             cursor: "pointer",
-                            color: "var(--text-muted, #64748b)",
+                            color: "var(--muted)",
                             display: "flex",
                             alignItems: "center",
                             padding: "0.25rem",
                           }}
                         >
-                          <Icon name={showPassword ? "eye-off" : "eye"} size={17} />
+                          <Icon name={showPassword ? "eye-off" : "eye"} size={16} />
                         </button>
                       </div>
                     </Field>
@@ -319,7 +319,7 @@ export function UserProfilePage() {
                       />
                     </Field>
 
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
                       <Button
                         type="submit"
                         variant="primary"
@@ -335,23 +335,23 @@ export function UserProfilePage() {
             ) : (
               <div
                 style={{
-                  padding: "1.25rem",
+                  padding: "12px",
                   borderRadius: "8px",
                   backgroundColor: "rgba(37,99,235,0.04)",
                   border: "1px solid rgba(37,99,235,0.15)",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0.75rem",
+                  gap: "6px",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#1e40af", fontWeight: 600 }}>
-                  <Icon name="lock" size={18} />
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--status-info)", fontWeight: 700, fontSize: "12px" }}>
+                  <Icon name="lock" size={15} />
                   <span>Managed Credentials</span>
                 </div>
-                <p style={{ margin: 0, fontSize: "0.92rem", color: "var(--text-secondary, #334155)", lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: "11px", color: "var(--text)", lineHeight: 1.45 }}>
                   As a staff member, your account password and access rights are managed directly by your merchant administrator.
                 </p>
-                <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-muted, #64748b)" }}>
+                <p style={{ margin: 0, fontSize: "10px", color: "var(--muted)" }}>
                   If you need to change your password or suspect unauthorized access, please contact your merchant owner to reset your credentials.
                 </p>
               </div>

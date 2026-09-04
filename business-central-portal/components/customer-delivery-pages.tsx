@@ -244,8 +244,10 @@ export function DeliveriesPage() {
             placeholder="Phone, URL or instructions"
           />
         </Field>
-        <Button type="submit">Save delivery</Button>
-        {message && <p className="notice">{message}</p>}
+        <div className="wide form-inline-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "10px", flexWrap: "wrap" }}>
+          <Button type="submit" icon="plus">Save delivery</Button>
+          {message && <p className="notice" style={{ margin: 0 }}>{message}</p>}
+        </div>
       </Form>
       <ListControls
         search={query}

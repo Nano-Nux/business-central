@@ -322,7 +322,7 @@ export function ProductsPage() {
                     <label
                       key={category.id}
                       className="product-category-option"
-                      style={{ paddingLeft: `${12 + depth * 22}px` }}
+                      style={{ "--picker-depth": depth } as React.CSSProperties}
                     >
                       <input
                         type="checkbox"
