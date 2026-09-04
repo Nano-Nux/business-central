@@ -230,7 +230,21 @@ func (h *Handler) listCatalog(c fiber.Ctx) error {
 		return databaseError(err)
 	}
 	return posListPage(c, items, listQuery(c), func(item posdto.CatalogItem, q app.ListQuery) bool {
-		return posMatches(q, map[string]string{"name": item.Name, "product_name": item.ProductName, "sku": item.SKU, "barcode": posPtr(item.Barcode)})
+		return posMatches(
+			q,
+			map[string]string{
+				"name":         item.Name,
+				"product_name": item.ProductName,
+				"sku":          item.SKU,
+				"barcode":      posPtr(item.Barcode),
+			},
+			map[string]string{
+				"id":               item.ID,
+				"variant_id":       item.ID,
+				"product_id":       item.ProductID,
+				"is_stock_tracked": posBool(item.IsStockTracked),
+			},
+		)
 	})
 }
 

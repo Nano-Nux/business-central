@@ -145,7 +145,9 @@ original unit cost, and event key. When `unit_cost` is omitted, the backend
 reuses the most recent receipt cost for that merchant-owned variant. The first
 stock-in for a variant must include `unit_cost`. Direct receipts create
 canonical FIFO cost layers; purchase-order identifiers must still be supplied
-together when that workflow is used.
+together when that workflow is used. `GET /api/v1/pos/catalog` supports server-side
+querying over product name, variant name, SKU, and barcode, equality filtering
+via `filter=is_stock_tracked:true`, and zero-based pagination (`page_index`, `page_size`).
 Service billing creation accepts an optional `promotion_id`; unscoped promotions
 can reduce a service total and are reflected in the canonical SERVICE order.
 Repair creation accepts the same field and applies the reduction to the repair

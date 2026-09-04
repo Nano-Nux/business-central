@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "./icons";
 import {
@@ -34,6 +34,7 @@ import type {
   User,
   Variant,
   StockAsset,
+  Unit,
 } from "@/lib/types";
 import { BarcodeScanner } from "./barcode-scanner";
 
@@ -330,18 +331,23 @@ function CurrentPriceLists({
   error,
   variantId,
   quantityOnHand,
+  unitLabel,
 }: {
   lists: PriceList[];
   loading: boolean;
   error: string;
   variantId: string;
   quantityOnHand: string;
+  unitLabel?: string;
 }) {
   return (
     <div className="stock-price-lists">
       <div className="stock-price-lists-head">
         <small>Current price lists</small>
-        <small>{formatQuantity(quantityOnHand)} in stock</small>
+        <small>
+          {formatQuantity(quantityOnHand)}
+          {unitLabel ? ` ${unitLabel}` : ""} in stock
+        </small>
       </div>
       {loading ? (
         <span className="stock-price-list-empty">Loading price lists…</span>
@@ -361,30 +367,56 @@ export function StockInPage() {
   const simple = merchant?.pos_complexity_level === "SIMPLE";
   const { currentShop } = useShop();
   const offline = useOffline();
-  const items = useResource<StockItem>(
-    `/pos/catalog?page_index=0&page_size=500${currentShop ? `&shop_id=${encodeURIComponent(currentShop.id)}` : ""}`,
-  );
+
+  const [pageIndex, setPageIndex] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
+  const [mobileStep, setMobileStep] = useState<"select" | "form">("select");
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchTerm.trim());
+      setPageIndex(0);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const pageSize = 10;
+  const catalogPath = useMemo(() => {
+    const params = new URLSearchParams({
+      page_index: String(pageIndex),
+      page_size: String(pageSize),
+      filter: "is_stock_tracked:true",
+    });
+    if (debouncedQuery) params.set("query", debouncedQuery);
+    if (currentShop) params.set("shop_id", currentShop.id);
+    return `/pos/catalog?${params.toString()}`;
+  }, [currentShop, debouncedQuery, pageIndex, pageSize]);
+
+  const catalogCacheKey = `pos-catalog:stock-in:${currentShop?.id ?? "all"}:${debouncedQuery}:${pageIndex}`;
+  const items = useResource<StockItem>(catalogPath, catalogCacheKey);
+  const units = useResource<Unit>("/units?page_index=0&page_size=100");
   const priceLists = useResource<PriceList>(
     isMerchant ? "/pricing/price-lists?page_index=0&page_size=100" : "",
   );
   const locations = useResource<Location>("/inventory/locations?page_index=0&page_size=200");
-  const [selectedId, setSelectedId] = useState("");
-  const [query, setQuery] = useState("");
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const trackedItems = useMemo(
-    () =>
-      items.data.filter(
-        (item) =>
-          item.is_stock_tracked &&
-          `${item.product_name} ${item.name} ${item.sku} ${item.barcode ?? ""}`
-            .toLowerCase()
-            .includes(query.trim().toLowerCase()),
-      ),
-    [items.data, query],
-  );
-  const selected = items.data.find((item) => item.id === selectedId);
+
+  const unitMap = useMemo(() => {
+    const map = new Map<string, Unit>();
+    for (const unit of units.data) {
+      map.set(unit.id, unit);
+    }
+    return map;
+  }, [units.data]);
+
+  const selectedUnit = selectedProduct ? unitMap.get(selectedProduct.base_unit_id) : undefined;
+  const selectedUnitLabel = selectedUnit?.symbol || selectedUnit?.code || "";
+  const allowsDecimal = selectedUnit ? selectedUnit.allows_decimal : true;
+
   const shopLocations = useMemo(
     () =>
       locations.data.filter(
@@ -395,18 +427,35 @@ export function StockInPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selectedProduct) return;
     const formElement = event.currentTarget;
     setBusy(true);
     setError("");
     setSuccess("");
     const form = new FormData(formElement);
+    const rawQuantity = String(form.get("quantity") ?? "").trim();
+    const qtyNumber = Number(rawQuantity);
+
+    if (!rawQuantity || isNaN(qtyNumber) || qtyNumber <= 0) {
+      setError("Please enter a valid positive quantity.");
+      setBusy(false);
+      return;
+    }
+
+    if (!allowsDecimal && !Number.isInteger(qtyNumber)) {
+      setError(
+        `This unit (${selectedUnitLabel || "whole unit"}) only allows whole quantities. Please enter an integer value.`,
+      );
+      setBusy(false);
+      return;
+    }
+
     try {
       const payload: StockReceiptMutation = {
-        variant_id: selected.id,
+        variant_id: selectedProduct.id,
         destination_location_id: String(form.get("destination_location_id")),
-        unit_id: selected.base_unit_id,
-        quantity: String(form.get("quantity")),
+        unit_id: selectedProduct.base_unit_id,
+        quantity: rawQuantity,
         event_key: `direct-stock-in:${crypto.randomUUID()}`,
       };
       const unitCost = String(form.get("unit_cost") ?? "").trim();
@@ -423,12 +472,22 @@ export function StockInPage() {
         await queueStockReceipt(offline.scope, currentShop.id, payload);
         if (navigator.onLine) await offline.syncNow();
       } else await post("/inventory/stock-in", payload);
+
+      const addedQty = qtyNumber;
+      const unitLabel = selectedUnitLabel || "units";
       setSuccess(
-        `${selected.product_name} · ${selected.name} was added to stock using its recorded original cost.`,
+        `${selectedProduct.product_name}${!simple && selectedProduct.name ? ` · ${selectedProduct.name}` : ""} was added to stock (+${formatQuantity(payload.quantity)} ${unitLabel}).`,
       );
-      setSelectedId("");
       formElement.reset();
       await items.reload();
+      setSelectedProduct((prev) =>
+        prev
+          ? {
+              ...prev,
+              quantity_on_hand: String(Number(prev.quantity_on_hand || 0) + addedQty),
+            }
+          : null,
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to receive stock.");
     } finally {
@@ -447,8 +506,36 @@ export function StockInPage() {
             : "Choose a product and enter the received quantity. The latest recorded original price is reused automatically."
         }
       />
-      <div className="stock-layout">
-        <Form className="card stock-form" onSubmit={submit}>
+
+      {/* Mobile Step Navigator: only visible on mobile screens <= 800px */}
+      <div className="stock-mobile-nav">
+        <div className="segmented">
+          <button
+            type="button"
+            className={mobileStep === "select" ? "active" : ""}
+            onClick={() => setMobileStep("select")}
+          >
+            1. Select product{selectedProduct ? " (1 selected)" : ""}
+          </button>
+          <button
+            type="button"
+            className={mobileStep === "form" ? "active" : ""}
+            onClick={() => setMobileStep("form")}
+            disabled={!selectedProduct}
+          >
+            2. Receive stock
+          </button>
+        </div>
+      </div>
+
+      <div className="stock-layout" data-mobile-step={mobileStep}>
+        {/* Left Column: Product Catalog Browser */}
+        <section
+          className={`card stock-catalog-card stock-catalog-pane ${
+            mobileStep !== "select" ? "mobile-hidden" : ""
+          }`}
+          aria-label="Products available for stock-in"
+        >
           <div className="card-head">
             <div>
               <h2>Select a product</h2>
@@ -458,30 +545,43 @@ export function StockInPage() {
                   : "Only variants with Track inventory enabled are shown."}{" "}
                 {isMerchant
                   ? " The cost entered here is used later to calculate profit."
-                  : " The latest recorded cost is used later to calculate profit."}
+                  : " The latest recorded cost is reused later to calculate profit."}
               </p>
             </div>
           </div>
-          {success && (
-            <div className="success-message">
-              <Icon name="check" size={17} />
-              {success}
-            </div>
-          )}
-          {error && (
-            <div className="form-error">
-              <Icon name="close" size={16} />
-              {error}
-            </div>
-          )}
-          {items.loading || locations.loading ? (
-            <Loading />
-          ) : items.error || locations.error ? (
-            <EmptyState
-              title="Stock-in data could not load"
-              message={items.error || locations.error}
+
+          <div className="search-box stock-search">
+            <Icon name="search" size={17} />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder={
+                simple ? "Search products by name…" : "Search by product, variant, SKU, or barcode…"
+              }
+              aria-label="Search products"
             />
-          ) : items.data.filter((item) => item.is_stock_tracked).length === 0 ? (
+            {searchTerm && (
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => {
+                  setSearchTerm("");
+                  setDebouncedQuery("");
+                  setPageIndex(0);
+                }}
+                aria-label="Clear search"
+              >
+                <Icon name="close" size={14} />
+              </button>
+            )}
+          </div>
+
+          {items.loading ? (
+            <Loading />
+          ) : items.error ? (
+            <EmptyState title="Stock-in catalog could not load" message={items.error} />
+          ) : items.data.length === 0 && !debouncedQuery ? (
             <EmptyState
               icon="package"
               title="No tracked products"
@@ -491,79 +591,202 @@ export function StockInPage() {
                   : "Create a product variant and enable Track inventory before recording stock-in."
               }
             />
+          ) : items.data.length === 0 && debouncedQuery ? (
+            <div className="stock-no-match">
+              <p>No products match &ldquo;{debouncedQuery}&rdquo;.</p>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setSearchTerm("");
+                  setDebouncedQuery("");
+                  setPageIndex(0);
+                }}
+              >
+                Clear search
+              </Button>
+            </div>
           ) : (
             <>
-              <div className="search-box stock-search">
-                <Icon name="search" size={17} />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={simple ? "Search products…" : "Search product, SKU, or barcode…"}
-                  aria-label="Search products"
-                />
-              </div>
-              <div className="stock-product-list" aria-label="Products available for stock-in">
-                {trackedItems.length === 0 ? (
-                  <p className="stock-no-match">No products match your search.</p>
-                ) : (
-                  trackedItems.map((item) => (
+              <div className="stock-catalog-list" role="listbox" aria-label="Tracked products">
+                {items.data.map((item) => {
+                  const isSelected = selectedProduct?.id === item.id;
+                  const qtyOnHand = Number(item.quantity_on_hand) || 0;
+                  const itemUnit = unitMap.get(item.base_unit_id);
+                  const itemUnitLabel = itemUnit?.symbol || itemUnit?.code || "";
+                  return (
                     <button
                       type="button"
-                      className={`stock-product-row${selectedId === item.id ? " selected" : ""}`}
                       key={item.id}
+                      className={`stock-product-card ${isSelected ? "selected" : ""}`}
                       onClick={() => {
-                        setSelectedId(item.id);
+                        setSelectedProduct(item);
                         setError("");
                         setSuccess("");
+                        setMobileStep("form");
                       }}
-                      aria-pressed={selectedId === item.id}
+                      role="option"
+                      aria-selected={isSelected}
                     >
-                      <span className="stock-product-icon">
+                      <span className={`stock-product-icon ${isSelected ? "selected" : ""}`}>
                         <Icon name="package" size={18} />
                       </span>
-                      <span className="stock-product-name">
-                        <strong>{item.product_name}</strong>
+                      <div className="stock-product-main">
+                        <div className="stock-product-title-row">
+                          <strong className="stock-product-name">{item.product_name}</strong>
+                          <span
+                            className={`stock-qty-badge ${qtyOnHand > 0 ? "in-stock" : "out-of-stock"}`}
+                          >
+                            <strong>{formatQuantity(item.quantity_on_hand)}</strong>
+                            {itemUnitLabel ? ` ${itemUnitLabel}` : ""} in stock
+                          </span>
+                        </div>
                         {!simple && (
-                          <small>
-                            {item.name} · SKU {item.sku}
-                          </small>
+                          <div className="stock-product-meta">
+                            <span className="stock-variant-name">{item.name}</span>
+                            {item.sku && <span className="stock-meta-pill">SKU {item.sku}</span>}
+                            {item.barcode && (
+                              <span className="stock-meta-pill">Barcode {item.barcode}</span>
+                            )}
+                          </div>
                         )}
+                      </div>
+                      <span className="stock-select-indicator" aria-hidden="true">
+                        <Icon name={isSelected ? "check" : "chevron"} size={16} />
                       </span>
-                      <span className="stock-product-balance">
-                        <small>In stock</small>
-                        <strong>{item.quantity_on_hand}</strong>
-                      </span>
-                      <Icon name={selectedId === item.id ? "check" : "chevron"} size={16} />
                     </button>
-                  ))
-                )}
+                  );
+                })}
               </div>
-              {selected && (
-                <div className="receipt-selection">
-                  <div>
+
+              <Pagination
+                pageIndex={pageIndex}
+                pageSize={pageSize}
+                totalItems={items.meta?.total ?? items.data.length}
+                totalPages={items.meta?.total_pages ?? 1}
+                itemLabel="products"
+                onPageChange={setPageIndex}
+              />
+            </>
+          )}
+        </section>
+
+        {/* Right Column: Stock In Details & Receipt Form */}
+        <section
+          className={`card stock-receipt-card stock-receipt-pane ${
+            mobileStep !== "form" ? "mobile-hidden" : ""
+          }`}
+          aria-label="Stock receipt form"
+        >
+          <div className="card-head">
+            <div>
+              <h2>Receive stock</h2>
+              <p>
+                {selectedProduct
+                  ? `Entering received inventory for ${selectedProduct.product_name}.`
+                  : "Choose a product from the catalog to receive stock."}
+              </p>
+            </div>
+            {selectedProduct && (
+              <button
+                type="button"
+                className="stock-change-btn"
+                onClick={() => {
+                  setSelectedProduct(null);
+                  setMobileStep("select");
+                }}
+                aria-label="Choose different product"
+              >
+                <Icon name="close" size={14} />
+                <span>Change product</span>
+              </button>
+            )}
+          </div>
+
+          {success && (
+            <div className="success-message" role="status">
+              <Icon name="check" size={17} />
+              {success}
+            </div>
+          )}
+
+          {error && (
+            <div className="form-error" role="alert">
+              <Icon name="close" size={16} />
+              {error}
+            </div>
+          )}
+
+          {!selectedProduct ? (
+            <div className="stock-prompt-state">
+              <span className="stock-prompt-icon">
+                <Icon name="package" size={28} />
+              </span>
+              <h3>No product selected</h3>
+              <p>
+                Select a product from the list on the left to record incoming stock, choose a
+                location, and specify purchase costs.
+              </p>
+              <aside className="stock-tip-embedded">
+                <h4>
+                  <Icon name="package" size={15} />
+                  How original price works
+                </h4>
+                <p>
+                  Each stock-in creates an immutable receipt and a FIFO cost layer. When this item
+                  is sold, that cost is used to calculate gross profit.
+                </p>
+                <ul>
+                  <li>Selling price stays in the RETAIL price list.</li>
+                  <li>
+                    {isMerchant
+                      ? "Original price is the amount you paid per unit."
+                      : "The latest original price is reused automatically."}
+                  </li>
+                  <li>Stock quantity updates immediately upon receipt.</li>
+                </ul>
+              </aside>
+            </div>
+          ) : (
+            <Form className="stock-receipt-form" onSubmit={submit}>
+              {/* Selected Product Spotlight */}
+              <div className="stock-selected-spotlight">
+                <div className="spotlight-header">
+                  <span className="stock-product-icon selected">
+                    <Icon name="package" size={20} />
+                  </span>
+                  <div className="spotlight-title">
                     <small>Selected product</small>
-                    <strong>{selected.product_name}</strong>
-                    {!simple && <span>{selected.name}</span>}
+                    <strong>{selectedProduct.product_name}</strong>
+                    {!simple && <span className="spotlight-variant">{selectedProduct.name}</span>}
                   </div>
-                  {!simple && (
-                    <div>
-                      <small>SKU</small>
-                      <span>{selected.sku}</span>
-                    </div>
-                  )}
-                  <div>
+                  <div className="spotlight-stock">
                     <small>Current stock</small>
-                    <strong>{selected.quantity_on_hand}</strong>
+                    <strong>
+                      {formatQuantity(selectedProduct.quantity_on_hand)}
+                      {selectedUnitLabel ? ` ${selectedUnitLabel}` : ""}
+                    </strong>
                   </div>
                 </div>
-              )}
+                {!simple && (selectedProduct.sku || selectedProduct.barcode) && (
+                  <div className="spotlight-pills">
+                    {selectedProduct.sku && (
+                      <span className="stock-meta-pill">SKU {selectedProduct.sku}</span>
+                    )}
+                    {selectedProduct.barcode && (
+                      <span className="stock-meta-pill">Barcode {selectedProduct.barcode}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="form-grid">
                 <Field label="Stock location">
                   <select
                     name="destination_location_id"
                     defaultValue={shopLocations.length === 1 ? shopLocations[0].id : ""}
                     required
-                    disabled={!selected || shopLocations.length === 0}
+                    disabled={shopLocations.length === 0}
                   >
                     <option value="">Select a location</option>
                     {shopLocations.map((location) => (
@@ -573,17 +796,32 @@ export function StockInPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Quantity received">
+
+                <Field
+                  label={
+                    selectedUnitLabel
+                      ? `Quantity received (${selectedUnitLabel})`
+                      : "Quantity received"
+                  }
+                  hint={
+                    selectedUnit && !allowsDecimal
+                      ? "Whole units only for this product."
+                      : selectedUnit
+                      ? "Decimal quantities are allowed for this unit."
+                      : undefined
+                  }
+                >
                   <input
                     name="quantity"
                     type="number"
-                    step="0.001"
-                    min="0.001"
+                    step={allowsDecimal ? "0.001" : "1"}
+                    min={allowsDecimal ? "0.001" : "1"}
                     required
-                    disabled={!selected}
-                    placeholder="0"
+                    placeholder={allowsDecimal ? "0.000" : "0"}
+                    autoFocus
                   />
                 </Field>
+
                 {isMerchant && (
                   <Field
                     label="Original price per unit"
@@ -596,31 +834,38 @@ export function StockInPage() {
                         type="number"
                         step="0.01"
                         min="0"
-                        key={selected?.id}
-                        disabled={!selected}
+                        key={selectedProduct.id}
                         placeholder="Use latest cost"
                       />
                     </div>
-                    {selected && (
-                      <CurrentPriceLists
-                        lists={priceLists.data}
-                        loading={priceLists.loading}
-                        error={priceLists.error}
-                        variantId={selected.id}
-                        quantityOnHand={selected.quantity_on_hand}
-                      />
-                    )}
+                    <CurrentPriceLists
+                      lists={priceLists.data}
+                      loading={priceLists.loading}
+                      error={priceLists.error}
+                      variantId={selectedProduct.id}
+                      quantityOnHand={selectedProduct.quantity_on_hand}
+                      unitLabel={selectedUnitLabel}
+                    />
                   </Field>
                 )}
               </div>
-              {selected && shopLocations.length === 0 && (
+
+              {shopLocations.length === 0 && (
                 <div className="form-error">
                   <Icon name="close" size={16} />
                   This shop has no active stock location.
                 </div>
               )}
+
               <div className="modal-actions">
-                <Button type="reset" variant="secondary" onClick={() => setSelectedId("")}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setMobileStep("select");
+                  }}
+                >
                   Clear
                 </Button>
                 <Button
@@ -628,7 +873,6 @@ export function StockInPage() {
                   icon="package"
                   disabled={
                     busy ||
-                    !selected ||
                     shopLocations.length === 0 ||
                     (offline.status === "offline" && !offline.storageAvailable)
                   }
@@ -636,28 +880,29 @@ export function StockInPage() {
                   {busy ? "Adding stock…" : "Add to stock"}
                 </Button>
               </div>
-            </>
+
+              <aside className="stock-tip-embedded mt-12">
+                <h4>
+                  <Icon name="package" size={15} />
+                  How original price works
+                </h4>
+                <p>
+                  Each stock-in creates an immutable receipt and a FIFO cost layer. When this item
+                  is sold, that cost is used to calculate gross profit.
+                </p>
+                <ul>
+                  <li>Selling price stays in the RETAIL price list.</li>
+                  <li>
+                    {isMerchant
+                      ? "Original price is the amount you paid per unit."
+                      : "The latest original price is reused automatically."}
+                  </li>
+                  <li>Stock quantity updates immediately.</li>
+                </ul>
+              </aside>
+            </Form>
           )}
-        </Form>
-        <aside className="card stock-tip">
-          <span className="stat-icon mint">
-            <Icon name="package" />
-          </span>
-          <h3>How original price works</h3>
-          <p>
-            Each stock-in creates an immutable receipt and a FIFO cost layer. When this item is
-            sold, that cost is used to calculate gross profit.
-          </p>
-          <ul>
-            <li>Selling price stays in the RETAIL price list.</li>
-            <li>
-              {isMerchant
-                ? "Original price is the amount you paid per unit."
-                : "The latest original price is reused automatically."}
-            </li>
-            <li>Stock quantity updates immediately.</li>
-          </ul>
-        </aside>
+        </section>
       </div>
     </>
   );
@@ -778,9 +1023,7 @@ export function MovementsPage() {
             <tbody>
               {pagination.pageItems.map((item) => (
                 <tr key={item.id}>
-                  <td>
-                    {formatShopDateTime(item.occurred_at, currentShop?.timezone)}
-                  </td>
+                  <td>{formatShopDateTime(item.occurred_at, currentShop?.timezone)}</td>
                   <td>
                     <Badge
                       tone={
@@ -940,7 +1183,9 @@ export function AccountsPage() {
       setPasswordUser(null);
       await users.reload();
     } catch (err) {
-      setPasswordModalError(err instanceof Error ? err.message : "Failed to update staff password.");
+      setPasswordModalError(
+        err instanceof Error ? err.message : "Failed to update staff password.",
+      );
     } finally {
       setPasswordBusy(false);
     }
@@ -1135,7 +1380,16 @@ export function AccountsPage() {
         <Form onSubmit={submitStaffPassword}>
           <div className="form-grid">
             {passwordModalError && (
-              <div style={{ gridColumn: "1 / -1", padding: "0.75rem", background: "#fef2f2", color: "#b91c1c", borderRadius: "6px", fontSize: "0.9rem" }}>
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: "0.75rem",
+                  background: "#fef2f2",
+                  color: "#b91c1c",
+                  borderRadius: "6px",
+                  fontSize: "0.9rem",
+                }}
+              >
                 {passwordModalError}
               </div>
             )}

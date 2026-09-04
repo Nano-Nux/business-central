@@ -18,6 +18,8 @@ import { deferredRequestFromPayload } from "./offline-deferred";
 import { randomUuid } from "./random-uuid";
 import { imageUploadID, PORTAL_IMAGE_UPLOADS, type OfflineImageUpload } from "./offline-images";
 
+export const MAX_SYNC_RETRY_COUNT = 5;
+
 const PROTOCOL_VERSION = "1";
 const SCOPE = "merchant";
 const syncRuns = new Map<string, Promise<SyncSummary>>();
@@ -108,6 +110,7 @@ async function pendingOperations(scope: OfflineScope) {
   return all.filter(
     (operation) =>
       (operation.status === "PENDING" || operation.status === "FAILED") &&
+      (operation.retryCount ?? 0) < MAX_SYNC_RETRY_COUNT &&
       (!operation.nextRetryAt || Date.parse(operation.nextRetryAt) <= now) &&
       dependencyReady(operation, all),
   );
@@ -378,12 +381,22 @@ async function runDeferredOperations(scope: OfflineScope, operations: OfflineOpe
         error.status >= 500
       ) {
         const retryCount = operation.retryCount + 1;
+        const failed = retryCount >= MAX_SYNC_RETRY_COUNT;
         await updateOperation(operation.operationId, {
-          status: "PENDING",
+          status: failed ? "FAILED" : "PENDING",
           retryCount,
-          nextRetryAt: new Date(Date.now() + retryDelayMs(retryCount)).toISOString(),
-          lastError: message,
+          nextRetryAt: failed
+            ? undefined
+            : new Date(Date.now() + retryDelayMs(retryCount)).toISOString(),
+          lastError: failed ? `Failed after ${retryCount} attempts: ${message}` : message,
         });
+        if (failed) {
+          await markDeferredDependentsBlocked(
+            scope,
+            operation.operationId,
+            `Failed after ${retryCount} attempts: ${message}`,
+          );
+        }
         throw error;
       }
       if (error instanceof ApiError && (error.status === 409 || error.status === 412)) {
@@ -412,11 +425,14 @@ async function markTransportFailure(operations: OfflineOperation[], error: unkno
   await Promise.all(
     operations.map((operation) => {
       const retryCount = operation.retryCount + 1;
+      const failed = retryCount >= MAX_SYNC_RETRY_COUNT;
       return updateOperation(operation.operationId, {
-        status: "PENDING",
+        status: failed ? "FAILED" : "PENDING",
         retryCount,
-        nextRetryAt: new Date(Date.now() + retryDelayMs(retryCount)).toISOString(),
-        lastError: message,
+        nextRetryAt: failed
+          ? undefined
+          : new Date(Date.now() + retryDelayMs(retryCount)).toISOString(),
+        lastError: failed ? `Failed after ${retryCount} attempts: ${message}` : message,
       });
     }),
   );
@@ -575,11 +591,14 @@ async function runSync(scope: OfflineScope): Promise<SyncSummary> {
         error.status >= 500
       ) {
         const retryCount = operation.retryCount + 1;
+        const failed = retryCount >= MAX_SYNC_RETRY_COUNT;
         await updateOperation(operation.operationId, {
-          status: "PENDING",
+          status: failed ? "FAILED" : "PENDING",
           retryCount,
-          nextRetryAt: new Date(Date.now() + retryDelayMs(retryCount)).toISOString(),
-          lastError: message,
+          nextRetryAt: failed
+            ? undefined
+            : new Date(Date.now() + retryDelayMs(retryCount)).toISOString(),
+          lastError: failed ? `Failed after ${retryCount} attempts: ${message}` : message,
         });
         throw error;
       }

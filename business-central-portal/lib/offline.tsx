@@ -23,6 +23,7 @@ import {
 } from "./offline-db";
 import { resolvePortalConflict, synchronizePortal, type SyncSummary } from "./portal-sync";
 import { inspectOfflineStorage, type OfflineStorageStatus } from "./offline-storage";
+import { removeProjectedRepair } from "./offline-repairs";
 
 export type ConnectivityStatus = "online" | "offline" | "reconnecting" | "syncing" | "error";
 
@@ -39,6 +40,7 @@ type OfflineValue = {
   operations: OfflineOperation[];
   lastSyncAt: string | null;
   lastError: string;
+  consecutiveSyncErrors: number;
   syncNow: () => Promise<SyncSummary | null>;
   resolveConflict: (
     operation: OfflineOperation,
@@ -48,6 +50,7 @@ type OfflineValue = {
   discardOperation: (operation: OfflineOperation) => Promise<void>;
   retryAllUnsuccessful: () => Promise<void>;
   discardAllUnsuccessful: () => Promise<void>;
+  discardFailingOperations: () => Promise<void>;
   clearLastError: () => void;
   refresh: () => Promise<void>;
 };
@@ -90,6 +93,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   });
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [lastError, setLastError] = useState("");
+  const [consecutiveSyncErrors, setConsecutiveSyncErrors] = useState(0);
   const [operations, setOperations] = useState<OfflineOperation[]>([]);
   const [storage, setStorage] = useState<OfflineStorageStatus>({
     supported: false,
@@ -134,12 +138,14 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       try {
         const summary = await synchronizePortal(scope);
         setStatus("online");
+        setConsecutiveSyncErrors(0);
         await refresh();
         window.dispatchEvent(new Event("bc-resource-refresh"));
         return summary;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Synchronization failed.";
         setLastError(message);
+        setConsecutiveSyncErrors((current) => current + 1);
         setStatus(navigator.onLine ? "error" : "offline");
         await refresh();
         return null;
@@ -189,6 +195,9 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     async (operation: OfflineOperation) => {
       if (!scope) return;
       await discardOfflineOperation(scope, operation);
+      if (operation.entityType === "REPAIR_ORDER") {
+        await removeProjectedRepair(scope, operation.entityId, operation.shopId).catch(() => {});
+      }
       await refresh();
       window.dispatchEvent(new Event("bc-resource-refresh"));
     },
@@ -214,6 +223,38 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     );
     if (unsuccessful.length === 0) return;
     await discardOfflineOperations(scope, unsuccessful);
+    for (const op of unsuccessful) {
+      if (op.entityType === "REPAIR_ORDER") {
+        await removeProjectedRepair(scope, op.entityId, op.shopId).catch(() => {});
+      }
+    }
+    setLastError("");
+    setConsecutiveSyncErrors(0);
+    await refresh();
+    window.dispatchEvent(new Event("bc-resource-refresh"));
+  }, [operations, refresh, scope]);
+
+  const discardFailingOperations = useCallback(async () => {
+    if (!scope) return;
+    const failing = operations.filter(
+      (op) =>
+        op.status === "FAILED" ||
+        (op.retryCount ?? 0) >= 5 ||
+        ["REJECTED", "CONFLICT", "BLOCKED"].includes(op.status),
+    );
+    if (failing.length === 0) {
+      setLastError("");
+      setConsecutiveSyncErrors(0);
+      return;
+    }
+    await discardOfflineOperations(scope, failing);
+    for (const op of failing) {
+      if (op.entityType === "REPAIR_ORDER") {
+        await removeProjectedRepair(scope, op.entityId, op.shopId).catch(() => {});
+      }
+    }
+    setLastError("");
+    setConsecutiveSyncErrors(0);
     await refresh();
     window.dispatchEvent(new Event("bc-resource-refresh"));
   }, [operations, refresh, scope]);
@@ -326,12 +367,14 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       operations,
       lastSyncAt,
       lastError,
+      consecutiveSyncErrors,
       syncNow,
       resolveConflict,
       retryOperation,
       discardOperation,
       retryAllUnsuccessful,
       discardAllUnsuccessful,
+      discardFailingOperations,
       clearLastError,
       refresh,
     }),
@@ -345,12 +388,14 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       operations,
       lastSyncAt,
       lastError,
+      consecutiveSyncErrors,
       syncNow,
       resolveConflict,
       retryOperation,
       discardOperation,
       retryAllUnsuccessful,
       discardAllUnsuccessful,
+      discardFailingOperations,
       clearLastError,
       refresh,
     ],
