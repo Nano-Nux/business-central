@@ -680,4 +680,63 @@ describe("portal synchronization", () => {
     ]);
     expect(await getEntityVersion(scope, "SHOP_SETTINGS", conflict.entityId)).toBe(4);
   });
+
+  it("marks deferred operation FAILED after 5 consecutive server errors and stops auto-retry", async () => {
+    await queueDeferredMutation(
+      scope,
+      {
+        entityType: "REPAIR_ORDER",
+        entityId: "repair-500",
+        operationType: "CREATE",
+        request: {
+          path: "/repairs/tickets",
+          method: "POST",
+          body: { order_number: "REP-FAIL" },
+        },
+      },
+      { id: "repair-500" },
+    );
+
+    mockedPost.mockImplementation(async (path) => {
+      if (path === "/sync/handshake") {
+        return {
+          protocol_version: "1",
+          schema_version: "1",
+          server_sequence: 1,
+          device: { id: "dev-1" },
+          session: { id: "sess-1", scope: "merchant" },
+        };
+      }
+      return { changes: [], next_sequence: 1, current_sequence: 1, has_more: false };
+    });
+
+    const timeoutError = new Error(
+      "An unexpected server error occurred.: timeout: context deadline exceeded",
+    );
+    (timeoutError as unknown as { status: number }).status = 500;
+    mockedApi.mockRejectedValue(timeoutError);
+
+    // Run 4 times: status remains PENDING
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      await expect(synchronizePortal(scope)).rejects.toThrow("context deadline exceeded");
+      const [op] = await listOperations(scope);
+      expect(op.status).toBe("PENDING");
+      expect(op.retryCount).toBe(attempt);
+      // Clear nextRetryAt to allow the next immediate test run
+      await updateOperation(op.operationId, { nextRetryAt: undefined });
+    }
+
+    // 5th run: reaches limit (5) and transitions to FAILED
+    await expect(synchronizePortal(scope)).rejects.toThrow("context deadline exceeded");
+    const [failedOp] = await listOperations(scope);
+    expect(failedOp.status).toBe("FAILED");
+    expect(failedOp.retryCount).toBe(5);
+    expect(failedOp.nextRetryAt).toBeUndefined();
+    expect(failedOp.lastError).toContain("Failed after 5 attempts");
+
+    // Clear API mock count to ensure 6th sync does not try to push it
+    mockedApi.mockClear();
+    await synchronizePortal(scope);
+    expect(mockedApi).not.toHaveBeenCalled();
+  });
 });

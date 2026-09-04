@@ -66,6 +66,22 @@ function repairPath(repair: RepairOrder) {
     : "/repairs/orders?page_index=0&page_size=100";
 }
 
+export async function removeProjectedRepair(
+  scope: OfflineScope,
+  repairId: string,
+  shopId?: string,
+) {
+  const paths = [
+    "/repairs/orders?page_index=0&page_size=100",
+    ...(shopId ? [repairsPath(shopId)] : []),
+  ];
+  for (const path of paths) {
+    await updateResource<RepairOrder>(scope, path, (items) =>
+      items.filter((item) => item.id !== repairId),
+    ).catch(() => {});
+  }
+}
+
 async function updateResource<T>(scope: OfflineScope, path: string, update: (items: T[]) => T[]) {
   const cached = await getCachedResource<T[]>(scope, path).catch(() => null);
   if (cached) await putCachedResource(scope, path, update(cached.data), cached.meta);

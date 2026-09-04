@@ -29,43 +29,69 @@ export function SyncStatusPanel() {
     ["FAILED", "REJECTED", "CONFLICT", "BLOCKED"].includes(operation.status),
   );
 
-  if (
-    visible.length === 0 &&
-    !offline.lastError &&
-    !offline.storage.warning &&
-    offline.staleResources.length === 0
-  ) {
-    return null;
-  }
-  const summaryTone =
-    offline.conflicts > 0 || offline.rejected > 0 || offline.lastError
-      ? "danger"
-      : offline.storage.warning || offline.pending > 0
-        ? "warning"
-        : offline.staleResources.length > 0
-          ? "info"
-          : "success";
+  const hasFailingAttempts =
+    offline.consecutiveSyncErrors >= 5 ||
+    unsuccessful.some((op) => (op.retryCount ?? 0) >= 5 || op.status === "FAILED");
+
+  const hasIssues =
+    offline.conflicts > 0 ||
+    offline.rejected > 0 ||
+    offline.failed > 0 ||
+    Boolean(offline.lastError) ||
+    hasFailingAttempts;
+
+  const summaryTone = hasIssues
+    ? "danger"
+    : offline.storage.warning || offline.pending > 0
+      ? "warning"
+      : offline.staleResources.length > 0
+        ? "info"
+        : "success";
+
+  const summaryLabel =
+    offline.conflicts > 0 || offline.rejected > 0 || offline.failed > 0 || hasFailingAttempts
+      ? "Review sync"
+      : offline.pending > 0
+        ? `${offline.pending} pending`
+        : offline.lastError
+          ? "Sync issue"
+          : "Synced";
+
   return (
     <details className="sync-status-panel">
-      <summary className={`sync-summary-${summaryTone}`}>
-        {offline.conflicts > 0 || offline.rejected > 0
-          ? "Review sync"
-          : offline.pending > 0
-            ? `${offline.pending} pending`
-            : "Saved data"}
-      </summary>
+      <summary className={`sync-summary-${summaryTone}`}>{summaryLabel}</summary>
       <div className="sync-status-menu">
         <div className="sync-status-head">
-          <strong>Synchronization</strong>
+          <div className="sync-status-head-title">
+            <strong>Synchronization</strong>
+            <span className={`live-dot connectivity-${offline.status}`} />
+          </div>
           <small>
             {offline.status === "offline"
               ? "Waiting for a connection"
-              : "Backend-authoritative temporary offline mode"}
+              : offline.status === "syncing"
+                ? "Synchronizing changes with server…"
+                : offline.status === "reconnecting"
+                  ? "Reconnecting to server…"
+                  : hasIssues
+                    ? "Synchronization needs attention"
+                    : visible.length === 0
+                      ? "All changes synchronized"
+                      : "Backend-authoritative temporary offline mode"}
           </small>
         </div>
         {offline.lastError && (
           <div className="sync-status-error-block">
             <p className="sync-status-error">{offline.lastError}</p>
+            {hasFailingAttempts && (
+              <p className="sync-status-error-hint">
+                Synchronization received errors{" "}
+                {offline.consecutiveSyncErrors >= 5
+                  ? `${offline.consecutiveSyncErrors} times`
+                  : "5 times"}
+                . You can remove that failing data below.
+              </p>
+            )}
             <div className="sync-operation-actions">
               <button
                 type="button"
@@ -80,9 +106,29 @@ export function SyncStatusPanel() {
               >
                 Retry sync
               </button>
+              {hasFailingAttempts && (
+                <button
+                  type="button"
+                  className="button button-danger"
+                  disabled={Boolean(resolving)}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Remove the failing offline data? This action cannot be undone.",
+                      )
+                    ) {
+                      return;
+                    }
+                    setResolving("remove-failing");
+                    void offline.discardFailingOperations().finally(() => setResolving(null));
+                  }}
+                >
+                  {resolving === "remove-failing" ? "Removing…" : "Remove data"}
+                </button>
+              )}
               <button
                 type="button"
-                className="button button-danger"
+                className="button button-secondary"
                 disabled={Boolean(resolving)}
                 onClick={() => offline.clearLastError()}
               >
@@ -130,7 +176,7 @@ export function SyncStatusPanel() {
               onClick={() => {
                 if (
                   !window.confirm(
-                    `Delete all ${unsuccessful.length} unsuccessful offline records? This action cannot be undone.`,
+                    `Remove all ${unsuccessful.length} unsuccessful offline records? This action cannot be undone.`,
                   )
                 ) {
                   return;
@@ -140,20 +186,38 @@ export function SyncStatusPanel() {
               }}
             >
               {resolving === "bulk-delete"
-                ? "Deleting all…"
-                : `Delete all (${unsuccessful.length})`}
+                ? "Removing all…"
+                : `Remove all (${unsuccessful.length})`}
             </button>
+          </div>
+        )}
+        {visible.length === 0 && !offline.lastError && (
+          <div className="sync-status-empty">
+            <p>All offline changes have been synchronized with the server.</p>
+            {offline.lastSyncAt && (
+              <small>
+                Last synchronized:{" "}
+                {new Intl.DateTimeFormat("en", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }).format(new Date(offline.lastSyncAt))}
+              </small>
+            )}
           </div>
         )}
         <div className="sync-operation-list">
           {visible.map((operation) => {
             const isProcessing = resolving === operation.operationId;
+            const attemptCount = operation.retryCount ?? 0;
+            const isFailing = attemptCount >= 5 || operation.status === "FAILED";
             return (
               <article key={operation.operationId}>
                 <div>
                   <strong>{operationLabel(operation.entityType)}</strong>
                   <span className={`sync-state sync-state-${operation.status.toLowerCase()}`}>
                     {operation.operationType} · {operation.status}
+                    {attemptCount > 0 &&
+                      ` (${attemptCount} attempt${attemptCount === 1 ? "" : "s"})`}
                   </span>
                 </div>
                 <small>
@@ -163,7 +227,13 @@ export function SyncStatusPanel() {
                     timeStyle: "short",
                   }).format(new Date(operation.clientCreatedAt))}
                 </small>
-                {operation.lastError && <p>{operation.lastError}</p>}
+                {operation.lastError && <p className="sync-item-error">{operation.lastError}</p>}
+                {isFailing && (
+                  <p className="sync-retry-notice">
+                    Error received {attemptCount || 5} times. You can remove this data to unblock
+                    synchronization.
+                  </p>
+                )}
                 {operation.entityType === "REPAIR_ORDER" &&
                   operation.operationType === "CREATE" &&
                   (operation.status === "REJECTED" || operation.status === "FAILED") && (
@@ -268,7 +338,7 @@ export function SyncStatusPanel() {
                         onClick={() => {
                           if (
                             !window.confirm(
-                              "Delete this offline record? This action cannot be undone.",
+                              "Remove this offline data? This action cannot be undone.",
                             )
                           ) {
                             return;
@@ -279,7 +349,7 @@ export function SyncStatusPanel() {
                             .finally(() => setResolving(null));
                         }}
                       >
-                        {isProcessing ? "Deleting…" : "Delete"}
+                        {isProcessing ? "Removing…" : "Remove data"}
                       </button>
                     </div>
                   </>
@@ -302,9 +372,7 @@ export function SyncStatusPanel() {
                       disabled={Boolean(resolving)}
                       onClick={() => {
                         if (
-                          !window.confirm(
-                            "Delete this offline record? This action cannot be undone.",
-                          )
+                          !window.confirm("Remove this offline data? This action cannot be undone.")
                         ) {
                           return;
                         }
@@ -312,7 +380,7 @@ export function SyncStatusPanel() {
                         void offline.discardOperation(operation).finally(() => setResolving(null));
                       }}
                     >
-                      {isProcessing ? "Deleting…" : "Delete"}
+                      {isProcessing ? "Removing…" : "Remove data"}
                     </button>
                   </div>
                 )}
@@ -320,7 +388,7 @@ export function SyncStatusPanel() {
             );
           })}
         </div>
-        {offline.status !== "offline" && offline.pending > 0 && (
+        {offline.status !== "offline" && (
           <button
             type="button"
             className="button button-primary"
