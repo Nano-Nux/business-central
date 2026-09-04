@@ -116,6 +116,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
 })();
 ''';
 
+  /*
   static const _pullToRefreshScript = r'''
 (function () {
   if (window.__businessCentralPullToRefreshInstalled) return;
@@ -202,6 +203,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
   document.addEventListener('touchcancel', reset, { passive: true });
 })();
 ''';
+  */
 
   final NativePrinterBridge _printerBridge = NativePrinterBridge();
   final NativeRefreshBridge _refreshBridge = NativeRefreshBridge();
@@ -261,7 +263,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
                 _refreshBridge.completeRefresh();
                 await _controller.runJavaScript(_bridgeScript);
                 await _controller.runJavaScript(_scannerBridgeScript);
-                await _controller.runJavaScript(_pullToRefreshScript);
+                // await _controller.runJavaScript(_pullToRefreshScript);
               },
               onWebResourceError: (error) {
                 if (error.isForMainFrame ?? true) {

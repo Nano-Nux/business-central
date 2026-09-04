@@ -31,7 +31,8 @@ export async function queueShopSettingsUpdate(
   update: ShopSettingsUpdate,
   options: QueueShopSettingsOptions = {},
 ) {
-  const baseVersion = await getEntityVersion(scope, "SHOP_SETTINGS", shop.id);
+  const cachedVersion = await getEntityVersion(scope, "SHOP_SETTINGS", shop.id);
+  const baseVersion = Math.max(shop.sync_version ?? 0, cachedVersion);
   const updateAddress = update.address;
   const logoValue = updateAddress.logo_url;
   const currentLogoUrl = shop.logo_url || shop.address?.logo_url;

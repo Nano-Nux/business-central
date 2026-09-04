@@ -190,6 +190,7 @@ export type Shop = {
   waiting_time_format?: "DAYS" | "DATE_RANGE";
   show_full_customer_labels?: boolean;
   show_model_label?: boolean;
+  sync_version?: number;
 };
 export type Location = {
   id: string;

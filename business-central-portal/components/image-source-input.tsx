@@ -39,6 +39,13 @@ export function ImageSourceField({
 }) {
   const [action, setAction] = useState<ImageAction>("KEEP");
   const [selectedPreview, setSelectedPreview] = useState("");
+  const [prevUrl, setPrevUrl] = useState(currentUrl);
+
+  if (currentUrl !== prevUrl) {
+    setPrevUrl(currentUrl);
+    setSelectedPreview("");
+    setAction("KEEP");
+  }
 
   useEffect(() => {
     return () => {
@@ -52,6 +59,7 @@ export function ImageSourceField({
       setSelectedPreview("");
       return;
     }
+    setAction("UPLOAD");
     setSelectedPreview(URL.createObjectURL(file));
   }
   return (
@@ -64,7 +72,19 @@ export function ImageSourceField({
               src={selectedPreview || resolveMediaURL(currentUrl)}
               alt={selectedPreview ? "Selected image preview" : "Saved image"}
             />
-            <small>{selectedPreview ? "Selected image - save to upload" : "Saved image"}</small>
+            <div className="image-preview-meta">
+              <small>{selectedPreview ? "Selected image - save to upload" : "Saved image"}</small>
+              {currentUrl && action !== "UPLOAD" && (
+                <button
+                  type="button"
+                  className="button secondary mini-button"
+                  disabled={disabled}
+                  onClick={() => setAction("UPLOAD")}
+                >
+                  Upload new image
+                </button>
+              )}
+            </div>
           </div>
         )}
         <select

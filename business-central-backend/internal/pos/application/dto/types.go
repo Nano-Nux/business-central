@@ -21,6 +21,7 @@ type Shop struct {
 	TaxLabel         string          `json:"tax_label"`
 	ReceiptNote      string          `json:"receipt_note"`
 	FooterNote       string          `json:"footer_note"`
+	SyncVersion      int64           `json:"sync_version"`
 }
 type Location struct {
 	ID           string  `json:"id"`
