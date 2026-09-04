@@ -296,6 +296,7 @@ export async function queueOperationWithEntity<T>(
   input: QueueOperationInput,
   localProjection: T,
 ) {
+  const hash = await payloadHash(input.payload);
   const existing = (await listOperations(scope))
     .reverse()
     .find(
@@ -305,8 +306,10 @@ export async function queueOperationWithEntity<T>(
         operation.operationType === input.operationType &&
         ["PENDING", "FAILED", "BLOCKED"].includes(operation.status),
     );
-  const operationId = existing?.operationId ?? input.operationId ?? randomUuid();
-  const hash = await payloadHash(input.payload);
+  const canReuseOperationId =
+    existing && existing.status === "PENDING" && !existing.serverOperationId;
+  const operationId =
+    (canReuseOperationId ? existing.operationId : undefined) ?? input.operationId ?? randomUuid();
   const createdAt = new Date().toISOString();
   const operation: OfflineOperation = {
     operationId,
@@ -319,14 +322,17 @@ export async function queueOperationWithEntity<T>(
     operationType: input.operationType,
     payload: input.payload,
     payloadHash: hash,
-    baseVersion: existing?.baseVersion ?? input.baseVersion,
-    clientCreatedAt: existing?.clientCreatedAt ?? createdAt,
-    dependencyOperationId: existing?.dependencyOperationId ?? input.dependencyOperationId,
+    baseVersion: input.baseVersion ?? existing?.baseVersion,
+    clientCreatedAt: canReuseOperationId ? existing.clientCreatedAt : createdAt,
+    dependencyOperationId: input.dependencyOperationId ?? existing?.dependencyOperationId,
     status: "PENDING",
     retryCount: 0,
   };
   const database = await openDatabase();
   const transaction = database.transaction([STORES.entities, STORES.operations], "readwrite");
+  if (existing && existing.operationId !== operationId) {
+    transaction.objectStore(STORES.operations).delete(existing.operationId);
+  }
   transaction.objectStore(STORES.entities).put({
     key: entityKey(scope, input.entityType, input.entityId),
     scopeKey: offlineScopeKey(scope),

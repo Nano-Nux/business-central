@@ -868,7 +868,7 @@ func (s *Service) CreateRefund(ctx context.Context, c *authdto.Claims, orderID s
 }
 
 func (s *Service) ListShops(ctx context.Context, c *authdto.Claims) ([]Shop, error) {
-	rows, err := s.pool.Query(ctx, `WITH x AS(SELECT set_config('app.user_id',$2::text,true),set_config('app.merchant_id',$1::text,true)) SELECT s.id,s.merchant_id,s.business_type_id,COALESCE(bt.name,''),s.name,s.code,s.address,s.timezone,s.is_active,COALESCE((SELECT array_agg(sm.module_code ORDER BY sm.module_code) FROM shop_modules sm WHERE sm.merchant_id=s.merchant_id AND sm.shop_id=s.id),ARRAY[]::text[]),COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,'') FROM shops s LEFT JOIN business_types bt ON bt.id=s.business_type_id LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id CROSS JOIN x WHERE s.merchant_id=$1::uuid AND ((SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($3,'')::uuid) IS NULL OR s.id=(SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($3,'')::uuid)) ORDER BY s.name`, c.MerchantID, c.IdentityID, c.MembershipID)
+	rows, err := s.pool.Query(ctx, `WITH x AS(SELECT set_config('app.user_id',$2::text,true),set_config('app.merchant_id',$1::text,true)) SELECT s.id,s.merchant_id,s.business_type_id,COALESCE(bt.name,''),s.name,s.code,s.address,s.timezone,s.is_active,COALESCE((SELECT array_agg(sm.module_code ORDER BY sm.module_code) FROM shop_modules sm WHERE sm.merchant_id=s.merchant_id AND sm.shop_id=s.id),ARRAY[]::text[]),COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,''),COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=s.merchant_id AND entity_type='SHOP_SETTINGS' AND entity_id=s.id),0) FROM shops s LEFT JOIN business_types bt ON bt.id=s.business_type_id LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id CROSS JOIN x WHERE s.merchant_id=$1::uuid AND ((SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($3,'')::uuid) IS NULL OR s.id=(SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($3,'')::uuid)) ORDER BY s.name`, c.MerchantID, c.IdentityID, c.MembershipID)
 	if err != nil {
 		return nil, err
 	}
@@ -876,7 +876,7 @@ func (s *Service) ListShops(ctx context.Context, c *authdto.Claims) ([]Shop, err
 	out := []Shop{}
 	for rows.Next() {
 		var v Shop
-		if err := rows.Scan(&v.ID, &v.MerchantID, &v.BusinessTypeID, &v.BusinessTypeName, &v.Name, &v.Code, &v.Address, &v.Timezone, &v.IsActive, &v.ModuleCodes, &v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.FooterNote); err != nil {
+		if err := rows.Scan(&v.ID, &v.MerchantID, &v.BusinessTypeID, &v.BusinessTypeName, &v.Name, &v.Code, &v.Address, &v.Timezone, &v.IsActive, &v.ModuleCodes, &v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.FooterNote, &v.SyncVersion); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -1020,7 +1020,7 @@ func publishSyncChangeAtVersion(ctx context.Context, tx pgx.Tx, merchantID, shop
 }
 func (s *Service) GetShop(ctx context.Context, c *authdto.Claims, id string) (Shop, error) {
 	var v Shop
-	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$3::text,true),set_config('app.merchant_id',$1::text,true)) SELECT s.id,s.merchant_id,s.business_type_id,COALESCE(bt.name,''),s.name,s.code,s.address,s.timezone,s.is_active,COALESCE((SELECT array_agg(sm.module_code ORDER BY sm.module_code) FROM shop_modules sm WHERE sm.merchant_id=s.merchant_id AND sm.shop_id=s.id),ARRAY[]::text[]),COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,'') FROM shops s LEFT JOIN business_types bt ON bt.id=s.business_type_id LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id CROSS JOIN x WHERE s.merchant_id=$1::uuid AND s.id=$2::uuid`, c.MerchantID, id, c.IdentityID).Scan(&v.ID, &v.MerchantID, &v.BusinessTypeID, &v.BusinessTypeName, &v.Name, &v.Code, &v.Address, &v.Timezone, &v.IsActive, &v.ModuleCodes, &v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.FooterNote)
+	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$3::text,true),set_config('app.merchant_id',$1::text,true)) SELECT s.id,s.merchant_id,s.business_type_id,COALESCE(bt.name,''),s.name,s.code,s.address,s.timezone,s.is_active,COALESCE((SELECT array_agg(sm.module_code ORDER BY sm.module_code) FROM shop_modules sm WHERE sm.merchant_id=s.merchant_id AND sm.shop_id=s.id),ARRAY[]::text[]),COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,''),COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=s.merchant_id AND entity_type='SHOP_SETTINGS' AND entity_id=s.id),0) FROM shops s LEFT JOIN business_types bt ON bt.id=s.business_type_id LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id CROSS JOIN x WHERE s.merchant_id=$1::uuid AND s.id=$2::uuid`, c.MerchantID, id, c.IdentityID).Scan(&v.ID, &v.MerchantID, &v.BusinessTypeID, &v.BusinessTypeName, &v.Name, &v.Code, &v.Address, &v.Timezone, &v.IsActive, &v.ModuleCodes, &v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.FooterNote, &v.SyncVersion)
 	return v, err
 }
 func (s *Service) CreateShop(ctx context.Context, c *authdto.Claims, r ShopRequest) (Shop, error) {
@@ -1137,32 +1137,34 @@ func (s *Service) UpdateShop(ctx context.Context, c *authdto.Claims, id string, 
 	if err != nil {
 		return Shop{}, err
 	}
-	if err = recordShopSettingsChange(ctx, tx, c.MerchantID, id, syncPayload); err != nil {
+	newVersion, err := recordShopSettingsChange(ctx, tx, c.MerchantID, id, syncPayload)
+	if err != nil {
 		return Shop{}, err
 	}
+	v.SyncVersion = newVersion
 	if err = tx.Commit(ctx); err != nil {
 		return Shop{}, err
 	}
 	return v, nil
 }
 
-func recordShopSettingsChange(ctx context.Context, tx pgx.Tx, merchantID, shopID string, payload []byte) error {
+func recordShopSettingsChange(ctx context.Context, tx pgx.Tx, merchantID, shopID string, payload []byte) (int64, error) {
 	var currentVersion int64
 	err := tx.QueryRow(ctx, `SELECT version FROM sync_entity_versions WHERE merchant_id=$1::uuid AND entity_type='SHOP_SETTINGS' AND entity_id=$2::uuid FOR UPDATE`, merchantID, shopID).Scan(&currentVersion)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
+		return 0, err
 	}
 	newVersion := currentVersion + 1
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO sync_entity_versions(merchant_id,entity_type,entity_id,version,updated_at)
 		VALUES($1::uuid,'SHOP_SETTINGS',$2::uuid,$3,now())
 		ON CONFLICT (merchant_id,entity_type,entity_id) DO UPDATE SET version=EXCLUDED.version,updated_at=now()`, merchantID, shopID, newVersion); err != nil {
-		return err
+		return 0, err
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO sync_changes(merchant_id,shop_id,server_sequence,entity_type,entity_id,entity_version,operation_type,payload)
 		VALUES($1::uuid,$2::uuid,nextval('sync_server_sequence_seq'),'SHOP_SETTINGS',$2::uuid,$3,'UPDATE',$4::jsonb)`, merchantID, shopID, newVersion, payload)
-	return err
+	return newVersion, err
 }
 
 func replaceShopModules(ctx context.Context, tx pgx.Tx, merchantID, shopID string, modules []string) error {

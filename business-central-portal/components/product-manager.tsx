@@ -13,8 +13,10 @@ import {
   Modal,
   PageHeader,
   Pagination,
+  StatCard,
   useListPagination,
 } from "./ui";
+import { resolveMediaURL } from "@/lib/media-url";
 import { patch, post, remove } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import { useOffline } from "@/lib/offline";
@@ -399,7 +401,7 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
                       ? JSON.stringify(current ?? "")
                       : String(current ?? "");
                 return (
-                  <div className="wide" key={definition.id}>
+                  <div className="attribute-field-group wide" key={definition.id}>
                     <Field
                       label={definition.name}
                       key={definition.id}
@@ -550,6 +552,9 @@ export function ProductManager() {
   const products = useResource<Product>("/catalog/products?page_index=0&page_size=100");
   const categories = useResource<Category>("/catalog/categories?page_index=0&page_size=200");
   const brands = useResource<Brand>("/catalog/brands?page_index=0&page_size=200");
+  const brandMap = useMemo(() => {
+    return new Map(brands.data.map((b) => [b.id, b.name]));
+  }, [brands.data]);
   const categoryLabels = useMemo(() => {
     const byID = new Map(categories.data.map((category) => [category.id, category]));
     return new Map(categories.data.map((category) => [category.id, categoryPath(category, byID)]));
@@ -558,6 +563,15 @@ export function ProductManager() {
   const attributes = useResource<AttributeDefinition>(
     "/catalog/attributes?page_index=0&page_size=100",
   );
+  const stats = useMemo(() => {
+    const total = products.data.length;
+    const active = products.data.filter((p) => p.is_active).length;
+    const inactive = total - active;
+    const physical = products.data.filter((p) => p.product_type === "PHYSICAL").length;
+    const services = products.data.filter((p) => p.product_type === "SERVICE").length;
+    const digital = products.data.filter((p) => p.product_type === "DIGITAL").length;
+    return { total, active, inactive, physical, services, digital };
+  }, [products.data]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [sort, setSort] = useState("NAME_ASC");
@@ -719,53 +733,135 @@ export function ProductManager() {
         }
       />
       {error && <div className="form-error">{error}</div>}
-      <div className="toolbar">
-        <BarcodeScanner
-          value={query}
-          onChange={setQuery}
-          placeholder="Search products or barcode"
+      <div className="stats-grid products-stats-grid">
+        <StatCard
+          label="Total Products"
+          value={String(stats.total)}
+          note={`${stats.active} active in catalog`}
+          icon="box"
+          tone="mint"
         />
-        <div className="search-box legacy-search">
-          <Icon name="search" size={17} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search products or barcode…"
-          />
-        </div>
-        <select
-          className="filter-select"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          aria-label="Filter products"
-        >
-          <option value="ALL">All products</option>
-          <option value="ACTIVE">Active</option>
-          <option value="INACTIVE">Inactive</option>
-          <option value="PHYSICAL">Physical</option>
-          <option value="SERVICE">Services</option>
-        </select>
-        <select
-          className="filter-select"
-          value={sort}
-          onChange={(event) => setSort(event.target.value)}
-          aria-label="Sort products"
-        >
-          <option value="NAME_ASC">Name A–Z</option>
-          <option value="NAME_DESC">Name Z–A</option>
-          <option value="TYPE_ASC">Type</option>
-        </select>
-        <Link href="/pricing" className="button button-secondary">
-          Prices
-        </Link>
-
-        {!simple && (
-          <Link href="/catalog/attributes" className="button button-secondary">
-            Variant attributes
-          </Link>
-        )}
+        <StatCard
+          label="Active vs Inactive"
+          value={`${stats.active} / ${stats.inactive}`}
+          note="Sellable in POS"
+          icon="check"
+          tone="blue"
+        />
+        <StatCard
+          label="Physical & Services"
+          value={`${stats.physical} / ${stats.services}`}
+          note={stats.digital > 0 ? `${stats.digital} digital items` : "Catalog item types"}
+          icon="tag"
+          tone="amber"
+        />
+        <StatCard
+          label="Catalog Coverage"
+          value={`${categories.data.length} categories`}
+          note={`${brands.data.length} brands configured`}
+          icon="catalog"
+          tone="purple"
+        />
       </div>
-      <div className="table-card">
+
+      <div className="products-controls">
+        <div className="products-controls-top">
+          <div className="products-search-wrap">
+            <BarcodeScanner
+              value={query}
+              onChange={setQuery}
+              placeholder="Search products or barcode…"
+            />
+            <div className="search-box legacy-search">
+              <Icon name="search" size={17} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search products or barcode…"
+              />
+            </div>
+          </div>
+          <div className="products-quick-actions">
+            <div className="products-sort-wrap">
+              <select
+                className="filter-select"
+                value={sort}
+                onChange={(event) => setSort(event.target.value)}
+                aria-label="Sort products"
+              >
+                <option value="NAME_ASC">Name: A–Z</option>
+                <option value="NAME_DESC">Name: Z–A</option>
+                <option value="TYPE_ASC">Sort by Type</option>
+              </select>
+            </div>
+            <Link href="/pricing" className="button button-secondary">
+              <Icon name="tag" size={15} />
+              <span>Prices</span>
+            </Link>
+            {!simple && (
+              <Link href="/catalog/attributes" className="button button-secondary">
+                <Icon name="catalog" size={15} />
+                <span>Variant attributes</span>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        <div className="products-filter-tabs" role="tablist" aria-label="Filter products">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === "ALL"}
+            className={`filter-tab ${filter === "ALL" ? "active" : ""}`}
+            onClick={() => setFilter("ALL")}
+          >
+            <span>All products</span>
+            <span className="tab-count">{stats.total}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === "ACTIVE"}
+            className={`filter-tab ${filter === "ACTIVE" ? "active" : ""}`}
+            onClick={() => setFilter("ACTIVE")}
+          >
+            <span>Active</span>
+            <span className="tab-count">{stats.active}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === "INACTIVE"}
+            className={`filter-tab ${filter === "INACTIVE" ? "active" : ""}`}
+            onClick={() => setFilter("INACTIVE")}
+          >
+            <span>Inactive</span>
+            <span className="tab-count">{stats.inactive}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === "PHYSICAL"}
+            className={`filter-tab ${filter === "PHYSICAL" ? "active" : ""}`}
+            onClick={() => setFilter("PHYSICAL")}
+          >
+            <span>Physical</span>
+            <span className="tab-count">{stats.physical}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === "SERVICE"}
+            className={`filter-tab ${filter === "SERVICE" ? "active" : ""}`}
+            onClick={() => setFilter("SERVICE")}
+          >
+            <span>Services</span>
+            <span className="tab-count">{stats.services}</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="table-card products-table-card">
         {products.loading ? (
           <Loading />
         ) : products.error ? (
@@ -783,72 +879,274 @@ export function ProductManager() {
             }
           />
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagination.pageItems.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <button
-                      className="product-link"
-                      onClick={() => {
-                        if (simple) {
-                          setEditing(item);
-                          setProductBarcode(item.barcode ?? "");
-                          setFormOpen(true);
-                        } else {
-                          setSelected(item);
-                        }
-                      }}
-                    >
-                      <span>
-                        <Icon name="box" size={17} />
-                      </span>
-                      <div className="cell-main">
+          <>
+            <div className="products-desktop-table">
+              <table className="products-table data-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Classification</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    {!simple && <th>Variants</th>}
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagination.pageItems.map((item) => {
+                    const imageUrl = item.images?.[0]?.image_url
+                      ? resolveMediaURL(item.images[0].image_url)
+                      : null;
+                    const brandName = item.brand_id ? brandMap.get(item.brand_id) : null;
+                    const primaryCategoryId = item.category_ids?.[0];
+                    const categoryName = primaryCategoryId
+                      ? categoryLabels.get(primaryCategoryId)
+                      : null;
+
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <button
+                            className="product-cell-btn product-link"
+                            onClick={() => {
+                              if (simple) {
+                                setEditing(item);
+                                setProductBarcode(item.barcode ?? "");
+                                setFormOpen(true);
+                              } else {
+                                setSelected(item);
+                              }
+                            }}
+                          >
+                            <div className="product-avatar">
+                              {imageUrl ? (
+                                <img
+                                  src={imageUrl}
+                                  alt={item.name}
+                                  className="product-thumb-img"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                    const next = e.currentTarget
+                                      .nextElementSibling as HTMLElement | null;
+                                    if (next) next.style.display = "grid";
+                                  }}
+                                />
+                              ) : null}
+                              <span
+                                className="product-thumb-placeholder"
+                                style={imageUrl ? { display: "none" } : undefined}
+                              >
+                                <Icon name="box" size={18} />
+                              </span>
+                            </div>
+                            <div className="product-cell-copy cell-main">
+                              <strong>{item.name}</strong>
+                              <small>{item.description || "No description"}</small>
+                              {item.barcode && (
+                                <span
+                                  className="product-barcode-pill"
+                                  title={`Barcode: ${item.barcode}`}
+                                >
+                                  <Icon name="cart" size={11} />
+                                  <span>{item.barcode}</span>
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        </td>
+                        <td>
+                          <div className="product-classification">
+                            {brandName && <span className="product-brand-tag">{brandName}</span>}
+                            {categoryName && (
+                              <span className="product-category-tag" title={categoryName}>
+                                {categoryName}
+                              </span>
+                            )}
+                            {!brandName && !categoryName && <small className="muted">—</small>}
+                          </div>
+                        </td>
+                        <td>
+                          <Badge
+                            tone={
+                              item.product_type === "PHYSICAL"
+                                ? "info"
+                                : item.product_type === "SERVICE"
+                                  ? "warning"
+                                  : "neutral"
+                            }
+                          >
+                            {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
+                          </Badge>
+                        </td>
+                        <td>
+                          <Badge tone={item.is_active ? "success" : "neutral"}>
+                            {item.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </td>
+                        {!simple && (
+                          <td>
+                            <button
+                              type="button"
+                              className="variant-pill-btn"
+                              title="Manage variants"
+                              onClick={() => setSelected(item)}
+                            >
+                              <Icon name="catalog" size={14} />
+                              <span>Variants</span>
+                            </button>
+                          </td>
+                        )}
+                        <td>
+                          <div className="row-actions">
+                            {!simple && (
+                              <button
+                                type="button"
+                                title="Manage variants"
+                                aria-label={`Manage variants for ${item.name}`}
+                                onClick={() => setSelected(item)}
+                              >
+                                <Icon name="catalog" size={15} />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              title="Edit"
+                              aria-label={`Edit ${item.name}`}
+                              onClick={() => {
+                                setEditing(item);
+                                setProductBarcode(item.barcode ?? "");
+                                setFormOpen(true);
+                              }}
+                            >
+                              <Icon name="edit" size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className="danger"
+                              title="Delete"
+                              aria-label={`Delete ${item.name}`}
+                              onClick={() => destroy(item)}
+                            >
+                              <Icon name="trash" size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Product Cards */}
+            <div className="products-mobile-cards">
+              {pagination.pageItems.map((item) => {
+                const imageUrl = item.images?.[0]?.image_url
+                  ? resolveMediaURL(item.images[0].image_url)
+                  : null;
+                const brandName = item.brand_id ? brandMap.get(item.brand_id) : null;
+                const primaryCategoryId = item.category_ids?.[0];
+                const categoryName = primaryCategoryId
+                  ? categoryLabels.get(primaryCategoryId)
+                  : null;
+
+                return (
+                  <div className="product-mobile-card" key={item.id}>
+                    <div className="product-mobile-card-top">
+                      <div className="product-avatar">
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={item.name}
+                            className="product-thumb-img"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              const next = e.currentTarget.nextElementSibling as HTMLElement | null;
+                              if (next) next.style.display = "grid";
+                            }}
+                          />
+                        ) : null}
+                        <span
+                          className="product-thumb-placeholder"
+                          style={imageUrl ? { display: "none" } : undefined}
+                        >
+                          <Icon name="box" size={18} />
+                        </span>
+                      </div>
+                      <div className="product-mobile-card-copy">
                         <strong>{item.name}</strong>
                         <small>{item.description || "No description"}</small>
                       </div>
-                    </button>
-                  </td>
-                  <td>{item.product_type.toLowerCase()}</td>
-                  <td>
-                    <Badge tone={item.is_active ? "success" : "neutral"}>
-                      {item.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      {!simple && (
-                        <button title="Manage variants" onClick={() => setSelected(item)}>
-                          <Icon name="catalog" size={15} />
-                        </button>
-                      )}
-                      <button
-                        title="Edit"
-                        onClick={() => {
-                          setEditing(item);
-                          setProductBarcode(item.barcode ?? "");
-                          setFormOpen(true);
-                        }}
-                      >
-                        <Icon name="edit" size={15} />
-                      </button>
-                      <button className="danger" title="Delete" onClick={() => destroy(item)}>
-                        <Icon name="trash" size={15} />
-                      </button>
+                      <Badge tone={item.is_active ? "success" : "neutral"}>
+                        {item.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+                    <div className="product-mobile-card-tags">
+                      <Badge
+                        tone={
+                          item.product_type === "PHYSICAL"
+                            ? "info"
+                            : item.product_type === "SERVICE"
+                              ? "warning"
+                              : "neutral"
+                        }
+                      >
+                        {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
+                      </Badge>
+                      {item.barcode && (
+                        <span className="product-barcode-pill">
+                          <Icon name="cart" size={11} />
+                          <span>{item.barcode}</span>
+                        </span>
+                      )}
+                      {brandName && <span className="product-brand-tag">{brandName}</span>}
+                      {categoryName && <span className="product-category-tag">{categoryName}</span>}
+                    </div>
+
+                    <div className="product-mobile-card-footer">
+                      {!simple ? (
+                        <button
+                          type="button"
+                          className="variant-pill-btn"
+                          onClick={() => setSelected(item)}
+                        >
+                          <Icon name="catalog" size={14} />
+                          <span>Variants</span>
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+
+                      <div className="product-mobile-card-actions">
+                        <button
+                          type="button"
+                          title="Edit"
+                          aria-label={`Edit ${item.name}`}
+                          onClick={() => {
+                            setEditing(item);
+                            setProductBarcode(item.barcode ?? "");
+                            setFormOpen(true);
+                          }}
+                        >
+                          <Icon name="edit" size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          title="Delete"
+                          aria-label={`Delete ${item.name}`}
+                          onClick={() => destroy(item)}
+                        >
+                          <Icon name="trash" size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
       <Pagination

@@ -1,6 +1,11 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getCachedEntities, listOperations, type OfflineScope } from "./offline-db";
+import {
+  getCachedEntities,
+  listOperations,
+  updateOperation,
+  type OfflineScope,
+} from "./offline-db";
 import { queueShopSettingsUpdate } from "./offline-settings";
 import { imageUploadMarker } from "./offline-images";
 import type { Shop } from "./types";
@@ -81,28 +86,24 @@ describe("offline shop settings", () => {
   });
 
   it("persists operational and printer settings to the offline entity projection and sync payload", async () => {
-    const operation = await queueShopSettingsUpdate(
-      scope,
-      shop,
-      {
-        name: shop.name,
-        code: shop.code,
-        address: {
-          line1: "Shop address",
-          default_view: "/pos",
-          currency_display: "SYMBOL",
-          default_status: "DIAGNOSING",
-          confirmation: "always",
-          printer_paper_width_mm: "80",
-          printer_font_size_px: "16",
-        },
-        is_active: true,
-        include_tax: true,
-        tax_rate: "7",
-        tax_label: "VAT",
-        receipt_note: "Thank you!",
+    const operation = await queueShopSettingsUpdate(scope, shop, {
+      name: shop.name,
+      code: shop.code,
+      address: {
+        line1: "Shop address",
+        default_view: "/pos",
+        currency_display: "SYMBOL",
+        default_status: "DIAGNOSING",
+        confirmation: "always",
+        printer_paper_width_mm: "80",
+        printer_font_size_px: "16",
       },
-    );
+      is_active: true,
+      include_tax: true,
+      tax_rate: "7",
+      tax_label: "VAT",
+      receipt_note: "Thank you!",
+    });
 
     await expect(listOperations(scope)).resolves.toMatchObject([
       {
@@ -148,5 +149,72 @@ describe("offline shop settings", () => {
         },
       },
     ]);
+  });
+
+  it("handles consecutive logo updates and tracks sync_version without idempotency conflict", async () => {
+    const firstShop: Shop = {
+      ...shop,
+      sync_version: 1,
+      address: { logo_url: "/media/merchants/logo-v1.png" },
+      logo_url: "/media/merchants/logo-v1.png",
+    };
+
+    const firstOp = await queueShopSettingsUpdate(scope, firstShop, {
+      name: firstShop.name,
+      code: firstShop.code,
+      address: {
+        line1: "Address",
+        logo_url: "/media/merchants/logo-v1.png",
+        logo_source_type: "UPLOAD",
+      },
+      is_active: true,
+      include_tax: false,
+      tax_rate: "0",
+      tax_label: "Tax",
+      receipt_note: "",
+    });
+
+    expect(firstOp.baseVersion).toBe(1);
+
+    // Simulate firstOp having successfully synced
+    await updateOperation(firstOp.operationId, {
+      status: "SYNCED",
+      serverOperationId: "server-op-1",
+    });
+
+    const secondShop: Shop = {
+      ...firstShop,
+      sync_version: 2,
+      address: { logo_url: "/media/merchants/logo-v2.png" },
+      logo_url: "/media/merchants/logo-v2.png",
+    };
+
+    const secondOp = await queueShopSettingsUpdate(scope, secondShop, {
+      name: secondShop.name,
+      code: secondShop.code,
+      address: {
+        line1: "Address",
+        logo_url: "/media/merchants/logo-v2.png",
+        logo_source_type: "UPLOAD",
+      },
+      is_active: true,
+      include_tax: false,
+      tax_rate: "0",
+      tax_label: "Tax",
+      receipt_note: "",
+    });
+
+    expect(secondOp.baseVersion).toBe(2);
+    // Since the payload changed, a fresh operationId is generated
+    expect(secondOp.operationId).not.toBe(firstOp.operationId);
+
+    const operations = await listOperations(scope);
+    expect(operations).toHaveLength(2);
+    const pending = operations.filter((op) => op.status === "PENDING");
+    expect(pending).toHaveLength(1);
+    expect(pending[0].operationId).toBe(secondOp.operationId);
+    expect(pending[0].payload).toMatchObject({
+      address: { logo_url: "/media/merchants/logo-v2.png" },
+    });
   });
 });

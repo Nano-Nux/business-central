@@ -142,7 +142,7 @@ async function request<T>(
 
 export async function api<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
-  if (method === "GET" || method === "HEAD") {
+  if (method === "GET" || method === "HEAD" || init.body instanceof FormData) {
     return (await request<T>(path, init, retried)).data;
   }
   const key = `${method}:${path}:${typeof init.body === "string" ? init.body : ""}`;
