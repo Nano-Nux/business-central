@@ -220,7 +220,6 @@ export function CategoriesPage() {
                       className={`category-tree-node ${depth > 0 ? "is-child" : ""}`}
                       style={
                         {
-                          paddingLeft: `${depth * 24}px`,
                           "--category-depth": depth,
                         } as CSSProperties
                       }

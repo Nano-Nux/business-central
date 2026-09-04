@@ -539,7 +539,7 @@ export function PosPage() {
                     <div>
                       {!simple && <small>{item.product_name ?? "Product"}</small>}
                       <strong>{displayName}</strong>
-                      <p className="text-base">
+                      <p className="product-tile-stock">
                         {!simple && <>{item.sku} · </>}
                         {availableQuantity(item).toLocaleString()} available stock
                       </p>

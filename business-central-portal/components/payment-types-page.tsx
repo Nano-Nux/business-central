@@ -248,7 +248,7 @@ export function PaymentTypesPage() {
         </div>
       )}
 
-      <section className="stats-grid" style={{ marginBottom: "20px" }}>
+      <section className="stats-grid">
         <StatCard
           icon="receipt"
           label="Total payment methods"
@@ -375,12 +375,12 @@ export function PaymentTypesPage() {
                 return (
                   <tr key={item.id}>
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <div
                           style={{
-                            width: "36px",
-                            height: "36px",
-                            borderRadius: "8px",
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "7px",
                             background: "var(--surface-muted)",
                             border: "1px solid var(--line)",
                             display: "flex",
@@ -390,7 +390,7 @@ export function PaymentTypesPage() {
                             flexShrink: 0,
                           }}
                         >
-                          <Icon name={info.icon} size={18} />
+                          <Icon name={info.icon} size={16} />
                         </div>
                         <div className="cell-main">
                           <strong>{item.name}</strong>
