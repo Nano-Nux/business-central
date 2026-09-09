@@ -594,6 +594,13 @@ func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID
 	if request.POSComplexityLevel != nil && *request.POSComplexityLevel != "SIMPLE" && *request.POSComplexityLevel != "COMPLEX" {
 		return Merchant{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE or COMPLEX.", 400)
 	}
+	if request.DefaultCurrencyCode != nil {
+		currency := strings.ToUpper(strings.TrimSpace(*request.DefaultCurrencyCode))
+		if currency == "" {
+			return Merchant{}, app.NewError("VALIDATION_ERROR", "default_currency_code cannot be empty.", 400)
+		}
+		request.DefaultCurrencyCode = &currency
+	}
 	if !claims.PlatformAdmin && claims.MerchantID != merchantID {
 		return Merchant{}, app.NewError("FORBIDDEN", "Platform administrator access is required.", 403)
 	}
@@ -604,6 +611,15 @@ func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID
 	defer tx.Rollback(ctx)
 	if err := setContext(ctx, tx, claims); err != nil {
 		return Merchant{}, err
+	}
+	if request.DefaultCurrencyCode != nil {
+		var count int
+		if err = tx.QueryRow(ctx, `SELECT count(1) FROM currencies WHERE code = $1 AND is_active = true`, *request.DefaultCurrencyCode).Scan(&count); err != nil {
+			return Merchant{}, err
+		}
+		if count == 0 {
+			return Merchant{}, app.NewError("VALIDATION_ERROR", "default_currency_code must reference a supported currency.", 400)
+		}
 	}
 	idempotencyKey := strings.TrimSpace(app.IdempotencyKey(ctx))
 	var idempotencyHash string
@@ -638,7 +654,7 @@ func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID
 		}
 	}
 	var merchant Merchant
-	err = tx.QueryRow(ctx, `UPDATE merchants SET name = COALESCE($2, name), legal_name = COALESCE($3, legal_name), country_code = COALESCE($4, country_code), pos_complexity_level = COALESCE($5, pos_complexity_level), is_active = COALESCE($6, is_active) WHERE id = $1 RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, is_active, created_at, updated_at`, merchantID, request.Name, request.LegalName, request.CountryCode, request.POSComplexityLevel, request.IsActive).Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
+	err = tx.QueryRow(ctx, `UPDATE merchants SET name = COALESCE($2, name), legal_name = COALESCE($3, legal_name), country_code = COALESCE($4, country_code), pos_complexity_level = COALESCE($5, pos_complexity_level), is_active = COALESCE($6, is_active), default_currency_code = COALESCE($7, default_currency_code), updated_at = now() WHERE id = $1 RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, is_active, created_at, updated_at`, merchantID, request.Name, request.LegalName, request.CountryCode, request.POSComplexityLevel, request.IsActive, request.DefaultCurrencyCode).Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
 	if err != nil {
 		return Merchant{}, err
 	}
@@ -646,7 +662,7 @@ func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID
 	if claims.MembershipID != "" {
 		actor = claims.MembershipID
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO audit_events(merchant_id, actor_membership_id, action, entity_type, entity_id, after_data) VALUES ($1, $2, 'UPDATE', 'merchant', $1, jsonb_build_object('is_active', $3::boolean, 'name', $4::text))`, merchantID, actor, merchant.IsActive, merchant.Name); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO audit_events(merchant_id, actor_membership_id, action, entity_type, entity_id, after_data) VALUES ($1, $2, 'UPDATE', 'merchant', $1, jsonb_build_object('is_active', $3::boolean, 'name', $4::text, 'default_currency_code', $5::text))`, merchantID, actor, merchant.IsActive, merchant.Name, merchant.DefaultCurrencyCode); err != nil {
 		return Merchant{}, err
 	}
 	if idempotencyKey != "" {

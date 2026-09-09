@@ -101,6 +101,10 @@ export default function UsersPage() {
       setError("Select a merchant and at least one role.");
       return;
     }
+    if (editing && isMerchantRoleSelected() && !form.default_currency_code) {
+      setError("Merchant currency is required.");
+      return;
+    }
     if (!editing && form.accountRole !== "merchant" && !merchantID) {
       setError("Please create a merchant first.");
       return;
@@ -130,6 +134,7 @@ export default function UsersPage() {
           const merchantResult = await withAuth((token) =>
             updateMerchant(token, merchantID, {
               pos_complexity_level: form.pos_complexity_level,
+              default_currency_code: form.default_currency_code,
             }),
           );
           setMerchants((items) =>
@@ -244,6 +249,7 @@ export default function UsersPage() {
   }
 
   function openEdit(user: User) {
+    const currentMerchant = merchants.find((merchant) => merchant.id === merchantID);
     setEditing(user);
     setForm({
       ...emptyForm,
@@ -253,8 +259,9 @@ export default function UsersPage() {
       roleIDs: user.roles.map((role) => role.id),
       accountRole: user.roles[0]?.id || "",
       pos_complexity_level:
-        merchants.find((merchant) => merchant.id === merchantID)
-          ?.pos_complexity_level || "SIMPLE",
+        currentMerchant?.pos_complexity_level || "SIMPLE",
+      default_currency_code:
+        currentMerchant?.default_currency_code || "",
       is_active: user.is_active,
     });
     setShowForm(true);
@@ -277,8 +284,17 @@ export default function UsersPage() {
 
   function isMerchantRoleSelected() {
     return form.roleIDs.some((roleID) => {
-      const role = roles.find((item) => item.id === roleID);
-      return role?.code.toUpperCase() === "MERCHANT" || role?.code.toUpperCase() === "OWNER";
+      const role =
+        roles.find((item) => item.id === roleID) ||
+        editing?.roles.find((item) => item.id === roleID);
+      const code = role?.code?.toUpperCase();
+      const name = role?.name?.toUpperCase();
+      return (
+        code === "MERCHANT" ||
+        code === "OWNER" ||
+        name === "MERCHANT" ||
+        name === "OWNER"
+      );
     });
   }
 
@@ -538,6 +554,36 @@ export default function UsersPage() {
                   />
                 </label>
               </>
+            )}
+            {editing && isMerchantRoleSelected() && (
+              <label>
+                Merchant currency
+                <select
+                  required
+                  value={form.default_currency_code}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      default_currency_code: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Select currency</option>
+                  {currencies.map((currency) => (
+                    <option key={currency.code} value={currency.code}>
+                      {currency.code} — {currency.name}
+                    </option>
+                  ))}
+                  {form.default_currency_code &&
+                    !currencies.some(
+                      (currency) => currency.code === form.default_currency_code,
+                    ) && (
+                      <option value={form.default_currency_code}>
+                        {form.default_currency_code}
+                      </option>
+                    )}
+                </select>
+              </label>
             )}
             {((!editing && form.accountRole === "merchant") ||
               (editing && isMerchantRoleSelected())) && (

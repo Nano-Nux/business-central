@@ -2921,6 +2921,9 @@ components:
         legal_name:
           type: string
           nullable: true
+        default_currency_code:
+          type: string
+          pattern: '^[A-Z]{3}$'
         country_code:
           type: string
           nullable: true
