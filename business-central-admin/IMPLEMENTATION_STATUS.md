@@ -7,7 +7,7 @@ Last reviewed: 2026-08-04
 - Next.js 16, React, TypeScript, Tailwind/PostCSS, and ESLint are configured.
 - Platform administrators authenticate through the backend and see live backend health and merchant-scope counts on the overview.
 - The current navigation contains Overview, Users, Roles, Currencies, Business types, and Shops. Merchant creation is embedded in Add User: the default Merchant role provisions a merchant and its owner user atomically.
-- Users are listed and managed within a backend-provided merchant scope. Create and update forms use canonical identity/membership fields: email, password, display name, phone, active state, and role IDs.
+- Users are listed and managed within a backend-provided merchant scope. Create and update forms use canonical identity/membership fields: email, password, display name, phone, active state, and role IDs. When editing a user with the Merchant role, the edit form also provides fields to edit the merchant's currency and POS complexity level.
 - Add User defaults to the Merchant account role. Merchant mode collects merchant details and a POS complexity level (SIMPLE by default, or COMPLEX) and calls `POST /api/v1/admin/merchant-users`; other roles require an existing merchant and show `Please create a merchant first.` when none exists.
 - User roles are selected from a multi-select dropdown populated by the selected merchant's backend role records.
 - Custom merchant roles support create, list, update, and delete operations with permission assignments from the backend permission catalogue. System roles remain editable but cannot have their stable code changed or be deleted.

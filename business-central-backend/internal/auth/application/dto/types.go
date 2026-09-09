@@ -158,11 +158,12 @@ type CreateMerchantUserRequest struct {
 }
 
 type UpdateMerchantRequest struct {
-	Name               *string `json:"name,omitempty"`
-	LegalName          *string `json:"legal_name,omitempty"`
-	CountryCode        *string `json:"country_code,omitempty"`
-	POSComplexityLevel *string `json:"pos_complexity_level,omitempty"`
-	IsActive           *bool   `json:"is_active,omitempty"`
+	Name                *string `json:"name,omitempty"`
+	LegalName           *string `json:"legal_name,omitempty"`
+	DefaultCurrencyCode *string `json:"default_currency_code,omitempty"`
+	CountryCode         *string `json:"country_code,omitempty"`
+	POSComplexityLevel  *string `json:"pos_complexity_level,omitempty"`
+	IsActive            *bool   `json:"is_active,omitempty"`
 }
 
 type MerchantProvisioning struct {

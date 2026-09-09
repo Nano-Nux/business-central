@@ -19,11 +19,12 @@ The API runtime includes health, authentication, authorization, platform-admin
 merchant management, merchant-owner onboarding, user membership, catalog, pricing,
 promotion, inventory, transactional POS, invoice, reporting, service, and repair endpoints. Platform administrators
 use `GET /api/v1/admin/merchants` and `PATCH /api/v1/admin/merchants/{id}` to
-inspect and change merchant state. Setting `is_active` to `false` is a
+inspect and change merchant state (including `default_currency_code`, `pos_complexity_level`,
+`name`, `legal_name`, `country_code`, and `is_active`). Setting `is_active` to `false` is a
 deactivation (not deletion); the backend rejects login, refresh, and existing
 access-token validation for memberships belonging to that merchant.
 Supported currencies are returned by `GET /api/v1/currencies`; merchant
-creation must use one of those currency codes. Platform administrators load
+creation and currency updates must use one of those active currency codes. Platform administrators load
 and manage merchant roles under `/api/v1/admin/merchants/{id}/roles`, load the
 permission catalogue from `GET /api/v1/admin/permissions`, and send selected
 role IDs in user create/update requests. Shops are tenant-scoped resources

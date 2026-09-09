@@ -127,7 +127,14 @@ export const listMerchants = (token: string) =>
 export const updateMerchant = (
   token: string,
   merchantID: string,
-  data: { pos_complexity_level?: "SIMPLE" | "COMPLEX" },
+  data: {
+    pos_complexity_level?: "SIMPLE" | "COMPLEX";
+    default_currency_code?: string;
+    name?: string;
+    legal_name?: string | null;
+    country_code?: string | null;
+    is_active?: boolean;
+  },
 ) =>
   request<{ data: Merchant }>(
     `/admin/merchants/${merchantID}`,
