@@ -614,7 +614,7 @@ func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID
 	}
 	if request.DefaultCurrencyCode != nil {
 		var count int
-		if err = tx.QueryRow(ctx, `SELECT count(1) FROM currencies WHERE code = $1 AND is_active = true`, *request.DefaultCurrencyCode).Scan(&count); err != nil {
+		if err = tx.QueryRow(ctx, `SELECT count(1) FROM currencies WHERE code = $1`, *request.DefaultCurrencyCode).Scan(&count); err != nil {
 			return Merchant{}, err
 		}
 		if count == 0 {

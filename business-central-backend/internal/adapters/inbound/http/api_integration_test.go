@@ -304,6 +304,20 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	if managerRoleID == "" {
 		t.Fatalf("manager role was not provisioned: %+v", account.Data.Roles)
 	}
+	merchantUpdate := requestJSON(t, app, http.MethodPatch, "/api/v1/admin/merchants/"+account.Data.Merchant.ID, map[string]any{
+		"pos_complexity_level":  "SIMPLE",
+		"default_currency_code": "TST",
+	}, loginBody.Data.AccessToken)
+	if merchantUpdate.StatusCode != http.StatusOK {
+		t.Fatalf("merchant update status = %d, body = %s", merchantUpdate.StatusCode, responseBody(merchantUpdate))
+	}
+	var updatedMerchant struct {
+		Data auth.Merchant `json:"data"`
+	}
+	decodeResponse(t, merchantUpdate, &updatedMerchant)
+	if updatedMerchant.Data.POSComplexityLevel != "SIMPLE" || updatedMerchant.Data.DefaultCurrencyCode != "TST" {
+		t.Fatalf("unexpected updated merchant: %+v", updatedMerchant.Data)
+	}
 	roleCreate := requestJSON(t, app, http.MethodPost, "/api/v1/admin/merchants/"+account.Data.Merchant.ID+"/roles", map[string]any{
 		"code": "auditor", "name": "Auditor", "permission_codes": []string{"tenant.read"},
 	}, loginBody.Data.AccessToken)
