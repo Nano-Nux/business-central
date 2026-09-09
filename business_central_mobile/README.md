@@ -118,7 +118,10 @@ suppresses duplicate reload requests until navigation finishes.
 
 The portal renders invoice pixels and ESC/POS data, while Flutter's
 `thermal_printer_flutter` implementation handles native Bluetooth permission,
-discovery, connection, and printing. Android development HTTP URLs are allowed
-by the current debug/release manifest; production should use HTTPS. Camera and
-Bluetooth printer behavior must still be verified on representative physical
-devices before release.
+discovery, connection, and printing. Selected printer configurations are persisted in
+local mobile storage (`WebViewPrinterStorage`) so that the app automatically
+reconnects to the configured printer when nearby and Bluetooth is available, while
+allowing users to scan and switch to another printer at any time. Android development
+HTTP URLs are allowed by the current debug/release manifest; production should use
+HTTPS. Camera and Bluetooth printer behavior must still be verified on representative
+physical devices before release.

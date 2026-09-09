@@ -14,6 +14,7 @@ import {
   Modal,
   PageHeader,
   Pagination,
+  PasswordInput,
   StatusBadge,
   useListPagination,
 } from "./ui";
@@ -309,14 +310,18 @@ function CurrentPriceList({ list, variantId }: { list: PriceList; variantId: str
   const selectedPrice = currentPrices.get(variantId);
 
   return (
-    <div className="stock-price-list-row">
-      <span>
-        <strong>{list.code}</strong>
-        <small>{currentPrices.size.toLocaleString()} items</small>
-      </span>
-      <strong>
+    <div className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-surface border border-line/60 text-xs">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="font-semibold text-ink truncate">{list.code}</span>
+        {list.is_default && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-muted text-muted border border-line font-medium">
+            Default
+          </span>
+        )}
+      </div>
+      <strong className="font-mono text-ink shrink-0 ml-2">
         {prices.loading
-          ? "Loading…"
+          ? "…"
           : selectedPrice
             ? formatMoney(selectedPrice.amount, list.currency_code)
             : "Not set"}
@@ -341,22 +346,35 @@ function CurrentPriceLists({
   unitLabel?: string;
 }) {
   return (
-    <div className="stock-price-lists">
-      <div className="stock-price-lists-head">
-        <small>Current price lists</small>
-        <small>
+    <div className="stock-price-lists mt-3 rounded-xl border border-line bg-surface-muted/50 p-3 space-y-2">
+      <div className="stock-price-lists-head flex items-center justify-between text-[11px] font-semibold text-muted pb-1.5 border-b border-line">
+        <span className="flex items-center gap-1.5">
+          <Icon name="tag" size={13} className="text-muted" />
+          <span>Active Selling Prices</span>
+        </span>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface border border-line">
           {formatQuantity(quantityOnHand)}
           {unitLabel ? ` ${unitLabel}` : ""} in stock
-        </small>
+        </span>
       </div>
       {loading ? (
-        <span className="stock-price-list-empty">Loading price lists…</span>
+        <span className="stock-price-list-empty block text-xs text-muted py-2 text-center">
+          Loading price lists…
+        </span>
       ) : error ? (
-        <span className="stock-price-list-empty">Price lists unavailable.</span>
+        <span className="stock-price-list-empty block text-xs text-status-danger py-2 text-center">
+          Price lists unavailable.
+        </span>
       ) : lists.length === 0 ? (
-        <span className="stock-price-list-empty">No price lists configured.</span>
+        <span className="stock-price-list-empty block text-xs text-muted py-2 text-center">
+          No price lists configured.
+        </span>
       ) : (
-        lists.map((list) => <CurrentPriceList key={list.id} list={list} variantId={variantId} />)
+        <div className="space-y-1.5">
+          {lists.map((list) => (
+            <CurrentPriceList key={list.id} list={list} variantId={variantId} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -498,410 +516,541 @@ export function StockInPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Inventory"
+        eyebrow="Inventory Operations"
         title="Stock in"
         description={
           isMerchant
-            ? "Choose a product and enter the received quantity. The original purchase cost is optional when this product has been stocked before."
-            : "Choose a product and enter the received quantity. The latest recorded original price is reused automatically."
+            ? "Record incoming inventory shipments, assign destination storage locations, and register unit purchase costs to establish FIFO profit layers."
+            : "Record incoming inventory shipments and assign destination storage locations. The latest recorded purchase cost is reused automatically."
         }
       />
 
-      {/* Mobile Step Navigator: only visible on mobile screens <= 800px */}
-      <div className="stock-mobile-nav">
-        <div className="segmented">
+      {/* Mobile Step Navigator */}
+      <div className="stock-mobile-nav lg:hidden mb-4">
+        <div className="inline-flex w-full p-1 bg-surface-muted border border-line rounded-xl gap-1">
           <button
             type="button"
-            className={mobileStep === "select" ? "active" : ""}
+            className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              mobileStep === "select"
+                ? "bg-surface text-ink shadow-xs"
+                : "text-muted hover:text-ink"
+            }`}
             onClick={() => setMobileStep("select")}
           >
-            1. Select product{selectedProduct ? " (1 selected)" : ""}
+            <span>1. Select Product</span>
+            {selectedProduct && (
+              <span className="w-4 h-4 rounded-full bg-green text-white text-[10px] grid place-items-center">
+                ✓
+              </span>
+            )}
           </button>
           <button
             type="button"
-            className={mobileStep === "form" ? "active" : ""}
+            className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              mobileStep === "form"
+                ? "bg-surface text-ink shadow-xs"
+                : "text-muted hover:text-ink disabled:opacity-40"
+            }`}
             onClick={() => setMobileStep("form")}
             disabled={!selectedProduct}
           >
-            2. Receive stock
+            <span>2. Receive Stock</span>
           </button>
         </div>
       </div>
 
-      <div className="stock-layout" data-mobile-step={mobileStep}>
+      <div
+        className="stock-layout grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2"
+        data-mobile-step={mobileStep}
+      >
         {/* Left Column: Product Catalog Browser */}
         <section
-          className={`card stock-catalog-card stock-catalog-pane ${
-            mobileStep !== "select" ? "mobile-hidden" : ""
+          className={`stock-catalog-pane stock-catalog-card bg-surface rounded-2xl border border-line shadow-xs overflow-hidden flex flex-col lg:col-span-6 xl:col-span-7 ${
+            mobileStep !== "select" ? "hidden lg:flex" : "flex"
           }`}
           aria-label="Products available for stock-in"
         >
-          <div className="card-head">
+          {/* Card Header */}
+          <div className="p-5 border-b border-line flex items-center justify-between gap-3 bg-surface/50">
             <div>
-              <h2>Select a product</h2>
-              <p>
+              <h2 className="text-base font-serif font-medium text-ink m-0">Select a product</h2>
+              <p className="text-xs text-muted m-0 mt-0.5">
                 {simple
-                  ? "Only products with inventory tracking enabled are shown."
-                  : "Only variants with Track inventory enabled are shown."}{" "}
-                {isMerchant
-                  ? " The cost entered here is used later to calculate profit."
-                  : " The latest recorded cost is reused later to calculate profit."}
+                  ? "Tracked catalog products available for inventory intake."
+                  : "Active variants with inventory tracking enabled."}
               </p>
             </div>
-          </div>
-
-          <div className="search-box stock-search">
-            <Icon name="search" size={17} />
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={
-                simple ? "Search products by name…" : "Search by product, variant, SKU, or barcode…"
-              }
-              aria-label="Search products"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => {
-                  setSearchTerm("");
-                  setDebouncedQuery("");
-                  setPageIndex(0);
-                }}
-                aria-label="Clear search"
-              >
-                <Icon name="close" size={14} />
-              </button>
+            {items.meta?.total !== undefined && (
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-surface-muted text-muted border border-line shrink-0">
+                {items.meta.total} tracked
+              </span>
             )}
           </div>
 
-          {items.loading ? (
-            <Loading />
-          ) : items.error ? (
-            <EmptyState title="Stock-in catalog could not load" message={items.error} />
-          ) : items.data.length === 0 && !debouncedQuery ? (
-            <EmptyState
-              icon="package"
-              title="No tracked products"
-              message={
-                simple
-                  ? "Create a product before recording stock-in."
-                  : "Create a product variant and enable Track inventory before recording stock-in."
-              }
-            />
-          ) : items.data.length === 0 && debouncedQuery ? (
-            <div className="stock-no-match">
-              <p>No products match &ldquo;{debouncedQuery}&rdquo;.</p>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setSearchTerm("");
-                  setDebouncedQuery("");
-                  setPageIndex(0);
-                }}
-              >
-                Clear search
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="stock-catalog-list" role="listbox" aria-label="Tracked products">
-                {items.data.map((item) => {
-                  const isSelected = selectedProduct?.id === item.id;
-                  const qtyOnHand = Number(item.quantity_on_hand) || 0;
-                  const itemUnit = unitMap.get(item.base_unit_id);
-                  const itemUnitLabel = itemUnit?.symbol || itemUnit?.code || "";
-                  return (
-                    <button
-                      type="button"
-                      key={item.id}
-                      className={`stock-product-card ${isSelected ? "selected" : ""}`}
-                      onClick={() => {
-                        setSelectedProduct(item);
-                        setError("");
-                        setSuccess("");
-                        setMobileStep("form");
-                      }}
-                      role="option"
-                      aria-selected={isSelected}
-                    >
-                      <span className={`stock-product-icon ${isSelected ? "selected" : ""}`}>
-                        <Icon name="package" size={18} />
-                      </span>
-                      <div className="stock-product-main">
-                        <div className="stock-product-title-row">
-                          <strong className="stock-product-name">{item.product_name}</strong>
-                          <span
-                            className={`stock-qty-badge ${qtyOnHand > 0 ? "in-stock" : "out-of-stock"}`}
-                          >
-                            <strong>{formatQuantity(item.quantity_on_hand)}</strong>
-                            {itemUnitLabel ? ` ${itemUnitLabel}` : ""} in stock
-                          </span>
-                        </div>
-                        {!simple && (
-                          <div className="stock-product-meta">
-                            <span className="stock-variant-name">{item.name}</span>
-                            {item.sku && <span className="stock-meta-pill">SKU {item.sku}</span>}
-                            {item.barcode && (
-                              <span className="stock-meta-pill">Barcode {item.barcode}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <span className="stock-select-indicator" aria-hidden="true">
-                        <Icon name={isSelected ? "check" : "chevron"} size={16} />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <Pagination
-                pageIndex={pageIndex}
-                pageSize={pageSize}
-                totalItems={items.meta?.total ?? items.data.length}
-                totalPages={items.meta?.total_pages ?? 1}
-                itemLabel="products"
-                onPageChange={setPageIndex}
+          {/* Search Toolbar */}
+          <div className="p-4 border-b border-line bg-surface-muted/30">
+            <div className="search-box stock-search relative w-full max-w-none">
+              <Icon
+                name="search"
+                size={16}
+                className="absolute left-3.5 top-3 text-muted pointer-events-none"
               />
-            </>
-          )}
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={
+                  simple
+                    ? "Search products by name…"
+                    : "Search by product name, variant, SKU, or barcode…"
+                }
+                className="w-full h-10 pl-10 pr-9 rounded-xl border border-line bg-canvas text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green/30 focus:border-green transition-all"
+                aria-label="Search products"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  className="icon-button absolute right-2.5 top-2.5 w-5 h-5 rounded-full text-muted hover:text-ink flex items-center justify-center transition-colors cursor-pointer"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setDebouncedQuery("");
+                    setPageIndex(0);
+                  }}
+                  aria-label="Clear search"
+                >
+                  <Icon name="close" size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Catalog Items */}
+          <div className="p-4 flex-1">
+            {items.loading ? (
+              <div className="py-12">
+                <Loading />
+              </div>
+            ) : items.error ? (
+              <EmptyState title="Stock-in catalog could not load" message={items.error} />
+            ) : items.data.length === 0 && !debouncedQuery ? (
+              <EmptyState
+                icon="package"
+                title="No tracked products"
+                message={
+                  simple
+                    ? "Create a product before recording stock-in."
+                    : "Create a product variant and enable Track inventory before recording stock-in."
+                }
+              />
+            ) : items.data.length === 0 && debouncedQuery ? (
+              <div className="stock-no-match text-center py-10 px-4 space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-surface-muted text-muted grid place-items-center mx-auto">
+                  <Icon name="search" size={18} />
+                </div>
+                <p className="text-xs text-muted m-0">
+                  No products match &ldquo;{debouncedQuery}&rdquo;.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setDebouncedQuery("");
+                    setPageIndex(0);
+                  }}
+                >
+                  Clear search
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div
+                  className="stock-catalog-list space-y-2.5"
+                  role="listbox"
+                  aria-label="Tracked products"
+                >
+                  {items.data.map((item) => {
+                    const isSelected = selectedProduct?.id === item.id;
+                    const qtyOnHand = Number(item.quantity_on_hand) || 0;
+                    const itemUnit = unitMap.get(item.base_unit_id);
+                    const itemUnitLabel = itemUnit?.symbol || itemUnit?.code || "";
+                    return (
+                      <button
+                        type="button"
+                        key={item.id}
+                        className={`stock-product-card group w-full p-3.5 rounded-xl border text-left flex items-center gap-3.5 transition-all duration-150 cursor-pointer ${
+                          isSelected
+                            ? "border-green bg-green-soft/40 shadow-xs ring-1 ring-green"
+                            : "border-line bg-surface hover:border-theme-gray-300 hover:bg-canvas/50 hover:shadow-xs"
+                        }`}
+                        onClick={() => {
+                          setSelectedProduct(item);
+                          setError("");
+                          setSuccess("");
+                          setMobileStep("form");
+                        }}
+                        role="option"
+                        aria-selected={isSelected}
+                      >
+                        {/* Icon */}
+                        <span
+                          className={`stock-product-icon w-10 h-10 rounded-xl grid place-items-center shrink-0 transition-colors ${
+                            isSelected
+                              ? "bg-green text-white shadow-xs"
+                              : "bg-surface-muted text-muted group-hover:text-green group-hover:bg-green-soft"
+                          }`}
+                        >
+                          <Icon name="package" size={20} />
+                        </span>
+
+                        {/* Details */}
+                        <div className="stock-product-main flex-1 min-w-0">
+                          <div className="stock-product-title-row flex items-center justify-between gap-2 mb-1">
+                            <strong className="stock-product-name text-xs font-bold text-ink truncate group-hover:text-green transition-colors">
+                              {item.product_name}
+                            </strong>
+                            <span
+                              className={`stock-qty-badge inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold shrink-0 border ${
+                                qtyOnHand > 0
+                                  ? "bg-status-success-soft text-status-success border-status-success-border in-stock"
+                                  : "bg-surface-muted text-muted border-line out-of-stock"
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  qtyOnHand > 0 ? "bg-green animate-pulse" : "bg-muted"
+                                }`}
+                              />
+                              <strong>{formatQuantity(item.quantity_on_hand)}</strong>
+                              {itemUnitLabel ? ` ${itemUnitLabel}` : ""} in stock
+                            </span>
+                          </div>
+                          {!simple && (
+                            <div className="stock-product-meta flex items-center flex-wrap gap-1.5 text-[11px] text-muted">
+                              {item.name && (
+                                <span className="stock-variant-name font-medium text-ink/80">
+                                  {item.name}
+                                </span>
+                              )}
+                              {item.sku && (
+                                <span className="stock-meta-pill px-1.5 py-0.5 rounded bg-surface-muted border border-line text-[9px] font-mono text-muted">
+                                  SKU: {item.sku}
+                                </span>
+                              )}
+                              {item.barcode && (
+                                <span className="stock-meta-pill px-1.5 py-0.5 rounded bg-surface-muted border border-line text-[9px] font-mono text-muted">
+                                  Barcode: {item.barcode}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Indicator */}
+                        <span
+                          className={`stock-select-indicator w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                            isSelected
+                              ? "bg-green text-white"
+                              : "text-muted group-hover:text-ink group-hover:translate-x-0.5"
+                          }`}
+                          aria-hidden="true"
+                        >
+                          <Icon name={isSelected ? "check" : "chevron"} size={14} />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Pagination
+                  pageIndex={pageIndex}
+                  pageSize={pageSize}
+                  totalItems={items.meta?.total ?? items.data.length}
+                  totalPages={items.meta?.total_pages ?? 1}
+                  itemLabel="products"
+                  onPageChange={setPageIndex}
+                />
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Right Column: Stock In Details & Receipt Form */}
         <section
-          className={`card stock-receipt-card stock-receipt-pane ${
-            mobileStep !== "form" ? "mobile-hidden" : ""
+          className={`stock-receipt-pane stock-receipt-card bg-surface rounded-2xl border border-line shadow-xs overflow-hidden lg:col-span-6 xl:col-span-5 lg:sticky lg:top-20 ${
+            mobileStep !== "form" ? "hidden lg:block" : "block"
           }`}
           aria-label="Stock receipt form"
         >
-          <div className="card-head">
+          {/* Card Header */}
+          <div className="p-5 border-b border-line flex items-center justify-between gap-3 bg-surface/50">
             <div>
-              <h2>Receive stock</h2>
-              <p>
+              <h2 className="text-base font-serif font-medium text-ink m-0">Receive stock</h2>
+              <p className="text-xs text-muted m-0 mt-0.5">
                 {selectedProduct
-                  ? `Entering received inventory for ${selectedProduct.product_name}.`
-                  : "Choose a product from the catalog to receive stock."}
+                  ? `Record received inventory for ${selectedProduct.product_name}.`
+                  : "Choose an item from the catalog to start receipt."}
               </p>
             </div>
             {selectedProduct && (
               <button
                 type="button"
-                className="stock-change-btn"
+                className="stock-change-btn text-[11px] font-semibold text-muted hover:text-ink px-2.5 py-1 rounded-lg border border-line bg-surface hover:bg-canvas transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
                 onClick={() => {
                   setSelectedProduct(null);
                   setMobileStep("select");
                 }}
                 aria-label="Choose different product"
               >
-                <Icon name="close" size={14} />
-                <span>Change product</span>
+                <Icon name="close" size={12} />
+                <span>Change</span>
               </button>
             )}
           </div>
 
-          {success && (
-            <div className="success-message" role="status">
-              <Icon name="check" size={17} />
-              {success}
-            </div>
-          )}
-
-          {error && (
-            <div className="form-error" role="alert">
-              <Icon name="close" size={16} />
-              {error}
-            </div>
-          )}
-
-          {!selectedProduct ? (
-            <div className="stock-prompt-state">
-              <span className="stock-prompt-icon">
-                <Icon name="package" size={28} />
-              </span>
-              <h3>No product selected</h3>
-              <p>
-                Select a product from the list on the left to record incoming stock, choose a
-                location, and specify purchase costs.
-              </p>
-              <aside className="stock-tip-embedded">
-                <h4>
-                  <Icon name="package" size={15} />
-                  How original price works
-                </h4>
-                <p>
-                  Each stock-in creates an immutable receipt and a FIFO cost layer. When this item
-                  is sold, that cost is used to calculate gross profit.
-                </p>
-                <ul>
-                  <li>Selling price stays in the RETAIL price list.</li>
-                  <li>
-                    {isMerchant
-                      ? "Original price is the amount you paid per unit."
-                      : "The latest original price is reused automatically."}
-                  </li>
-                  <li>Stock quantity updates immediately upon receipt.</li>
-                </ul>
-              </aside>
-            </div>
-          ) : (
-            <Form className="stock-receipt-form" onSubmit={submit}>
-              {/* Selected Product Spotlight */}
-              <div className="stock-selected-spotlight">
-                <div className="spotlight-header">
-                  <span className="stock-product-icon selected">
-                    <Icon name="package" size={20} />
-                  </span>
-                  <div className="spotlight-title">
-                    <small>Selected product</small>
-                    <strong>{selectedProduct.product_name}</strong>
-                    {!simple && <span className="spotlight-variant">{selectedProduct.name}</span>}
-                  </div>
-                  <div className="spotlight-stock">
-                    <small>Current stock</small>
-                    <strong>
-                      {formatQuantity(selectedProduct.quantity_on_hand)}
-                      {selectedUnitLabel ? ` ${selectedUnitLabel}` : ""}
-                    </strong>
-                  </div>
-                </div>
-                {!simple && (selectedProduct.sku || selectedProduct.barcode) && (
-                  <div className="spotlight-pills">
-                    {selectedProduct.sku && (
-                      <span className="stock-meta-pill">SKU {selectedProduct.sku}</span>
-                    )}
-                    {selectedProduct.barcode && (
-                      <span className="stock-meta-pill">Barcode {selectedProduct.barcode}</span>
-                    )}
-                  </div>
-                )}
+          <div className="p-5">
+            {success && (
+              <div
+                className="success-message p-3 rounded-xl bg-status-success-soft text-status-success border border-status-success-border text-xs flex items-center gap-2 mb-4 animate-fadeIn"
+                role="status"
+              >
+                <span className="w-5 h-5 rounded-full bg-green text-white flex items-center justify-center shrink-0">
+                  <Icon name="check" size={12} />
+                </span>
+                <span className="font-medium">{success}</span>
               </div>
+            )}
 
-              <div className="form-grid">
-                <Field label="Stock location">
-                  <select
-                    name="destination_location_id"
-                    defaultValue={shopLocations.length === 1 ? shopLocations[0].id : ""}
-                    required
-                    disabled={shopLocations.length === 0}
-                  >
-                    <option value="">Select a location</option>
-                    {shopLocations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+            {error && (
+              <div
+                className="form-error p-3 rounded-xl bg-status-danger-soft text-status-danger border border-status-danger-border text-xs flex items-center gap-2 mb-4"
+                role="alert"
+              >
+                <span className="w-5 h-5 rounded-full bg-status-danger text-white flex items-center justify-center shrink-0">
+                  <Icon name="close" size={12} />
+                </span>
+                <span className="font-medium">{error}</span>
+              </div>
+            )}
 
-                <Field
-                  label={
-                    selectedUnitLabel
-                      ? `Quantity received (${selectedUnitLabel})`
-                      : "Quantity received"
-                  }
-                  hint={
-                    selectedUnit && !allowsDecimal
-                      ? "Whole units only for this product."
-                      : selectedUnit
-                      ? "Decimal quantities are allowed for this unit."
-                      : undefined
-                  }
-                >
-                  <input
-                    name="quantity"
-                    type="number"
-                    step={allowsDecimal ? "0.001" : "1"}
-                    min={allowsDecimal ? "0.001" : "1"}
-                    required
-                    placeholder={allowsDecimal ? "0.000" : "0"}
-                    autoFocus
-                  />
-                </Field>
-
-                {isMerchant && (
-                  <Field
-                    label="Original price per unit"
-                    hint="Optional after the first stock-in; leave blank to reuse the latest cost."
-                  >
-                    <div className="money-field">
-                      <span>{currencyLabel(merchant?.default_currency_code)}</span>
-                      <input
-                        name="unit_cost"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        key={selectedProduct.id}
-                        placeholder="Use latest cost"
-                      />
+            {!selectedProduct ? (
+              <div className="stock-prompt-state p-8 text-center flex flex-col items-center justify-center min-h-[380px]">
+                <div className="stock-prompt-icon w-16 h-16 rounded-2xl bg-green-soft text-green flex items-center justify-center mb-4 ring-8 ring-green-soft/30 shadow-inner">
+                  <Icon name="package" size={32} />
+                </div>
+                <h3 className="text-base font-bold text-ink mb-1.5 font-serif">
+                  No Product Selected
+                </h3>
+                <p className="text-xs text-muted max-w-sm leading-relaxed mb-6">
+                  Select an inventory item from the catalog on the left to record received
+                  quantities, choose a destination location, and configure purchase costs.
+                </p>
+                <aside className="stock-tip-embedded w-full text-left bg-surface-muted/60 border border-line rounded-xl p-4 space-y-2">
+                  <h4 className="flex items-center gap-2 text-xs font-semibold text-ink m-0">
+                    <span className="w-5 h-5 rounded-md bg-green-soft text-green flex items-center justify-center shrink-0">
+                      <Icon name="package" size={12} />
+                    </span>
+                    <span>How Original Purchase Price Works</span>
+                  </h4>
+                  <p className="text-[11px] text-muted leading-relaxed m-0">
+                    Each stock intake creates an immutable receipt and establishing a FIFO cost
+                    layer. When this item is sold, that cost is used to compute gross margin.
+                  </p>
+                  <ul className="text-[11px] text-muted space-y-1 pl-5 list-disc leading-relaxed">
+                    <li>Retail selling prices remain managed in the price list.</li>
+                    <li>
+                      {isMerchant
+                        ? "Original price is the actual purchase amount paid per unit."
+                        : "The latest recorded purchase cost is reused automatically."}
+                    </li>
+                    <li>Stock balances update immediately upon intake.</li>
+                  </ul>
+                </aside>
+              </div>
+            ) : (
+              <Form className="stock-receipt-form space-y-5" onSubmit={submit}>
+                {/* Selected Product Hero Spotlight */}
+                <div className="stock-selected-spotlight p-4 rounded-xl border border-green/30 bg-gradient-to-br from-green-soft/30 via-surface to-surface-muted/40 shadow-xs">
+                  <div className="spotlight-header flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="stock-product-icon selected w-11 h-11 rounded-xl bg-green text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Icon name="package" size={22} />
+                      </span>
+                      <div className="spotlight-title min-w-0">
+                        <small className="text-[9px] font-bold uppercase tracking-wider text-green block">
+                          Selected for intake
+                        </small>
+                        <strong className="text-sm font-bold text-ink truncate block">
+                          {selectedProduct.product_name}
+                        </strong>
+                        {!simple && selectedProduct.name && (
+                          <span className="spotlight-variant text-xs text-muted truncate block">
+                            {selectedProduct.name}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <CurrentPriceLists
-                      lists={priceLists.data}
-                      loading={priceLists.loading}
-                      error={priceLists.error}
-                      variantId={selectedProduct.id}
-                      quantityOnHand={selectedProduct.quantity_on_hand}
-                      unitLabel={selectedUnitLabel}
-                    />
-                  </Field>
-                )}
-              </div>
+                  </div>
 
-              {shopLocations.length === 0 && (
-                <div className="form-error">
-                  <Icon name="close" size={16} />
-                  This shop has no active stock location.
+                  {/* Stock Metrics Bar */}
+                  <div className="mt-3.5 pt-3 border-t border-line/60 grid grid-cols-2 gap-3 text-xs">
+                    <div className="spotlight-stock">
+                      <small className="text-[10px] text-muted block uppercase tracking-wider font-medium">
+                        Current Balance
+                      </small>
+                      <strong className="text-sm font-bold text-ink">
+                        {formatQuantity(selectedProduct.quantity_on_hand)}
+                        {selectedUnitLabel ? ` ${selectedUnitLabel}` : ""}
+                      </strong>
+                    </div>
+                    <div>
+                      <small className="text-[10px] text-muted block uppercase tracking-wider font-medium">
+                        Base Tracking Unit
+                      </small>
+                      <strong className="text-sm font-bold text-ink">
+                        {selectedUnit?.name ?? selectedUnitLabel ?? "Base Unit"}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {!simple && (selectedProduct.sku || selectedProduct.barcode) && (
+                    <div className="spotlight-pills mt-2.5 pt-2.5 border-t border-line/40 flex items-center flex-wrap gap-2 text-[10px]">
+                      {selectedProduct.sku && (
+                        <span className="stock-meta-pill px-2 py-0.5 rounded-md bg-surface border border-line font-mono text-muted">
+                          SKU: {selectedProduct.sku}
+                        </span>
+                      )}
+                      {selectedProduct.barcode && (
+                        <span className="stock-meta-pill px-2 py-0.5 rounded-md bg-surface border border-line font-mono text-muted">
+                          Barcode: {selectedProduct.barcode}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
 
-              <div className="modal-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setSelectedProduct(null);
-                    setMobileStep("select");
-                  }}
-                >
-                  Clear
-                </Button>
-                <Button
-                  type="submit"
-                  icon="package"
-                  disabled={
-                    busy ||
-                    shopLocations.length === 0 ||
-                    (offline.status === "offline" && !offline.storageAvailable)
-                  }
-                >
-                  {busy ? "Adding stock…" : "Add to stock"}
-                </Button>
-              </div>
+                {/* Form Fields */}
+                <div className="space-y-4">
+                  <Field
+                    label="Stock location"
+                    hint="Select the warehouse or storage room receiving this inventory."
+                  >
+                    <select
+                      name="destination_location_id"
+                      defaultValue={shopLocations.length === 1 ? shopLocations[0].id : ""}
+                      required
+                      disabled={shopLocations.length === 0}
+                      className="h-10 w-full rounded-xl border border-line bg-canvas px-3 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-green/30 focus:border-green transition-all"
+                    >
+                      <option value="">Select a location</option>
+                      {shopLocations.map((location) => (
+                        <option key={location.id} value={location.id}>
+                          {location.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
 
-              <aside className="stock-tip-embedded mt-12">
-                <h4>
-                  <Icon name="package" size={15} />
-                  How original price works
-                </h4>
-                <p>
-                  Each stock-in creates an immutable receipt and a FIFO cost layer. When this item
-                  is sold, that cost is used to calculate gross profit.
-                </p>
-                <ul>
-                  <li>Selling price stays in the RETAIL price list.</li>
-                  <li>
-                    {isMerchant
-                      ? "Original price is the amount you paid per unit."
-                      : "The latest original price is reused automatically."}
-                  </li>
-                  <li>Stock quantity updates immediately.</li>
-                </ul>
-              </aside>
-            </Form>
-          )}
+                  <Field
+                    label={
+                      selectedUnitLabel
+                        ? `Quantity received (${selectedUnitLabel})`
+                        : "Quantity received"
+                    }
+                    hint={
+                      selectedUnit && !allowsDecimal
+                        ? "Whole units only for this product."
+                        : selectedUnit
+                          ? "Decimal quantities are allowed for this unit."
+                          : undefined
+                    }
+                  >
+                    <div className="relative">
+                      <input
+                        name="quantity"
+                        type="number"
+                        step={allowsDecimal ? "0.001" : "1"}
+                        min={allowsDecimal ? "0.001" : "1"}
+                        required
+                        placeholder={allowsDecimal ? "0.000" : "0"}
+                        autoFocus
+                        className="h-11 w-full rounded-xl border border-line bg-canvas px-3.5 pr-14 text-sm font-bold text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green/30 focus:border-green transition-all"
+                      />
+                      {selectedUnitLabel && (
+                        <span className="absolute right-3 top-2.5 px-2 py-0.5 rounded-md bg-surface-muted border border-line text-[11px] font-semibold text-muted pointer-events-none">
+                          {selectedUnitLabel}
+                        </span>
+                      )}
+                    </div>
+                  </Field>
+
+                  {isMerchant && (
+                    <Field
+                      label="Original purchase cost per unit"
+                      hint="Optional after the first stock-in; leave blank to reuse the latest recorded cost."
+                    >
+                      <div className="money-field relative">
+                        <span className="absolute left-3.5 top-2.5 text-xs font-bold text-muted pointer-events-none">
+                          {currencyLabel(merchant?.default_currency_code)}
+                        </span>
+                        <input
+                          name="unit_cost"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          key={selectedProduct.id}
+                          placeholder="Reuse latest recorded cost"
+                          className="h-10 w-full rounded-xl border border-line bg-canvas pl-8 pr-3 text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green/30 focus:border-green transition-all"
+                        />
+                      </div>
+                      <CurrentPriceLists
+                        lists={priceLists.data}
+                        loading={priceLists.loading}
+                        error={priceLists.error}
+                        variantId={selectedProduct.id}
+                        quantityOnHand={selectedProduct.quantity_on_hand}
+                        unitLabel={selectedUnitLabel}
+                      />
+                    </Field>
+                  )}
+                </div>
+
+                {shopLocations.length === 0 && (
+                  <div className="form-error p-3 rounded-xl bg-status-danger-soft text-status-danger border border-status-danger-border text-xs flex items-center gap-2">
+                    <Icon name="close" size={16} />
+                    <span>This shop has no active stock location configured.</span>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="modal-actions pt-4 border-t border-line flex items-center justify-end gap-3 mt-6">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setSelectedProduct(null);
+                      setMobileStep("select");
+                    }}
+                    className="h-11 px-4 text-xs font-semibold"
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    type="submit"
+                    icon="package"
+                    disabled={
+                      busy ||
+                      shopLocations.length === 0 ||
+                      (offline.status === "offline" && !offline.storageAvailable)
+                    }
+                    className="h-11 px-6 text-xs font-bold bg-green hover:bg-green-dark text-white rounded-xl shadow-sm transition-all cursor-pointer"
+                  >
+                    {busy ? "Adding stock…" : "Add to stock"}
+                  </Button>
+                </div>
+              </Form>
+            )}
+          </div>
         </section>
       </div>
     </>
@@ -1347,7 +1496,7 @@ export function AccountsPage() {
               </Field>
             </div>
             <Field label="Temporary password">
-              <input name="password" type="password" minLength={8} required />
+              <PasswordInput name="password" minLength={8} required />
             </Field>
             <Field label="Assigned shop">
               <select name="shop_id" required>
@@ -1394,8 +1543,7 @@ export function AccountsPage() {
               </div>
             )}
             <Field label="New password" hint="Minimum 8 characters">
-              <input
-                type="password"
+              <PasswordInput
                 required
                 minLength={8}
                 value={staffPassword}
@@ -1404,8 +1552,7 @@ export function AccountsPage() {
               />
             </Field>
             <Field label="Confirm password" hint="Retype to confirm">
-              <input
-                type="password"
+              <PasswordInput
                 required
                 minLength={8}
                 value={staffConfirmPassword}

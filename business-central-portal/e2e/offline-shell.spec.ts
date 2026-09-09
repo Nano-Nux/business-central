@@ -53,10 +53,7 @@ test("activation removes obsolete Business Central shell caches", async ({ page 
     .toContain("business-central-shell-v4");
 });
 
-test("offline checkout survives a 24-hour outage and page restart", async ({
-  context,
-  page,
-}) => {
+test("offline checkout survives a 24-hour outage and page restart", async ({ context, page }) => {
   test.setTimeout(180_000);
   await page.goto("/login");
   await page.evaluate(async () => {

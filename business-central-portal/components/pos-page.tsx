@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "./icons";
-import { Badge, Button, EmptyState, Loading, Modal, StatusBadge } from "./ui";
+import { Badge, Button, EmptyState, Field, Loading, Modal, StatusBadge } from "./ui";
 import { InvoiceReceipt } from "./invoice-receipt";
 import { formatShopAddress } from "@/lib/shop-address";
 import { api, NetworkUnavailableError, post } from "@/lib/api";
@@ -23,6 +23,7 @@ import type { Delivery, Invoice, PaymentType, Promotion, Variant } from "@/lib/t
 import { getMetadata, putMetadata } from "@/lib/offline-db";
 import { BarcodeScanner } from "./barcode-scanner";
 import { randomUuid } from "@/lib/random-uuid";
+import { lookupBarcodeOffline } from "@/lib/offline-barcode";
 
 type SaleItem = Variant & {
   price?: string;
@@ -88,6 +89,13 @@ export function PosPage() {
     usablePaymentTypes.find((item) => item.category_code === "CASH") ??
     usablePaymentTypes[0];
   const selectedPaymentTypeId = selectedPaymentType?.id ?? "";
+
+  const hasDelivery = Boolean(deliveryId);
+  const hasPromotion = Boolean(promotionId || Number(manualPromotion) > 0);
+  const hasCustomer = Boolean(customerName.trim() || customerPhone.trim());
+  const hasNote = Boolean(note.trim());
+  const detailsCount =
+    (hasCustomer ? 1 : 0) + (hasDelivery ? 1 : 0) + (hasPromotion ? 1 : 0) + (hasNote ? 1 : 0);
 
   useEffect(() => {
     if (!offline.scope || !currentShop) return;
@@ -203,6 +211,28 @@ export function PosPage() {
     const barcode = code.trim();
     if (!barcode || !currentShop) return;
     setError("");
+
+    if (!navigator.onLine || offline.status === "offline") {
+      const matches = await lookupBarcodeOffline(
+        offline.scope,
+        currentShop.id,
+        barcode,
+        catalog.data,
+      );
+      if (matches.length > 1) {
+        setBarcodeMatches(matches);
+        return;
+      }
+      const item = matches[0];
+      if (!item) {
+        setError(`No product or stock item matches barcode ${barcode}.`);
+        return;
+      }
+      add(item);
+      setQuery("");
+      return;
+    }
+
     try {
       const matches = await api<SaleItem[]>(
         `/pos/barcode-lookup?barcode=${encodeURIComponent(barcode)}&shop_id=${encodeURIComponent(currentShop.id)}`,
@@ -219,9 +249,84 @@ export function PosPage() {
       add(item);
       setQuery("");
     } catch (reason) {
+      if (reason instanceof NetworkUnavailableError || !navigator.onLine) {
+        const matches = await lookupBarcodeOffline(
+          offline.scope,
+          currentShop.id,
+          barcode,
+          catalog.data,
+        );
+        if (matches.length > 1) {
+          setBarcodeMatches(matches);
+          return;
+        }
+        const item = matches[0];
+        if (!item) {
+          setError(`No product or stock item matches barcode ${barcode}.`);
+          return;
+        }
+        add(item);
+        setQuery("");
+        return;
+      }
       setError(reason instanceof Error ? reason.message : "Barcode lookup failed.");
     }
   }
+
+  const lookupBarcodeRef = useRef(lookupBarcode);
+  useEffect(() => {
+    lookupBarcodeRef.current = lookupBarcode;
+  });
+
+  useEffect(() => {
+    let buffer = "";
+    let lastKeyTime = 0;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
+
+      const target = event.target as HTMLElement | null;
+      const isInputOrTextarea =
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+
+      if (isInputOrTextarea) {
+        buffer = "";
+        return;
+      }
+
+      const now = performance.now();
+
+      if (event.key === "Enter") {
+        if (buffer.length >= 2 && now - lastKeyTime < 600) {
+          event.preventDefault();
+          event.stopPropagation();
+          const scanned = buffer.trim();
+          buffer = "";
+          if (scanned) {
+            void lookupBarcodeRef.current(scanned);
+          }
+        } else {
+          buffer = "";
+        }
+        return;
+      }
+
+      if (event.key.length === 1) {
+        if (buffer.length > 0 && now - lastKeyTime > 120) {
+          buffer = "";
+        }
+        buffer += event.key;
+        lastKeyTime = now;
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, []);
+
   function changeQuantity(id: string, change: number, assetID?: string) {
     setQuote(null);
     setError("");
@@ -358,7 +463,8 @@ export function PosPage() {
       note,
       paymentMethod: usablePaymentTypes.find((item) => item.id === method)?.name ?? "Cash",
       paymentTypeId: method,
-      paymentCategory: usablePaymentTypes.find((item) => item.id === method)?.category_code ?? "CASH",
+      paymentCategory:
+        usablePaymentTypes.find((item) => item.id === method)?.category_code ?? "CASH",
     });
     setProvisionalReceipt(projection);
     setCart([]);
@@ -447,18 +553,18 @@ export function PosPage() {
   };
 
   return (
-    <div className="pos-page">
+    <div className="pos-page flex flex-col lg:flex-row gap-6 items-start">
       <Modal
         open={barcodeMatches.length > 1}
         title="Choose a matching variant"
         description="This barcode belongs to more than one sellable variant."
         onClose={() => setBarcodeMatches([])}
       >
-        <div className="modal-list">
+        <div className="modal-list space-y-2">
           {barcodeMatches.map((item) => (
             <button
               type="button"
-              className="stock-product-row"
+              className="stock-product-row w-full flex items-center gap-3 p-3 rounded-xl border border-line bg-paper hover:bg-canvas transition text-left cursor-pointer"
               key={`${item.id}-${item.stock_asset_id ?? "variant"}`}
               onClick={() => {
                 add(item);
@@ -466,27 +572,31 @@ export function PosPage() {
                 setQuery("");
               }}
             >
-              <span className="stock-product-icon">
+              <span className="stock-product-icon flex items-center justify-center w-9 h-9 rounded-lg bg-canvas text-ink border border-line shrink-0">
                 <Icon name="box" size={18} />
               </span>
-              <span className="stock-product-name">
-                <strong>{item.product_name ?? "Product"}</strong>
-                <small>
+              <span className="stock-product-name flex-1 min-w-0">
+                <strong className="block text-xs font-bold text-ink truncate">
+                  {item.product_name ?? "Product"}
+                </strong>
+                <small className="block text-[11px] text-muted truncate">
                   {item.name} · SKU {item.sku}
                 </small>
               </span>
-              <span className="stock-product-balance">
+              <span className="stock-product-balance font-bold text-xs text-ink">
                 <strong>{formatMoney(item.price, currencyCode)}</strong>
               </span>
             </button>
           ))}
         </div>
       </Modal>
-      <section className="pos-catalog">
-        <header className="pos-header">
+      <section className="pos-catalog flex-1 min-w-0 w-full space-y-4">
+        <header className="pos-header flex items-center justify-between gap-4 pb-3 border-b border-line">
           <div>
-            <p className="eyebrow">Point of sale</p>
-            <h1>New sale</h1>
+            <p className="eyebrow text-[10px] font-bold uppercase tracking-wider text-muted mb-0.5">
+              Point of sale
+            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-ink m-0">New sale</h1>
           </div>
           <Badge tone={currentShop ? "success" : "warning"}>
             {currentShop?.name ?? "Select a shop"}
@@ -498,7 +608,7 @@ export function PosPage() {
           onScan={(code) => void lookupBarcode(code)}
           placeholder="Search or scan barcode"
         />
-        <div className="pos-search legacy-search">
+        <div className="pos-search legacy-search hidden">
           <Icon name="search" />
           <input
             value={query}
@@ -510,7 +620,9 @@ export function PosPage() {
           />
         </div>
         {catalog.loading ? (
-          <Loading />
+          <div className="p-8 flex justify-center">
+            <Loading />
+          </div>
         ) : catalog.error ? (
           <EmptyState title="Catalog unavailable" message={catalog.error} />
         ) : visible.length === 0 ? (
@@ -519,48 +631,66 @@ export function PosPage() {
             message="Try another search or add products to the catalog."
           />
         ) : (
-          <div className="product-grid">
+          <div className="product-grid grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
             {visible.map((item) => {
               const displayName = simple ? (item.product_name ?? item.name) : item.name;
               const quantity = quantityInCart(item);
               const atStockLimit = item.is_stock_tracked && quantity >= availableQuantity(item);
               return (
-                <article className="product-tile" key={`${item.id}:${item.stock_asset_id ?? ""}`}>
+                <article
+                  className="product-tile flex flex-col justify-between p-3 rounded-xl border border-line bg-paper hover:border-ink/40 transition shadow-xs text-left"
+                  key={`${item.id}:${item.stock_asset_id ?? ""}`}
+                >
                   <button
                     type="button"
-                    className="product-tile-main"
+                    className="product-tile-main flex-1 flex flex-col gap-2 text-left cursor-pointer w-full"
                     aria-label={`Add ${displayName} to cart`}
                     disabled={item.is_stock_tracked && availableQuantity(item) <= 0}
                     onClick={() => add(item)}
                   >
-                    <span>
+                    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas text-ink border border-line">
                       <Icon name="box" />
                     </span>
-                    <div>
-                      {!simple && <small>{item.product_name ?? "Product"}</small>}
-                      <strong>{displayName}</strong>
-                      <p className="product-tile-stock">
+                    <div className="min-w-0 flex-1">
+                      {!simple && (
+                        <small className="block text-[10px] text-muted truncate">
+                          {item.product_name ?? "Product"}
+                        </small>
+                      )}
+                      <strong className="block text-xs font-bold text-ink truncate mt-0.5">
+                        {displayName}
+                      </strong>
+                      <p className="product-tile-stock text-[10px] text-muted m-0 mt-1 truncate">
                         {!simple && <>{item.sku} · </>}
                         {availableQuantity(item).toLocaleString()} available stock
                       </p>
                     </div>
-                    <b>{formatMoney(item.price, currencyCode)}</b>
+                    <b className="text-xs font-bold text-ink mt-2">
+                      {formatMoney(item.price, currencyCode)}
+                    </b>
                   </button>
-                  <div className="mobile-product-quantity">
+                  <div className="mobile-product-quantity flex items-center justify-between mt-3 pt-2 border-t border-line text-xs font-semibold">
                     <button
                       type="button"
                       aria-label={`Decrease ${displayName} quantity`}
                       disabled={quantity === 0}
                       onClick={() => changeQuantity(item.id, -1, item.stock_asset_id)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg border border-line bg-canvas hover:bg-paper disabled:opacity-40 cursor-pointer"
                     >
                       −
                     </button>
-                    <output aria-label={`${displayName} quantity in cart`}>{quantity}</output>
+                    <output
+                      aria-label={`${displayName} quantity in cart`}
+                      className="text-xs font-bold text-ink"
+                    >
+                      {quantity}
+                    </output>
                     <button
                       type="button"
                       aria-label={`Increase ${displayName} quantity`}
                       disabled={atStockLimit}
                       onClick={() => add(item)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg border border-line bg-canvas hover:bg-paper disabled:opacity-40 cursor-pointer"
                     >
                       +
                     </button>
@@ -571,33 +701,46 @@ export function PosPage() {
           </div>
         )}
       </section>
-      <aside className={`cart-panel ${mobileCartOpen ? "mobile-open" : ""}`}>
+      <aside
+        className={`cart-panel w-full lg:w-96 rounded-2xl border border-line bg-paper shadow-portal lg:sticky lg:top-20 p-4 space-y-4 shrink-0 ${
+          mobileCartOpen ? "mobile-open" : ""
+        }`}
+      >
         <button
           type="button"
-          className="mobile-cart-toggle"
+          className="mobile-cart-toggle lg:hidden w-full flex items-center justify-between p-3 rounded-xl bg-canvas border border-line text-left cursor-pointer"
           aria-expanded={mobileCartOpen}
           aria-controls="current-order-panel"
           onClick={() => setMobileCartOpen((open) => !open)}
         >
-          <span className="mobile-cart-toggle-icon">
+          <span className="mobile-cart-toggle-icon flex items-center justify-center w-8 h-8 rounded-lg bg-paper text-ink border border-line">
             <Icon name={mobileCartOpen ? "close" : "cart"} size={18} />
           </span>
-          <span>
-            <strong>{mobileCartOpen ? "Close current order" : "View current order"}</strong>
-            <small>{cart.reduce((sum, row) => sum + row.quantity, 0)} items</small>
+          <span className="flex-1 min-w-0 ml-3">
+            <strong className="block text-xs font-bold text-ink truncate">
+              {mobileCartOpen ? "Close current order" : "View current order"}
+            </strong>
+            <small className="block text-[10px] text-muted">
+              {cart.reduce((sum, row) => sum + row.quantity, 0)} items
+            </small>
           </span>
-          <b>{formatMoney(quote?.grand_total ?? subtotal, currencyCode)}</b>
+          <b className="text-xs font-bold text-ink">
+            {formatMoney(quote?.grand_total ?? subtotal, currencyCode)}
+          </b>
         </button>
-        <div id="current-order-panel" className="cart-panel-content">
-          <div className="cart-head">
+        <div id="current-order-panel" className="cart-panel-content space-y-4">
+          <div className="cart-head flex items-start justify-between gap-3 pb-3 border-b border-line">
             <div>
-              <p className="eyebrow">Sale details</p>
-              <h2>Current order</h2>
+              <p className="eyebrow text-[10px] font-bold uppercase tracking-wider text-muted mb-0.5">
+                Sale details
+              </p>
+              <h2 className="text-base font-bold text-ink m-0">Current order</h2>
             </div>
-            <div className="cart-head-meta">
+            <div className="cart-head-meta flex items-center gap-2 text-xs text-muted">
               <span>{cart.reduce((sum, row) => sum + row.quantity, 0)} items</span>
               {cart.length > 0 && (
                 <button
+                  className="text-[11px] text-status-danger hover:underline cursor-pointer"
                   onClick={() => {
                     setCart([]);
                     setQuote(null);
@@ -610,7 +753,7 @@ export function PosPage() {
               )}
             </div>
           </div>
-          <div className="cart-lines">
+          <div className="cart-lines space-y-2.5 max-h-80 overflow-y-auto">
             {cart.length === 0 ? (
               <EmptyState
                 icon="cart"
@@ -619,23 +762,30 @@ export function PosPage() {
               />
             ) : (
               cart.map((row) => (
-                <div className="cart-line" key={row.item.id}>
-                  <span className="cart-product">
+                <div
+                  className="cart-line flex items-center gap-3 p-2.5 rounded-xl bg-canvas border border-line text-xs"
+                  key={row.item.id}
+                >
+                  <span className="cart-product flex items-center justify-center w-8 h-8 rounded-lg bg-paper text-ink border border-line shrink-0">
                     <Icon name="box" size={16} />
                   </span>
-                  <div>
-                    <strong>
+                  <div className="flex-1 min-w-0">
+                    <strong className="block text-xs font-bold text-ink truncate">
                       {simple ? (row.item.product_name ?? row.item.name) : row.item.name}
                     </strong>
-                    <small>{formatMoney(row.item.price, currencyCode)}</small>
-                    <div className="qty">
+                    <small className="block text-[10px] text-muted">
+                      {formatMoney(row.item.price, currencyCode)}
+                    </small>
+                    <div className="qty flex items-center gap-2 mt-1">
                       <button
+                        className="w-5 h-5 flex items-center justify-center rounded bg-paper border border-line text-xs hover:bg-canvas cursor-pointer"
                         onClick={() => changeQuantity(row.item.id, -1, row.item.stock_asset_id)}
                       >
                         −
                       </button>
-                      <span>{row.quantity}</span>
+                      <span className="text-xs font-semibold text-ink">{row.quantity}</span>
                       <button
+                        className="w-5 h-5 flex items-center justify-center rounded bg-paper border border-line text-xs hover:bg-canvas disabled:opacity-40 cursor-pointer"
                         disabled={
                           row.item.is_stock_tracked && row.quantity >= availableQuantity(row.item)
                         }
@@ -645,23 +795,31 @@ export function PosPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="cart-line-total">
-                    <b>{formatMoney(Number(row.item.price ?? 0) * row.quantity, currencyCode)}</b>
-                    <small>{row.quantity} × item</small>
+                  <div className="cart-line-total text-right shrink-0">
+                    <b className="block text-xs font-bold text-ink">
+                      {formatMoney(Number(row.item.price ?? 0) * row.quantity, currencyCode)}
+                    </b>
+                    <small className="block text-[10px] text-muted">{row.quantity} × item</small>
                   </div>
                 </div>
               ))
             )}
           </div>
-          <div className="cart-totals">
-            <div className="cart-actions">
+          <div className="cart-totals space-y-2 pt-3 border-t border-line text-xs">
+            <div className="cart-actions grid grid-cols-2 gap-2 mb-3">
               <Button
                 variant="secondary"
                 icon="users"
                 disabled={busy || !currentShop}
                 onClick={() => setDetailsOpen(true)}
+                className={
+                  detailsCount > 0 ? "border-ink/40 bg-surface-muted/70 font-medium text-ink" : ""
+                }
               >
-                Add more detail
+                <span className="flex items-center gap-1.5">
+                  <span>{detailsCount > 0 ? `Details (${detailsCount})` : "Add detail"}</span>
+                  {detailsCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-blue" />}
+                </span>
               </Button>
               <Button
                 variant="secondary"
@@ -669,25 +827,32 @@ export function PosPage() {
                 disabled={!cart.length || busy || !currentShop}
                 onClick={previewInvoice}
               >
-                Preview invoice
+                Preview
               </Button>
             </div>
-            <div>
+            <div className="flex items-center justify-between text-muted">
               <span>Catalog subtotal</span>
-              <strong>{formatMoney(subtotal, currencyCode)}</strong>
+              <strong className="text-ink font-semibold">
+                {formatMoney(subtotal, currencyCode)}
+              </strong>
             </div>
             {quote && Number(quote.discount_total) > 0 && (
-              <div className="discount">
+              <div className="discount flex items-center justify-between text-status-success font-semibold">
                 <span>{promotion?.name ?? "Promotion"} discount</span>
                 <strong>−{formatMoney(quote.discount_total, currencyCode)}</strong>
               </div>
             )}
-            <div className="grand-total">
+            <div className="grand-total flex items-center justify-between font-bold text-base text-ink pt-2 border-t border-line">
               <span>Order total</span>
               <strong>{formatMoney(quote?.grand_total ?? subtotal, currencyCode)}</strong>
             </div>
-            {error && <div className="form-error">{error}</div>}
+            {error && (
+              <div className="form-error flex items-center gap-2 p-2 rounded-lg text-xs font-medium bg-status-danger-soft text-status-danger border border-status-danger-border">
+                {error}
+              </div>
+            )}
             <Button
+              className="w-full h-11 text-sm mt-2"
               disabled={!cart.length || subtotal <= 0 || busy || !currentShop}
               onClick={() => void openCheckout()}
             >
@@ -699,74 +864,151 @@ export function PosPage() {
       <Modal
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
-        title="Add more detail"
-        description="Optional information to include with this sale."
+        title="Sale details"
+        description="Add customer, fulfilment, and promotion details to this sale."
+        className="max-w-2xl"
       >
-        <div className="order-details-form">
-          <div className="order-details-section">
-            <p className="eyebrow">Customer</p>
-            <div className="order-details-grid">
-              <label>
-                <span>Name</span>
+        <div className="flex flex-col gap-4">
+          {/* Card 1: Customer Information */}
+          <div className="order-details-card">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-blue/10 text-blue grid place-items-center shrink-0">
+                  <Icon name="user" size={15} />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-ink">
+                  Customer
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCustomerName("Walk-in customer")}
+                  className="px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-ink rounded-lg bg-surface border border-line hover:border-theme-gray-300 transition cursor-pointer"
+                >
+                  Walk-in
+                </button>
+                {(customerName || customerPhone) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomerName("");
+                      setCustomerPhone("");
+                    }}
+                    className="px-2 py-1 text-[11px] font-medium text-muted hover:text-status-danger rounded-lg hover:bg-status-danger-soft transition cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Customer name" hint="Walk-in customer by default" className="mb-0">
                 <input
+                  type="text"
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
                   placeholder="Walk-in customer"
                 />
-              </label>
-              <label>
-                <span>Phone</span>
+              </Field>
+              <Field label="Customer phone" hint="For receipt or pickup SMS" className="mb-0">
                 <input
+                  type="tel"
                   value={customerPhone}
                   onChange={(event) => setCustomerPhone(event.target.value)}
-                  placeholder="Optional"
+                  placeholder="Optional phone number"
                 />
-              </label>
+              </Field>
             </div>
           </div>
-          <div className="order-details-section">
-            <p className="eyebrow">Fulfilment & payment</p>
-            <div className="order-details-grid">
-              <label>
-                <span>Delivery</span>
-                <select value={deliveryId} onChange={(event) => setDeliveryId(event.target.value)}>
-                  <option value="">No delivery</option>
+
+          {/* Card 2: Fulfilment & Payment */}
+          <div className="order-details-card">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-status-success-soft text-status-success grid place-items-center shrink-0">
+                <Icon name="package" size={15} />
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-ink">
+                Fulfilment & payment
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field
+                label="Delivery carrier"
+                hint="Select carrier if delivery is required"
+                className="mb-0"
+              >
+                <select
+                  value={deliveryId}
+                  onChange={(event) => {
+                    const nextDeliveryId = event.target.value;
+                    setDeliveryId(nextDeliveryId);
+                    if (!nextDeliveryId) {
+                      setDeliveryFee("0");
+                    }
+                  }}
+                >
+                  <option value="">No delivery (In-store)</option>
                   {deliveries.map((item) => (
                     <option value={item.id} key={item.id}>
                       {item.name}
                     </option>
                   ))}
                 </select>
-              </label>
-              {deliveryId && (
-                <label>
-                  <span>Delivery fee</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={deliveryFee}
-                    onChange={(event) => setDeliveryFee(event.target.value)}
-                    placeholder="0.00"
-                  />
-                </label>
-              )}
-              <label>
-                <span>Payment type</span>
+              </Field>
+              {deliveryId ? (
+                <Field
+                  label={`Delivery fee (${currencyCode ?? ""})`}
+                  hint="Carrier or dispatch fee"
+                  className="mb-0"
+                >
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3.5 text-xs font-semibold text-muted pointer-events-none">
+                      {currencyCode}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={deliveryFee}
+                      onChange={(event) => setDeliveryFee(event.target.value)}
+                      placeholder="0.00"
+                      className="pl-14"
+                    />
+                  </div>
+                </Field>
+              ) : null}
+              <Field
+                label="Payment type"
+                hint="Payment method for this transaction"
+                className={deliveryId ? "sm:col-span-2 mb-0" : "mb-0"}
+              >
                 <select
                   value={selectedPaymentTypeId}
                   onChange={(event) => setPaymentType(event.target.value)}
                 >
-                  {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
+                  {usablePaymentTypes.map((item) => (
+                    <option value={item.id} key={item.id}>
+                      {item.name} · {item.category_code}
+                    </option>
+                  ))}
                 </select>
-              </label>
+              </Field>
             </div>
           </div>
-          <div className="order-details-section">
-            <p className="eyebrow">Adjustments</p>
-            <div className="order-details-grid">
-              <label>
-                <span>Promotion</span>
+
+          {/* Card 3: Promotions & Adjustments */}
+          <div className="order-details-card">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-amber/10 text-amber grid place-items-center shrink-0">
+                <Icon name="tag" size={15} />
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-ink">
+                Promotions & notes
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Promotion" hint="Select active shop discount" className="mb-0">
                 <select
                   value={promotionId}
                   onChange={(event) => void applyPromotion(event.target.value)}
@@ -778,33 +1020,87 @@ export function PosPage() {
                     </option>
                   ))}
                 </select>
-              </label>
-              <label>
-                <span>Manual promotion</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={manualPromotion}
-                  onChange={(event) => {
-                    setManualPromotion(event.target.value);
-                    setQuote(null);
-                  }}
-                  placeholder="0.00"
-                />
-              </label>
-              <label className="field-wide">
-                <span>Additional note</span>
+              </Field>
+              <Field
+                label={`Manual discount (${currencyCode ?? ""})`}
+                hint="Direct sale price reduction"
+                className="mb-0"
+              >
+                <div className="relative flex items-center">
+                  <span className="absolute left-3.5 text-xs font-semibold text-muted pointer-events-none">
+                    −
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualPromotion}
+                    onChange={(event) => {
+                      setManualPromotion(event.target.value);
+                      setQuote(null);
+                    }}
+                    placeholder="0.00"
+                    className="pl-8"
+                  />
+                </div>
+              </Field>
+              <Field
+                label="Additional note"
+                hint="Customer instructions or packaging notes"
+                className="sm:col-span-2 mb-0"
+              >
                 <textarea
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
-                  placeholder="Add a note to this order"
-                  rows={3}
+                  placeholder="Add a note to this order..."
+                  rows={2}
                 />
-              </label>
+              </Field>
             </div>
           </div>
-          <Button onClick={() => setDetailsOpen(false)}>Done</Button>
+
+          {/* Footer actions */}
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-line mt-1">
+            {detailsCount > 0 ? (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  setCustomerName("");
+                  setCustomerPhone("");
+                  setDeliveryId("");
+                  setDeliveryFee("0");
+                  setManualPromotion("0");
+                  setNote("");
+                  setPromotionId("");
+                  setQuote(null);
+                }}
+                className="text-xs text-muted hover:text-status-danger justify-center sm:justify-start"
+              >
+                Clear all details
+              </Button>
+            ) : (
+              <span className="text-xs text-muted hidden sm:inline">No details added</span>
+            )}
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <Button
+                variant="secondary"
+                type="button"
+                className="flex-1 sm:flex-none justify-center min-h-11 sm:min-h-9"
+                onClick={() => setDetailsOpen(false)}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                type="button"
+                className="flex-1 sm:flex-none justify-center min-w-[110px] min-h-11 sm:min-h-9"
+                onClick={() => setDetailsOpen(false)}
+              >
+                Done
+              </Button>
+            </div>
+          </div>
         </div>
       </Modal>
       <Modal

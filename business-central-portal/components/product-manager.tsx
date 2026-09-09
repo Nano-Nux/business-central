@@ -732,8 +732,13 @@ export function ProductManager() {
           </Button>
         }
       />
-      {error && <div className="form-error">{error}</div>}
-      <div className="stats-grid products-stats-grid">
+      {error && (
+        <div className="form-error flex items-center gap-2 p-3 rounded-lg text-xs font-medium bg-status-danger-soft text-status-danger border border-status-danger-border mb-6">
+          <Icon name="close" size={16} />
+          {error}
+        </div>
+      )}
+      <div className="stats-grid products-stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           label="Total Products"
           value={String(stats.total)}
@@ -764,15 +769,15 @@ export function ProductManager() {
         />
       </div>
 
-      <div className="products-controls">
-        <div className="products-controls-top">
-          <div className="products-search-wrap">
+      <div className="products-controls space-y-4 mb-6">
+        <div className="products-controls-top flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="products-search-wrap flex-1 min-w-0">
             <BarcodeScanner
               value={query}
               onChange={setQuery}
               placeholder="Search products or barcode…"
             />
-            <div className="search-box legacy-search">
+            <div className="search-box legacy-search hidden">
               <Icon name="search" size={17} />
               <input
                 value={query}
@@ -781,10 +786,10 @@ export function ProductManager() {
               />
             </div>
           </div>
-          <div className="products-quick-actions">
+          <div className="products-quick-actions flex flex-wrap items-center gap-2.5">
             <div className="products-sort-wrap">
               <select
-                className="filter-select"
+                className="filter-select h-10 px-3 py-2 text-xs bg-paper text-ink border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-ink/20 transition cursor-pointer"
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
                 aria-label="Sort products"
@@ -794,12 +799,18 @@ export function ProductManager() {
                 <option value="TYPE_ASC">Sort by Type</option>
               </select>
             </div>
-            <Link href="/pricing" className="button button-secondary">
+            <Link
+              href="/pricing"
+              className="button button-secondary inline-flex items-center gap-1.5 h-10 px-3.5 py-2 text-xs font-semibold rounded-lg border border-line bg-paper text-ink hover:bg-canvas transition"
+            >
               <Icon name="tag" size={15} />
               <span>Prices</span>
             </Link>
             {!simple && (
-              <Link href="/catalog/attributes" className="button button-secondary">
+              <Link
+                href="/catalog/attributes"
+                className="button button-secondary inline-flex items-center gap-1.5 h-10 px-3.5 py-2 text-xs font-semibold rounded-lg border border-line bg-paper text-ink hover:bg-canvas transition"
+              >
                 <Icon name="catalog" size={15} />
                 <span>Variant attributes</span>
               </Link>
@@ -807,63 +818,99 @@ export function ProductManager() {
           </div>
         </div>
 
-        <div className="products-filter-tabs" role="tablist" aria-label="Filter products">
+        <div
+          className="products-filter-tabs flex items-center gap-1.5 p-1 rounded-xl bg-canvas border border-line overflow-x-auto"
+          role="tablist"
+          aria-label="Filter products"
+        >
           <button
             type="button"
             role="tab"
             aria-selected={filter === "ALL"}
-            className={`filter-tab ${filter === "ALL" ? "active" : ""}`}
+            className={`filter-tab px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              filter === "ALL"
+                ? "active bg-paper text-ink shadow-xs border border-line"
+                : "text-muted hover:text-ink hover:bg-paper/50"
+            }`}
             onClick={() => setFilter("ALL")}
           >
             <span>All products</span>
-            <span className="tab-count">{stats.total}</span>
+            <span className="tab-count px-1.5 py-0.5 rounded-full text-[10px] bg-canvas text-muted">
+              {stats.total}
+            </span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={filter === "ACTIVE"}
-            className={`filter-tab ${filter === "ACTIVE" ? "active" : ""}`}
+            className={`filter-tab px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              filter === "ACTIVE"
+                ? "active bg-paper text-ink shadow-xs border border-line"
+                : "text-muted hover:text-ink hover:bg-paper/50"
+            }`}
             onClick={() => setFilter("ACTIVE")}
           >
             <span>Active</span>
-            <span className="tab-count">{stats.active}</span>
+            <span className="tab-count px-1.5 py-0.5 rounded-full text-[10px] bg-canvas text-muted">
+              {stats.active}
+            </span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={filter === "INACTIVE"}
-            className={`filter-tab ${filter === "INACTIVE" ? "active" : ""}`}
+            className={`filter-tab px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              filter === "INACTIVE"
+                ? "active bg-paper text-ink shadow-xs border border-line"
+                : "text-muted hover:text-ink hover:bg-paper/50"
+            }`}
             onClick={() => setFilter("INACTIVE")}
           >
             <span>Inactive</span>
-            <span className="tab-count">{stats.inactive}</span>
+            <span className="tab-count px-1.5 py-0.5 rounded-full text-[10px] bg-canvas text-muted">
+              {stats.inactive}
+            </span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={filter === "PHYSICAL"}
-            className={`filter-tab ${filter === "PHYSICAL" ? "active" : ""}`}
+            className={`filter-tab px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              filter === "PHYSICAL"
+                ? "active bg-paper text-ink shadow-xs border border-line"
+                : "text-muted hover:text-ink hover:bg-paper/50"
+            }`}
             onClick={() => setFilter("PHYSICAL")}
           >
             <span>Physical</span>
-            <span className="tab-count">{stats.physical}</span>
+            <span className="tab-count px-1.5 py-0.5 rounded-full text-[10px] bg-canvas text-muted">
+              {stats.physical}
+            </span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={filter === "SERVICE"}
-            className={`filter-tab ${filter === "SERVICE" ? "active" : ""}`}
+            className={`filter-tab px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              filter === "SERVICE"
+                ? "active bg-paper text-ink shadow-xs border border-line"
+                : "text-muted hover:text-ink hover:bg-paper/50"
+            }`}
             onClick={() => setFilter("SERVICE")}
           >
             <span>Services</span>
-            <span className="tab-count">{stats.services}</span>
+            <span className="tab-count px-1.5 py-0.5 rounded-full text-[10px] bg-canvas text-muted">
+              {stats.services}
+            </span>
           </button>
         </div>
       </div>
 
-      <div className="table-card products-table-card">
+      <div className="table-card products-table-card rounded-2xl border border-line bg-paper shadow-xs overflow-hidden">
         {products.loading ? (
-          <Loading />
+          <div className="p-8 flex justify-center">
+            <Loading />
+          </div>
         ) : products.error ? (
           <EmptyState title="Products could not load" message={products.error} />
         ) : visible.length === 0 ? (
@@ -880,8 +927,8 @@ export function ProductManager() {
           />
         ) : (
           <>
-            <div className="products-desktop-table">
-              <table className="products-table data-table">
+            <div className="products-desktop-table hidden md:block overflow-x-auto">
+              <table className="products-table data-table w-full text-left text-xs border-collapse">
                 <thead>
                   <tr>
                     <th>Product</th>
@@ -1039,7 +1086,7 @@ export function ProductManager() {
             </div>
 
             {/* Mobile Product Cards */}
-            <div className="products-mobile-cards">
+            <div className="products-mobile-cards block md:hidden space-y-3 p-3">
               {pagination.pageItems.map((item) => {
                 const imageUrl = item.images?.[0]?.image_url
                   ? resolveMediaURL(item.images[0].image_url)
@@ -1051,14 +1098,17 @@ export function ProductManager() {
                   : null;
 
                 return (
-                  <div className="product-mobile-card" key={item.id}>
-                    <div className="product-mobile-card-top">
-                      <div className="product-avatar">
+                  <div
+                    className="product-mobile-card p-4 rounded-xl border border-line bg-paper shadow-xs space-y-3"
+                    key={item.id}
+                  >
+                    <div className="product-mobile-card-top flex items-start gap-3">
+                      <div className="product-avatar relative w-12 h-12 rounded-xl bg-canvas border border-line overflow-hidden shrink-0 flex items-center justify-center">
                         {imageUrl ? (
                           <img
                             src={imageUrl}
                             alt={item.name}
-                            className="product-thumb-img"
+                            className="product-thumb-img w-full h-full object-cover"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
                               const next = e.currentTarget.nextElementSibling as HTMLElement | null;
@@ -1067,22 +1117,26 @@ export function ProductManager() {
                           />
                         ) : null}
                         <span
-                          className="product-thumb-placeholder"
+                          className="product-thumb-placeholder text-muted"
                           style={imageUrl ? { display: "none" } : undefined}
                         >
                           <Icon name="box" size={18} />
                         </span>
                       </div>
-                      <div className="product-mobile-card-copy">
-                        <strong>{item.name}</strong>
-                        <small>{item.description || "No description"}</small>
+                      <div className="product-mobile-card-copy flex-1 min-w-0">
+                        <strong className="block text-sm font-bold text-ink truncate">
+                          {item.name}
+                        </strong>
+                        <small className="block text-xs text-muted truncate">
+                          {item.description || "No description"}
+                        </small>
                       </div>
                       <Badge tone={item.is_active ? "success" : "neutral"}>
                         {item.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </div>
 
-                    <div className="product-mobile-card-tags">
+                    <div className="product-mobile-card-tags flex flex-wrap items-center gap-1.5">
                       <Badge
                         tone={
                           item.product_type === "PHYSICAL"
@@ -1095,20 +1149,28 @@ export function ProductManager() {
                         {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
                       </Badge>
                       {item.barcode && (
-                        <span className="product-barcode-pill">
+                        <span className="product-barcode-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-canvas border border-line text-muted">
                           <Icon name="cart" size={11} />
                           <span>{item.barcode}</span>
                         </span>
                       )}
-                      {brandName && <span className="product-brand-tag">{brandName}</span>}
-                      {categoryName && <span className="product-category-tag">{categoryName}</span>}
+                      {brandName && (
+                        <span className="product-brand-tag inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-canvas text-muted border border-line">
+                          {brandName}
+                        </span>
+                      )}
+                      {categoryName && (
+                        <span className="product-category-tag inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-canvas text-muted border border-line">
+                          {categoryName}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="product-mobile-card-footer">
+                    <div className="product-mobile-card-footer flex items-center justify-between gap-2 pt-2 border-t border-line">
                       {!simple ? (
                         <button
                           type="button"
-                          className="variant-pill-btn"
+                          className="variant-pill-btn inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-line bg-canvas hover:bg-paper text-xs font-semibold text-ink transition cursor-pointer"
                           onClick={() => setSelected(item)}
                         >
                           <Icon name="catalog" size={14} />
@@ -1118,9 +1180,10 @@ export function ProductManager() {
                         <span />
                       )}
 
-                      <div className="product-mobile-card-actions">
+                      <div className="product-mobile-card-actions flex items-center gap-1">
                         <button
                           type="button"
+                          className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-canvas transition cursor-pointer"
                           title="Edit"
                           aria-label={`Edit ${item.name}`}
                           onClick={() => {
@@ -1133,7 +1196,7 @@ export function ProductManager() {
                         </button>
                         <button
                           type="button"
-                          className="danger"
+                          className="danger p-1.5 rounded-lg text-status-danger hover:bg-status-danger-soft transition cursor-pointer"
                           title="Delete"
                           aria-label={`Delete ${item.name}`}
                           onClick={() => destroy(item)}

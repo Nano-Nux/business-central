@@ -88,20 +88,26 @@ export default function DashboardPage() {
             : "Here’s what is happening at your assigned shop today."
         }
         action={
-          <Link href="/pos" className="button button-primary">
+          <Link
+            href="/pos"
+            className="button button-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-ink text-paper text-sm font-semibold hover:opacity-90 transition"
+          >
             <Icon name="cart" size={18} />
             Open POS
           </Link>
         }
       />
       {error && (
-        <div className="form-error">
+        <div className="form-error flex items-center gap-2 p-3 rounded-lg text-xs font-medium bg-status-danger-soft text-status-danger border border-status-danger-border mb-6">
           <Icon name="close" size={16} />
           {error}
         </div>
       )}
       {cachedAt && (
-        <p className="offline-snapshot-notice" role="status">
+        <p
+          className="offline-snapshot-notice text-xs text-muted mb-4 px-3 py-1.5 rounded-lg bg-canvas border border-line inline-block"
+          role="status"
+        >
           Offline snapshot saved{" "}
           {new Intl.DateTimeFormat("en", {
             dateStyle: "medium",
@@ -109,7 +115,7 @@ export default function DashboardPage() {
           }).format(new Date(cachedAt))}
         </p>
       )}
-      <section className="stats-grid">
+      <section className="stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           label="Net sales today"
           value={money(summary?.net_sales)}
@@ -139,14 +145,18 @@ export default function DashboardPage() {
           tone="purple"
         />
       </section>
-      <section className="grid-2">
-        <article className="card">
-          <div className="card-head">
+      <section className="grid-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <article className="card bg-paper border border-line rounded-2xl p-5 shadow-xs">
+          <div className="card-head flex items-start justify-between gap-4 mb-4 pb-3 border-b border-line">
             <div>
-              <h2>Sales rhythm</h2>
-              <p>Your last seven trading days</p>
+              <h2 className="text-base font-bold text-ink m-0">Sales rhythm</h2>
+              <p className="text-xs text-muted m-0 mt-0.5">Your last seven trading days</p>
             </div>
-            {isMerchant && <Link href="/reports">See report →</Link>}
+            {isMerchant && (
+              <Link className="text-xs font-semibold text-ink hover:underline" href="/reports">
+                See report →
+              </Link>
+            )}
           </div>
           {days.length === 0 ? (
             <EmptyState
@@ -155,13 +165,20 @@ export default function DashboardPage() {
               message="Completed POS orders will build this chart."
             />
           ) : (
-            <div className="chart-wrap">
+            <div className="chart-wrap flex items-end justify-between gap-2 h-44 pt-6 px-2">
               {days.map((day, index) => (
                 <div
-                  className={`chart-col ${index === days.length - 1 ? "active" : ""}`}
+                  className={`chart-col flex-1 flex flex-col items-center justify-end h-full gap-2 text-[11px] text-muted ${
+                    index === days.length - 1 ? "active text-ink font-bold" : ""
+                  }`}
                   key={day.day}
                 >
                   <i
+                    className={`w-full max-w-[28px] rounded-t-md transition-all ${
+                      index === days.length - 1
+                        ? "bg-ink"
+                        : "bg-theme-gray-300 hover:bg-theme-gray-400"
+                    }`}
                     style={{
                       height: `${Math.max(3, (Number(day.net_sales) / maximum) * 88)}%`,
                     }}
@@ -174,47 +191,63 @@ export default function DashboardPage() {
             </div>
           )}
         </article>
-        <article className="card">
-          <div className="card-head">
+        <article className="card bg-paper border border-line rounded-2xl p-5 shadow-xs">
+          <div className="card-head flex items-start justify-between gap-4 mb-4 pb-3 border-b border-line">
             <div>
-              <h2>Right now</h2>
-              <p>Live tenant data</p>
+              <h2 className="text-base font-bold text-ink m-0">Right now</h2>
+              <p className="text-xs text-muted m-0 mt-0.5">Live tenant data</p>
             </div>
           </div>
-          <div className="activity-list">
-            <div className="activity">
-              <span className="activity-icon">
+          <div className="activity-list space-y-3">
+            <div className="activity flex items-center gap-3 p-3 rounded-xl bg-canvas border border-line">
+              <span className="activity-icon flex items-center justify-center w-8 h-8 rounded-lg bg-paper text-ink border border-line shrink-0">
                 <Icon name="cart" size={16} />
               </span>
-              <div>
-                <strong>{summary?.order_count ?? 0} sales completed</strong>
-                <small>{money(summary?.net_sales)} in net sales today</small>
+              <div className="flex-1 min-w-0">
+                <strong className="block text-xs font-bold text-ink truncate">
+                  {summary?.order_count ?? 0} sales completed
+                </strong>
+                <small className="block text-[11px] text-muted truncate">
+                  {money(summary?.net_sales)} in net sales today
+                </small>
               </div>
-              <strong>Today</strong>
+              <strong className="text-xs font-semibold text-muted">Today</strong>
             </div>
-            <div className="activity">
-              <span className="activity-icon">
+            <div className="activity flex items-center gap-3 p-3 rounded-xl bg-canvas border border-line">
+              <span className="activity-icon flex items-center justify-center w-8 h-8 rounded-lg bg-paper text-ink border border-line shrink-0">
                 <Icon name="package" size={16} />
               </span>
-              <div>
-                <strong>Inventory ledger</strong>
-                <small>Review receipts, sales and adjustments</small>
+              <div className="flex-1 min-w-0">
+                <strong className="block text-xs font-bold text-ink truncate">
+                  Inventory ledger
+                </strong>
+                <small className="block text-[11px] text-muted truncate">
+                  Review receipts, sales and adjustments
+                </small>
               </div>
-              <Link className="text-link" href="/stock-movements">
+              <Link
+                className="text-link text-xs font-semibold text-ink underline hover:opacity-80"
+                href="/stock-movements"
+              >
                 View
               </Link>
             </div>
-            <div className="activity">
-              <span className="activity-icon">
+            <div className="activity flex items-center gap-3 p-3 rounded-xl bg-canvas border border-line">
+              <span className="activity-icon flex items-center justify-center w-8 h-8 rounded-lg bg-paper text-ink border border-line shrink-0">
                 <Icon name="repair" size={16} />
               </span>
-              <div>
-                <strong>{activeRepairs.length} active repairs</strong>
-                <small>
+              <div className="flex-1 min-w-0">
+                <strong className="block text-xs font-bold text-ink truncate">
+                  {activeRepairs.length} active repairs
+                </strong>
+                <small className="block text-[11px] text-muted truncate">
                   {activeRepairs.filter((repair) => repair.status.includes("WAIT")).length} waiting
                 </small>
               </div>
-              <Link className="text-link" href="/repairs">
+              <Link
+                className="text-link text-xs font-semibold text-ink underline hover:opacity-80"
+                href="/repairs"
+              >
                 Open
               </Link>
             </div>

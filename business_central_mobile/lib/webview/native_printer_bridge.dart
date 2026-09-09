@@ -4,13 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:thermal_printer_flutter/thermal_printer_flutter.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'webview_printer_storage.dart';
+
 class NativePrinterBridge {
-  NativePrinterBridge({ThermalPrinterFlutter? printer})
-    : _printer = printer ?? ThermalPrinterFlutter();
+  NativePrinterBridge({
+    ThermalPrinterFlutter? printer,
+    WebViewPrinterStorage? storage,
+  })  : _printer = printer ?? ThermalPrinterFlutter(),
+        _storage = storage ?? SecureWebViewPrinterStorage();
 
   static const channelName = 'BusinessCentralPrinterChannel';
 
   final ThermalPrinterFlutter _printer;
+  final WebViewPrinterStorage _storage;
   final Map<String, Printer> _discovered = {};
   Future<void> Function(String script)? _runJavaScript;
   Printer? _connectedPrinter;
@@ -52,6 +58,9 @@ class NativePrinterBridge {
         'available' => await _available(),
         'connect' => await _connect(payload),
         'print' => await _print(payload),
+        'getSavedPrinter' => await _getSavedPrinter(),
+        'autoConnect' => await _autoConnect(),
+        'disconnect' => await _disconnect(),
         _ => throw StateError('Unknown native printer method: $method'),
       };
       await _resolve(requestId, result: result);
@@ -64,6 +73,85 @@ class NativePrinterBridge {
     final permitted = await _printer.checkBluetoothPermissions();
     if (!permitted) return false;
     return _printer.isBluetoothEnabled();
+  }
+
+  Future<Map<String, String>?> _getSavedPrinter() async {
+    final saved = await _storage.getSavedPrinter();
+    if (saved == null) return null;
+    return {
+      'id': saved.id,
+      'name': saved.name,
+    };
+  }
+
+  Future<Map<String, String>?> _autoConnect() async {
+    final saved = await _storage.getSavedPrinter();
+    if (saved == null) return null;
+    if (!await _available()) return null;
+
+    if (_connectedPrinter != null) {
+      final currentId = _connectedPrinter!.bleAddress.isNotEmpty
+          ? _connectedPrinter!.bleAddress
+          : _connectedPrinter!.name;
+      if (currentId == saved.id || _connectedPrinter!.name == saved.name) {
+        return {
+          'id': saved.id,
+          'name': saved.name,
+        };
+      }
+    }
+
+    try {
+      final printers = await _printer.getPrinters(
+        printerType: PrinterType.bluetooth,
+      );
+      Printer? target;
+      for (final p in printers) {
+        final id = p.bleAddress.isNotEmpty ? p.bleAddress : p.name;
+        if (id == saved.id || p.name == saved.name) {
+          target = p;
+          break;
+        }
+      }
+      if (target == null) return null;
+
+      if (_connectedPrinter != null && _connectedPrinter != target) {
+        await _printer.disconnect(printer: _connectedPrinter!);
+      }
+      final connected = await _printer.connect(printer: target);
+      if (!connected) return null;
+
+      _connectedPrinter = target;
+      _discovered[saved.id] = target;
+      return {
+        'id': saved.id,
+        'name': saved.name,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> autoConnectOnPageLoaded() async {
+    try {
+      final connected = await _autoConnect();
+      if (connected != null && _runJavaScript != null) {
+        await _runJavaScript!(
+          'window.dispatchEvent(new CustomEvent("business-central-native-printer-connected", { detail: ${jsonEncode(connected)} }));',
+        );
+      }
+    } catch (_) {
+      // Silently ignore auto-connect failures on initial page load.
+    }
+  }
+
+  Future<bool> _disconnect() async {
+    final printer = _connectedPrinter;
+    _connectedPrinter = null;
+    if (printer != null) {
+      await _printer.disconnect(printer: printer);
+    }
+    return true;
   }
 
   Future<Map<String, String>> _scan(BuildContext context) async {
@@ -107,15 +195,31 @@ class NativePrinterBridge {
     final id = selected.bleAddress.isEmpty
         ? selected.name
         : selected.bleAddress;
+    final name = selected.name.isEmpty ? 'Thermal printer' : selected.name;
     _discovered[id] = selected;
+    await _storage.savePrinter(id: id, name: name);
     return {
       'id': id,
-      'name': selected.name.isEmpty ? 'Thermal printer' : selected.name,
+      'name': name,
     };
   }
 
   Future<bool> _connect(Object? payload) async {
-    final printer = _printerFor(payload);
+    final map = _payloadMap(payload);
+    final id = map['id']?.toString() ?? '';
+    final name = map['name']?.toString() ?? '';
+
+    var printer = _discovered[id];
+    if (printer == null && id.isNotEmpty) {
+      printer = Printer(
+        type: PrinterType.bluetooth,
+        name: name.isNotEmpty ? name : 'Thermal printer',
+        bleAddress: id,
+      );
+      _discovered[id] = printer;
+    }
+    if (printer == null) throw StateError('Scan for the printer again.');
+
     if (_connectedPrinter != null && _connectedPrinter != printer) {
       await _printer.disconnect(printer: _connectedPrinter!);
     }
@@ -124,6 +228,10 @@ class NativePrinterBridge {
       throw StateError('The selected thermal printer could not be connected.');
     }
     _connectedPrinter = printer;
+    final savedName = printer.name.isNotEmpty
+        ? printer.name
+        : (name.isNotEmpty ? name : 'Thermal printer');
+    await _storage.savePrinter(id: id, name: savedName);
     return true;
   }
 
@@ -138,13 +246,6 @@ class NativePrinterBridge {
     final bytes = base64Decode(encoded);
     await _printer.printBytes(bytes: bytes, printer: printer);
     return true;
-  }
-
-  Printer _printerFor(Object? payload) {
-    final id = _payloadMap(payload)['id']?.toString() ?? '';
-    final printer = _discovered[id];
-    if (printer == null) throw StateError('Scan for the printer again.');
-    return printer;
   }
 
   Map<String, dynamic> _payloadMap(Object? payload) {

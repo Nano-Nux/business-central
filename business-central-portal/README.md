@@ -123,8 +123,12 @@ The embedded portal also uses the injected Flutter scanner bridge for live
 camera barcode and IMEI/serial capture. That bridge opens the native
 `mobile_scanner` view and therefore works when a development portal is served
 from a local HTTP address. Outside the mobile WebView, browser camera scanning
-still requires a secure context; keyboard/HID barcode scanners work as focused
-text input in both modes.
+and image upload capture leverage a pure-JS `@zxing/library` multi-format decoder
+with native `BarcodeDetector` acceleration, supporting all modern browsers (Firefox,
+Safari, Chrome, Edge) across mobile and desktop. The video viewfinder is constrained
+and styled responsively. POS supports offline barcode lookup against cached
+IndexedDB catalog items and queued offline variants, along with a global keyboard
+wedge listener for hands-free hardware barcode scanner input.
 
 An early UUID compatibility fallback supports older system WebViews that expose
 Web Crypto without `crypto.randomUUID()`. IndexedDB-backed temporary-offline

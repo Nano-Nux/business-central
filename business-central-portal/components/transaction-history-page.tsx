@@ -240,9 +240,7 @@ export function TransactionHistoryPage() {
                       : "—";
                     return (
                       <tr key={`${item.event_type}-${item.id}`} className="clickable-row">
-                        <td>
-                          {formatShopDateTime(item.occurred_at, currentShop?.timezone)}
-                        </td>
+                        <td>{formatShopDateTime(item.occurred_at, currentShop?.timezone)}</td>
                         <td>
                           <div className="history-event-cell">
                             <span className="history-event-icon">

@@ -86,8 +86,11 @@ type BluetoothAPI = {
 type NativePrinterBridge = {
   available: () => Promise<boolean>;
   scan: () => Promise<{ id: string; name: string }>;
-  connect: (id: string) => Promise<boolean>;
+  connect: (id: string, name?: string) => Promise<boolean>;
   print: (bytes: string) => Promise<boolean>;
+  getSavedPrinter?: () => Promise<{ id: string; name: string } | null>;
+  autoConnect?: () => Promise<{ id: string; name: string } | null>;
+  disconnect?: () => Promise<boolean>;
 };
 
 function nativePrinter() {
@@ -97,6 +100,57 @@ function nativePrinter() {
 
 export function usingNativePrinterBridge() {
   return typeof window !== "undefined" && Boolean(nativePrinter());
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("business-central-native-printer-connected", ((event: Event) => {
+    const custom = event as CustomEvent<{ id: string; name: string }>;
+    if (custom.detail?.id) {
+      activePrinter = {
+        id: custom.detail.id,
+        name: custom.detail.name || "Thermal printer",
+        native: true,
+      };
+    }
+  }) as EventListener);
+}
+
+export async function autoConnectNativePrinter(): Promise<PrinterDevice | null> {
+  const native = nativePrinter();
+  if (!native || typeof native.autoConnect !== "function") return null;
+  try {
+    const connected = await native.autoConnect();
+    if (connected && connected.id) {
+      const device: PrinterDevice = {
+        id: connected.id,
+        name: connected.name || "Thermal printer",
+        native: true,
+      };
+      activePrinter = device;
+      return device;
+    }
+  } catch {
+    // Gracefully ignore auto-connect failures.
+  }
+  return null;
+}
+
+export async function getSavedNativePrinter(): Promise<PrinterDevice | null> {
+  const native = nativePrinter();
+  if (!native || typeof native.getSavedPrinter !== "function") return null;
+  try {
+    const saved = await native.getSavedPrinter();
+    if (saved && saved.id) {
+      return {
+        id: saved.id,
+        name: saved.name || "Thermal printer",
+        native: true,
+      };
+    }
+  } catch {
+    // Gracefully ignore bridge failures.
+  }
+  return null;
 }
 
 function bluetooth() {

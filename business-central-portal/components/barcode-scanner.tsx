@@ -2,16 +2,12 @@
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Button } from "./ui";
 import { scanNativeBarcode, usingNativeScannerBridge } from "@/lib/native-scanner";
-type Detector = {
-  detect(source: ImageBitmap | HTMLVideoElement): Promise<Array<{ rawValue?: string }>>;
-};
-type DetectorConstructor = new (options?: { formats?: string[] }) => Detector;
-function makeDetector(): Detector | null {
-  const ctor = (window as Window & { BarcodeDetector?: DetectorConstructor }).BarcodeDetector;
-  return ctor
-    ? new ctor({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"] })
-    : null;
-}
+import {
+  decodeBarcodeFromImageFile,
+  startCameraScanning,
+  type CameraScannerSession,
+} from "@/lib/barcode-decoder";
+
 export function BarcodeScanner({
   value,
   onChange,
@@ -26,25 +22,29 @@ export function BarcodeScanner({
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const scannerSessionRef = useRef<CameraScannerSession | null>(null);
   const [scanning, setScanning] = useState(false);
   const [hardwareReady, setHardwareReady] = useState(false);
   const [nativeReady, setNativeReady] = useState(false);
   const [error, setError] = useState("");
+
   function stop() {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
+    scannerSessionRef.current?.stop();
+    scannerSessionRef.current = null;
     setScanning(false);
   }
+
   function found(code: string) {
     onChange(code);
     onScan?.(code);
     setHardwareReady(false);
     stop();
   }
+
   async function start() {
     setError("");
     setHardwareReady(false);
+
     if (usingNativeScannerBridge()) {
       setScanning(true);
       try {
@@ -59,68 +59,58 @@ export function BarcodeScanner({
       }
       return;
     }
-    const scan = makeDetector();
-    if (!scan || !navigator.mediaDevices?.getUserMedia) {
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       fileRef.current?.click();
       return;
     }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-      });
-      streamRef.current = stream;
       setScanning(true);
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
       const video = videoRef.current;
       if (!video) {
-        stop();
+        setScanning(false);
         return;
       }
-      video.srcObject = stream;
-      await video.play();
-      const loop = async () => {
-        if (!streamRef.current || !videoRef.current) return;
-        const result = await scan.detect(videoRef.current).catch(() => []);
-        if (result[0]?.rawValue) {
-          found(result[0].rawValue);
-          return;
-        }
-        window.requestAnimationFrame(loop);
-      };
-      void loop();
+      scannerSessionRef.current?.stop();
+      scannerSessionRef.current = await startCameraScanning(video, (code) => {
+        found(code);
+      });
     } catch {
       stop();
       setError("Camera permission was denied or the camera is unavailable.");
     }
   }
+
   async function image(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const scan = makeDetector();
-    if (!scan) {
-      setError("Image scanning is not supported. Enter the barcode manually.");
-      return;
-    }
+    setError("");
     try {
-      const bitmap = await createImageBitmap(file);
-      const result = await scan.detect(bitmap);
-      if (result[0]?.rawValue) found(result[0].rawValue);
-      else setError("No barcode was found in that image.");
-      bitmap.close();
+      const code = await decodeBarcodeFromImageFile(file);
+      if (code) {
+        found(code);
+      } else {
+        setError("No barcode was found in that image.");
+      }
     } catch {
       setError("The selected image could not be scanned.");
     }
     event.target.value = "";
   }
+
   useEffect(() => {
     const refresh = () => setNativeReady(usingNativeScannerBridge());
     refresh();
     window.addEventListener("business-central-native-scanner-ready", refresh);
     return () => {
       window.removeEventListener("business-central-native-scanner-ready", refresh);
-      streamRef.current?.getTracks().forEach((track) => track.stop());
+      scannerSessionRef.current?.stop();
+      scannerSessionRef.current = null;
     };
   }, []);
+
   function readyHardwareScanner() {
     stop();
     setError("");
@@ -128,18 +118,21 @@ export function BarcodeScanner({
     inputRef.current?.focus();
     inputRef.current?.select();
   }
+
   return (
     <div className="barcode-scanner">
       <div className="barcode-input">
         <input
           ref={inputRef}
+          data-barcode-input="true"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onBlur={() => setHardwareReady(false)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
-              found(value.trim());
+              const val = (event.currentTarget.value || value).trim();
+              if (val) found(val);
             }
           }}
           placeholder={placeholder}

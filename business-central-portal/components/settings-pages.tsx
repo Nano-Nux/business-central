@@ -5,8 +5,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { Icon } from "./icons";
 import { Badge, Button, EmptyState, Field, Form, Loading, PageHeader, StatusBadge } from "./ui";
 import {
+  autoConnectNativePrinter,
   bluetoothAvailable,
   connectPrinter,
+  getActivePrinter,
+  getSavedNativePrinter,
   storedPrinterFontSizePx,
   storedPrinterPaperWidthMm,
   scanPrinter,
@@ -39,8 +42,13 @@ export function SettingsPage() {
       />
       <div className="settings-grid">
         <Link href="/settings/payment-types" className="settings-card">
-          <span className="stat-icon mint"><Icon name="receipt" /></span>
-          <div><h2>Payment types</h2><p>Merchant-wide Cash, Online, and future Digital payment choices.</p></div>
+          <span className="stat-icon mint">
+            <Icon name="receipt" />
+          </span>
+          <div>
+            <h2>Payment types</h2>
+            <p>Merchant-wide Cash, Online, and future Digital payment choices.</p>
+          </div>
           <Icon name="arrow" />
         </Link>
         <Link href="/settings/merchant" className="settings-card">
@@ -141,8 +149,7 @@ export function OperationalSettingsPage({
         setValues({
           defaultStatus:
             currentShop.default_status ?? currentShop.address?.default_status ?? "DIAGNOSING",
-          confirmation:
-            currentShop.confirmation ?? currentShop.address?.confirmation ?? "always",
+          confirmation: currentShop.confirmation ?? currentShop.address?.confirmation ?? "always",
         });
       } else if (section === "tax-notes") {
         setValues({
@@ -303,7 +310,11 @@ export function OperationalSettingsPage({
   if (section === "application") {
     return (
       <>
-        <PageHeader eyebrow="Settings" title={labels[section][0]} description={labels[section][1]} />
+        <PageHeader
+          eyebrow="Settings"
+          title={labels[section][0]}
+          description={labels[section][1]}
+        />
         <Form className="card settings-stack" onSubmit={save}>
           <Field label="Shop">
             <select
@@ -379,7 +390,9 @@ export function OperationalSettingsPage({
             onChange={(event) => setValues({ ...values, confirmation: event.target.value })}
           >
             <option value="always">Always require confirmation for key workflow actions</option>
-            <option value="critical_only">Require confirmation only for cancellations & deletes</option>
+            <option value="critical_only">
+              Require confirmation only for cancellations & deletes
+            </option>
             <option value="never">Fast counter flow — minimal confirmation prompts</option>
           </select>
         </Field>
@@ -411,7 +424,8 @@ function RepairFormSettingsPage() {
       setShowFullCustomerLabels(currentShop?.show_full_customer_labels === true);
       setShowModelLabel(currentShop?.show_model_label !== false);
       setWaitingTimeFormat(
-        (currentShop?.waiting_time_format === "DATE_RANGE" ? "DATE_RANGE" : "DAYS") as "DAYS" | "DATE_RANGE",
+        (currentShop?.waiting_time_format === "DATE_RANGE" ? "DATE_RANGE" : "DAYS") as
+          "DAYS" | "DATE_RANGE",
       );
     }, 0);
     return () => window.clearTimeout(timer);
@@ -525,7 +539,10 @@ function RepairFormSettingsPage() {
         title="Repair form specifications"
         description="Configure versioned ticket and device fields rendered during repair intake and on printable invoices."
       />
-      <div className="button-group" style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}>
+      <div
+        className="button-group"
+        style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}
+      >
         <Link href="/repairs/issue-presets" className="button secondary">
           Manage Issue Presets
         </Link>
@@ -537,7 +554,10 @@ function RepairFormSettingsPage() {
         <div className="card-head">
           <div>
             <h2>Repair invoice display</h2>
-            <p>Choose which device details and ticket identifiers customers see in previews and printed invoices.</p>
+            <p>
+              Choose which device details and ticket identifiers customers see in previews and
+              printed invoices.
+            </p>
           </div>
         </div>
         <Field label="Shop">
@@ -576,7 +596,9 @@ function RepairFormSettingsPage() {
           <span>
             <strong>Show full customer labels</strong>
             <small>
-              When off (default), customer info is short (&ldquo;Name&rdquo; and &ldquo;Phone&rdquo;). When on, shows &ldquo;Customer Name&rdquo; and &ldquo;Customer Phone&rdquo;.
+              When off (default), customer info is short (&ldquo;Name&rdquo; and
+              &ldquo;Phone&rdquo;). When on, shows &ldquo;Customer Name&rdquo; and &ldquo;Customer
+              Phone&rdquo;.
             </small>
           </span>
         </label>
@@ -586,7 +608,9 @@ function RepairFormSettingsPage() {
             onChange={(event) => setWaitingTimeFormat(event.target.value as "DAYS" | "DATE_RANGE")}
           >
             <option value="DAYS">Number of days - days (e.g. 3 - days)</option>
-            <option value="DATE_RANGE">Start date - end date (e.g. Aug 26, 2026 – Aug 29, 2026)</option>
+            <option value="DATE_RANGE">
+              Start date - end date (e.g. Aug 26, 2026 – Aug 29, 2026)
+            </option>
           </select>
         </Field>
         <label className="check-field switch-field">
@@ -628,7 +652,8 @@ function RepairFormSettingsPage() {
           <span>
             <strong>Show &ldquo;Model&rdquo; label</strong>
             <small>
-              Shows the &ldquo;Model&rdquo; label in the same row with the model name. On by default.
+              Shows the &ldquo;Model&rdquo; label in the same row with the model name. On by
+              default.
             </small>
           </span>
         </label>
@@ -1035,13 +1060,60 @@ export function PrinterSettingsPage() {
       );
   }
   useEffect(() => {
-    const refresh = () => {
-      setNativeBridge(usingNativePrinterBridge());
-      bluetoothAvailable().then(setAvailable);
+    const refresh = async () => {
+      const isNative = usingNativePrinterBridge();
+      setNativeBridge(isNative);
+      const isAvailable = await bluetoothAvailable();
+      setAvailable(isAvailable);
+      const active = getActivePrinter();
+      if (active) {
+        setConnected(active.id);
+        setDevices((current) =>
+          current.some((item) => item.id === active.id) ? current : [...current, active],
+        );
+        setMessage(`${active.name} is connected and ready.`);
+      } else if (isNative) {
+        const auto = await autoConnectNativePrinter();
+        if (auto) {
+          setConnected(auto.id);
+          setDevices((current) =>
+            current.some((item) => item.id === auto.id) ? current : [...current, auto],
+          );
+          localStorage.setItem("bc.printer.name", auto.name);
+          setMessage(`${auto.name} is connected and ready.`);
+        } else {
+          const saved = await getSavedNativePrinter();
+          if (saved) {
+            setDevices((current) =>
+              current.some((item) => item.id === saved.id) ? current : [...current, saved],
+            );
+          }
+        }
+      }
     };
     refresh();
+    const handleConnected = (event: Event) => {
+      const custom = event as CustomEvent<{ id: string; name: string }>;
+      if (custom.detail?.id) {
+        const dev: PrinterDevice = {
+          id: custom.detail.id,
+          name: custom.detail.name || "Thermal printer",
+          native: true,
+        };
+        setConnected(dev.id);
+        setDevices((current) =>
+          current.some((item) => item.id === dev.id) ? current : [...current, dev],
+        );
+        localStorage.setItem("bc.printer.name", dev.name);
+        setMessage(`${dev.name} is connected and ready.`);
+      }
+    };
     window.addEventListener("business-central-native-printer-ready", refresh);
-    return () => window.removeEventListener("business-central-native-printer-ready", refresh);
+    window.addEventListener("business-central-native-printer-connected", handleConnected);
+    return () => {
+      window.removeEventListener("business-central-native-printer-ready", refresh);
+      window.removeEventListener("business-central-native-printer-connected", handleConnected);
+    };
   }, []);
   async function scan() {
     setBusy(true);
@@ -1051,6 +1123,9 @@ export function PrinterSettingsPage() {
       setDevices((current) =>
         current.some((item) => item.id === device.id) ? current : [...current, device],
       );
+      if (device.native) {
+        await connect(device);
+      }
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "No printer selected.");
     } finally {
@@ -1301,7 +1376,9 @@ export function PrinterSettingsPage() {
               >
                 <option value={58}>57–58 mm (≈ 2¼ in) — small and mobile receipt printers</option>
                 <option value={80}>80 mm (≈ 3⅛ in) — portable and desktop receipt printers</option>
-                <option value={44}>38–44 mm (≈ 1½–1¾ in) — mini, label and tax-meter printers</option>
+                <option value={44}>
+                  38–44 mm (≈ 1½–1¾ in) — mini, label and tax-meter printers
+                </option>
                 <option value={110}>110 mm (≈ 4.3 in) — wide portable document printers</option>
                 <option value={210}>210 mm (≈ 8.3 in) — mobile A4 document printers</option>
               </select>

@@ -29,7 +29,9 @@ export function BrandsPage() {
       .filter(
         (brand) =>
           !needle ||
-          `${brand.name} ${brand.slug ?? ""} ${brand.description ?? ""}`.toLowerCase().includes(needle),
+          `${brand.name} ${brand.slug ?? ""} ${brand.description ?? ""}`
+            .toLowerCase()
+            .includes(needle),
       )
       .filter(
         (brand) =>

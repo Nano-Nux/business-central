@@ -309,11 +309,7 @@ function formatWaitingTime(
     if (startDate) return formatDateOnly(startDate);
   }
   const count =
-    days !== undefined
-      ? days
-      : startDate && endDate
-        ? dateOnlyDaysBetween(startDate, endDate)
-        : 0;
+    days !== undefined ? days : startDate && endDate ? dateOnlyDaysBetween(startDate, endDate) : 0;
   return `${count} - days`;
 }
 
@@ -355,10 +351,7 @@ function drawRepairInvoice(
           }
           painter.row("Model", modelValue, { bold: true });
         } else {
-          const deviceHeading = [
-            ...(invoice.showDeviceType ? [item.device_type] : []),
-            modelValue,
-          ]
+          const deviceHeading = [...(invoice.showDeviceType ? [item.device_type] : []), modelValue]
             .filter(Boolean)
             .join(" · ");
           painter.text(`${index + 1}. ${deviceHeading || "Work item"}`, { bold: true, size: 13 });
@@ -459,11 +452,7 @@ function drawRepairInvoice(
     );
   }
   painter.rule();
-  if (
-    invoice.waitingStartDate ||
-    invoice.waitingEndDate ||
-    invoice.waitingDays !== undefined
-  ) {
+  if (invoice.waitingStartDate || invoice.waitingEndDate || invoice.waitingDays !== undefined) {
     painter.row(
       "Ticket waiting period",
       formatWaitingTime(

@@ -75,25 +75,41 @@ export default function CatalogPage() {
             : "Keep everything you sell organized in one place."
         }
       />
-      <div className="catalog-grid">
-        {visibleAreas.map((area) => (
-          <Link className="catalog-card" href={area.href} key={area.href}>
-            <span className={`stat-icon ${area.color}`}>
-              <Icon name={area.icon} />
-            </span>
-            <div>
-              <h2>{area.title}</h2>
-              <p>
-                {simple && area.href === "/products"
-                  ? "Products and their selling details"
-                  : simple && area.href === "/pricing"
-                    ? "Price lists and authoritative product prices"
-                    : area.text}
-              </p>
-            </div>
-            <Icon name="arrow" />
-          </Link>
-        ))}
+      <div className="catalog-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {visibleAreas.map((area) => {
+          const colorStyles =
+            {
+              blue: "bg-status-info-soft text-status-info",
+              purple: "bg-status-conflict-soft text-status-conflict",
+              mint: "bg-status-success-soft text-status-success",
+              amber: "bg-status-warning-soft text-status-warning",
+            }[area.color] ?? "bg-canvas text-ink";
+
+          return (
+            <Link
+              className="catalog-card flex items-center gap-4 p-5 rounded-2xl border border-line bg-paper hover:border-ink/40 transition cursor-pointer text-left shadow-xs"
+              href={area.href}
+              key={area.href}
+            >
+              <span
+                className={`stat-icon ${area.color} flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${colorStyles}`}
+              >
+                <Icon name={area.icon} size={22} />
+              </span>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-bold text-ink m-0 truncate">{area.title}</h2>
+                <p className="text-xs text-muted m-0 mt-0.5 leading-relaxed line-clamp-2">
+                  {simple && area.href === "/products"
+                    ? "Products and their selling details"
+                    : simple && area.href === "/pricing"
+                      ? "Price lists and authoritative product prices"
+                      : area.text}
+                </p>
+              </div>
+              <Icon name="arrow" size={16} />
+            </Link>
+          );
+        })}
       </div>
     </>
   );

@@ -174,9 +174,7 @@ export function PaymentTypesPage() {
       setEditing(null);
       await paymentTypes.reload();
     } catch (reason) {
-      setModalError(
-        reason instanceof Error ? reason.message : "Payment type could not be saved.",
-      );
+      setModalError(reason instanceof Error ? reason.message : "Payment type could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -522,11 +520,7 @@ export function PaymentTypesPage() {
               label="Category"
               hint="Controls how payments are classified in transaction history and reports."
             >
-              <select
-                name="category_code"
-                defaultValue={editing?.category_code ?? "CASH"}
-                required
-              >
+              <select name="category_code" defaultValue={editing?.category_code ?? "CASH"} required>
                 {categories.data.length > 0 ? (
                   categories.data.map((cat) => (
                     <option key={cat.code} value={cat.code}>
@@ -649,4 +643,3 @@ export function PaymentTypesPage() {
     </>
   );
 }
-

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  autoConnectNativePrinter,
   bluetoothAvailable,
   connectPrinter,
   getActivePrinter,
+  getSavedNativePrinter,
   scanPrinter,
   storedPrinterFontSizePx,
   storedPrinterPaperWidthMm,
@@ -40,6 +42,43 @@ describe("native thermal printer bridge", () => {
 
     expect(bridge.connect).toHaveBeenCalledWith("AA:BB");
     expect(getActivePrinter()).toBe(printer);
+  });
+
+  it("auto-connects to saved printer when available", async () => {
+    const bridge = {
+      available: vi.fn().mockResolvedValue(true),
+      scan: vi.fn().mockResolvedValue({ id: "AA:BB", name: "POS-58" }),
+      connect: vi.fn().mockResolvedValue(true),
+      print: vi.fn().mockResolvedValue(true),
+      autoConnect: vi.fn().mockResolvedValue({ id: "AA:BB", name: "POS-58" }),
+    };
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { BusinessCentralNativePrinter: bridge },
+    });
+
+    const connected = await autoConnectNativePrinter();
+    expect(bridge.autoConnect).toHaveBeenCalled();
+    expect(connected).toEqual({ id: "AA:BB", name: "POS-58", native: true });
+    expect(getActivePrinter()).toEqual(connected);
+  });
+
+  it("retrieves saved printer configuration without connecting", async () => {
+    const bridge = {
+      available: vi.fn().mockResolvedValue(true),
+      scan: vi.fn(),
+      connect: vi.fn(),
+      print: vi.fn(),
+      getSavedPrinter: vi.fn().mockResolvedValue({ id: "CC:DD", name: "Saved-Printer" }),
+    };
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { BusinessCentralNativePrinter: bridge },
+    });
+
+    const saved = await getSavedNativePrinter();
+    expect(bridge.getSavedPrinter).toHaveBeenCalled();
+    expect(saved).toEqual({ id: "CC:DD", name: "Saved-Printer", native: true });
   });
 });
 

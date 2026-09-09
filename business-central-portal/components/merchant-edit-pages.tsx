@@ -11,7 +11,14 @@ import { useResource } from "@/lib/use-resource";
 import { queueDeliveryUpdate } from "@/lib/offline-deliveries";
 import { formatMoney } from "@/lib/currency";
 import { formatDateOnly, formatShopDateTime } from "@/lib/date-time";
-import type { Customer, Delivery, PaymentType, Promotion, RepairOrder, RepairPayment } from "@/lib/types";
+import type {
+  Customer,
+  Delivery,
+  PaymentType,
+  Promotion,
+  RepairOrder,
+  RepairPayment,
+} from "@/lib/types";
 import { Button, EmptyState, Field, Form, Loading, PageHeader, StatusBadge } from "./ui";
 import { RepairWaitingFields } from "./repair-waiting-fields";
 
@@ -867,8 +874,16 @@ function RepairForm({ repair }: { repair: RepairOrder }) {
               />
             </Field>
             <Field label="Payment type">
-              <select name="payment_type_id" defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id} required>
-                {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
+              <select
+                name="payment_type_id"
+                defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id}
+                required
+              >
+                {usablePaymentTypes.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name} · {item.category_code}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>

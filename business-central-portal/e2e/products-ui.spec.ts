@@ -67,7 +67,8 @@ const sampleProducts = [
   },
 ];
 
-const artifactDir = "C:\\Users\\lonsh\\.gemini\\antigravity-ide\\brain\\ed7ddf61-a76a-4c5e-b7dc-1bf50a51678c";
+const artifactDir =
+  "C:\\Users\\lonsh\\.gemini\\antigravity-ide\\brain\\ed7ddf61-a76a-4c5e-b7dc-1bf50a51678c";
 
 test.describe("Products page modern UI and responsiveness", () => {
   test("Desktop view renders stats, controls, tabs, and rich table", async ({ page }) => {
@@ -78,7 +79,10 @@ test.describe("Products page modern UI and responsiveness", () => {
       const pathName = url.pathname.replace("/api/v1", "");
 
       if (pathName === "/auth/me") {
-        return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: user }) });
+        return route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ data: user }),
+        });
       }
       if (pathName === "/merchant") {
         return route.fulfill({
@@ -100,7 +104,15 @@ test.describe("Products page modern UI and responsiveness", () => {
         return route.fulfill({
           contentType: "application/json",
           body: JSON.stringify({
-            data: [{ id: shopID, name: "Downtown Store", code: "DT01", is_active: true, module_codes: [] }],
+            data: [
+              {
+                id: shopID,
+                name: "Downtown Store",
+                code: "DT01",
+                is_active: true,
+                module_codes: [],
+              },
+            ],
           }),
         });
       }
@@ -134,7 +146,10 @@ test.describe("Products page modern UI and responsiveness", () => {
       if (pathName === "/catalog/attributes" || pathName === "/units") {
         return route.fulfill({
           contentType: "application/json",
-          body: JSON.stringify({ data: [], meta: { page_index: 0, page_size: 100, total: 0, total_pages: 1 } }),
+          body: JSON.stringify({
+            data: [],
+            meta: { page_index: 0, page_size: 100, total: 0, total_pages: 1 },
+          }),
         });
       }
       return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
@@ -191,7 +206,9 @@ test.describe("Products page modern UI and responsiveness", () => {
     await page.screenshot({ path: path.join(artifactDir, "products_desktop.png"), fullPage: true });
   });
 
-  test("Mobile phone view renders beautiful responsive cards without horizontal overflow", async ({ page }) => {
+  test("Mobile phone view renders beautiful responsive cards without horizontal overflow", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 375, height: 812 });
 
     await page.route("**/api/v1/**", async (route) => {
@@ -199,7 +216,10 @@ test.describe("Products page modern UI and responsiveness", () => {
       const pathName = url.pathname.replace("/api/v1", "");
 
       if (pathName === "/auth/me") {
-        return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: user }) });
+        return route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ data: user }),
+        });
       }
       if (pathName === "/merchant") {
         return route.fulfill({
@@ -221,7 +241,15 @@ test.describe("Products page modern UI and responsiveness", () => {
         return route.fulfill({
           contentType: "application/json",
           body: JSON.stringify({
-            data: [{ id: shopID, name: "Downtown Store", code: "DT01", is_active: true, module_codes: [] }],
+            data: [
+              {
+                id: shopID,
+                name: "Downtown Store",
+                code: "DT01",
+                is_active: true,
+                module_codes: [],
+              },
+            ],
           }),
         });
       }
@@ -255,7 +283,10 @@ test.describe("Products page modern UI and responsiveness", () => {
       if (pathName === "/catalog/attributes" || pathName === "/units") {
         return route.fulfill({
           contentType: "application/json",
-          body: JSON.stringify({ data: [], meta: { page_index: 0, page_size: 100, total: 0, total_pages: 1 } }),
+          body: JSON.stringify({
+            data: [],
+            meta: { page_index: 0, page_size: 100, total: 0, total_pages: 1 },
+          }),
         });
       }
       return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });

@@ -286,40 +286,63 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell flex min-h-screen bg-canvas text-ink">
       <button
         type="button"
         aria-label="Close navigation"
-        className={`mobile-scrim ${mobileOpen ? "show" : ""}`}
+        className={`mobile-scrim fixed inset-0 z-40 bg-black/40 backdrop-blur-xs md:hidden transition-opacity ${
+          mobileOpen ? "show opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
         onClick={() => setMobileOpen(false)}
       />
-      <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
+      <aside
+        className={`sidebar fixed md:sticky top-0 z-40 h-screen w-64 bg-paper border-r border-line flex flex-col shrink-0 transition-transform duration-200 ease-in-out ${
+          mobileOpen ? "open translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
         <button
           type="button"
-          className="icon-button sidebar-close"
+          className="icon-button sidebar-close absolute top-4 right-4 p-1.5 rounded-lg text-muted hover:text-ink md:hidden cursor-pointer"
           aria-label="Close menu"
           onClick={() => setMobileOpen(false)}
         >
           <Icon name="close" />
         </button>
-        <Link href={isMerchant ? "/merchant/dashboard" : "/staff/dashboard"} className="brand">
-          <span className="brand-mark">
-            <BrandIcon />
-          </span>
-          <span>
-            Business Central<small>Merchant workspace</small>
-          </span>
-        </Link>
-        <div className="shop-switcher" aria-label="Selected shop">
+        <div className="p-4 border-b border-line">
+          <Link
+            href={isMerchant ? "/merchant/dashboard" : "/staff/dashboard"}
+            className="brand flex items-center gap-3"
+          >
+            <span className="brand-mark flex items-center justify-center w-8 h-8 rounded-lg bg-ink text-paper">
+              <BrandIcon />
+            </span>
+            <span className="flex flex-col">
+              <span className="font-bold text-sm tracking-tight text-ink">Business Central</span>
+              <small className="text-[10px] text-muted leading-tight">Merchant workspace</small>
+            </span>
+          </Link>
+        </div>
+        <div
+          className="shop-switcher p-3 mx-3 my-2 rounded-xl bg-canvas border border-line flex items-center gap-3"
+          aria-label="Selected shop"
+        >
           {shopLogoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img className="shop-avatar shop-avatar-image" src={shopLogoUrl} alt="" />
+            <img
+              className="shop-avatar shop-avatar-image w-9 h-9 rounded-lg object-cover border border-line"
+              src={shopLogoUrl}
+              alt=""
+            />
           ) : (
-            <span className="shop-avatar">{shopInitials}</span>
+            <span className="shop-avatar flex items-center justify-center w-9 h-9 rounded-lg bg-paper font-bold text-xs text-ink border border-line">
+              {shopInitials}
+            </span>
           )}
-          <div className="shop-switcher-info">
-            <small>{isMerchant ? "Selected shop" : "Assigned shop"}</small>
-            <strong>
+          <div className="shop-switcher-info min-w-0 flex-1">
+            <small className="block text-[10px] text-muted font-semibold uppercase tracking-wider">
+              {isMerchant ? "Selected shop" : "Assigned shop"}
+            </small>
+            <strong className="block text-xs font-bold text-ink truncate">
               {currentShop?.name ??
                 (shopsLoading
                   ? "Loading..."
@@ -328,71 +351,100 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     : "No shop selected")}
             </strong>
             {currentShop && (
-              <span className="shop-switcher-detail">
+              <span className="shop-switcher-detail block text-[10px] text-muted truncate">
                 {currentShop.business_type_name ||
                   formatShopAddress(currentShop.address) ||
                   currentShop.code}
               </span>
             )}
             {!currentShop && shopsError && (
-              <span className="shop-switcher-detail">{shopsError}</span>
+              <span className="shop-switcher-detail block text-[10px] text-status-danger truncate">
+                {shopsError}
+              </span>
             )}
           </div>
         </div>
-        <nav>
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-4">
           {groups.map((group) => (
             <div className="nav-group" key={group.label}>
-              <p>{group.label}</p>
-              {group.items.map((item) => {
-                const matches =
-                  pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
-                const moreSpecificMatch = groups
-                  .flatMap((candidateGroup) => candidateGroup.items)
-                  .some(
-                    (candidate) =>
-                      candidate.href !== item.href &&
-                      candidate.href.startsWith(`${item.href}/`) &&
-                      (pathname === candidate.href || pathname.startsWith(`${candidate.href}/`)),
+              <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const matches =
+                    pathname === item.href ||
+                    (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+                  const moreSpecificMatch = groups
+                    .flatMap((candidateGroup) => candidateGroup.items)
+                    .some(
+                      (candidate) =>
+                        candidate.href !== item.href &&
+                        candidate.href.startsWith(`${item.href}/`) &&
+                        (pathname === candidate.href || pathname.startsWith(`${candidate.href}/`)),
+                    );
+                  const active = matches && !moreSpecificMatch;
+                  return (
+                    <Link
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
+                        active
+                          ? "active bg-canvas text-ink font-semibold"
+                          : "text-muted hover:text-ink hover:bg-canvas/60"
+                      }`}
+                      key={item.href}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Icon name={item.icon} size={16} />
+                        <span>{item.label}</span>
+                      </span>
+                      {active && <i className="w-1.5 h-1.5 rounded-full bg-ink" />}
+                    </Link>
                   );
-                const active = matches && !moreSpecificMatch;
-                return (
-                  <Link
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={active ? "active" : ""}
-                    key={item.href}
-                  >
-                    <Icon name={item.icon} />
-                    <span>{item.label}</span>
-                    {active && <i />}
-                  </Link>
-                );
-              })}
+                })}
+              </div>
             </div>
           ))}
         </nav>
-        <div className="sidebar-help">
-          <span>?</span>
-          <div>
-            <strong>Need a hand?</strong>
-            <small>View the quick guide</small>
+        <div className="sidebar-help p-3 mx-3 my-3 rounded-xl border border-line bg-canvas flex items-center gap-2.5 text-xs text-muted">
+          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-paper font-bold text-[10px] text-ink border border-line">
+            ?
+          </span>
+          <div className="flex-1 min-w-0">
+            <strong className="block text-ink text-[11px] truncate">Need a hand?</strong>
+            <small className="block text-[10px] text-muted truncate">View the quick guide</small>
           </div>
-          <Icon name="arrow" size={16} />
+          <Icon name="arrow" size={14} />
         </div>
       </aside>
-      <section className="main-area">
-        <header className="topbar">
+      <section className="main-area flex-1 min-w-0 flex flex-col">
+        <header className="topbar sticky top-0 z-30 flex items-center justify-between h-14 px-4 sm:px-6 bg-paper/95 backdrop-blur-xs border-b border-line gap-4">
           <button
-            className="icon-button menu-button"
+            className="icon-button menu-button md:hidden p-1.5 rounded-lg text-muted hover:text-ink hover:bg-canvas cursor-pointer"
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
           >
             <Icon name="menu" />
           </button>
-          <div className="topbar-context connectivity-context" role="status">
-            <span className={`live-dot connectivity-${offline.status}`} />
-            <span>
+          <div
+            className="topbar-context connectivity-context flex items-center gap-2 text-xs text-muted min-w-0"
+            role="status"
+          >
+            <span
+              className={`live-dot w-2 h-2 rounded-full shrink-0 ${
+                offline.status === "offline"
+                  ? "bg-status-danger"
+                  : offline.status === "syncing"
+                    ? "bg-status-info animate-pulse"
+                    : offline.status === "reconnecting"
+                      ? "bg-status-warning animate-pulse"
+                      : offline.status === "error"
+                        ? "bg-status-danger"
+                        : "bg-status-success"
+              }`}
+            />
+            <span className="truncate">
               {offline.status === "offline"
                 ? "Offline"
                 : offline.status === "syncing"
@@ -404,7 +456,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       : "Online"}
             </span>
             {(offline.pending > 0 || offline.conflicts > 0 || offline.rejected > 0) && (
-              <small>
+              <small className="hidden sm:inline-block text-[11px] text-muted">
                 {offline.pending > 0 ? `${offline.pending} pending` : ""}
                 {offline.conflicts > 0
                   ? `${offline.pending > 0 ? " · " : ""}${offline.conflicts} conflicts`
@@ -414,34 +466,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : ""}
               </small>
             )}
-            {offline.status === "offline" &&
-              offline.pending === 0 &&
-              offline.conflicts === 0 &&
-              offline.rejected === 0 &&
-              (offline.lastSyncAt || shopsCachedAt) && (
-                <small>
-                  Saved{" "}
-                  {new Intl.DateTimeFormat("en", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  }).format(new Date(offline.lastSyncAt ?? shopsCachedAt!))}
-                </small>
-              )}
-            {offline.staleResources.length > 0 && (
-              <small>
-                Showing saved data from{" "}
-                {new Intl.DateTimeFormat("en", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                }).format(
-                  new Date(offline.staleResources.map((resource) => resource.cachedAt).sort()[0]),
-                )}
-              </small>
-            )}
             {offline.status !== "offline" &&
               (offline.pending > 0 || offline.status === "error") && (
                 <button
-                  className="sync-now"
+                  className="sync-now text-[11px] font-semibold text-ink underline hover:opacity-80 cursor-pointer ml-1"
                   onClick={() => void offline.syncNow()}
                   disabled={offline.status === "syncing"}
                 >
@@ -449,35 +477,55 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </button>
               )}
           </div>
-          <SyncStatusPanel />
-          <div className="profile-wrap">
-            <button className="profile-button" onClick={() => setProfileOpen((value) => !value)}>
-              <span className="avatar">{initials}</span>
-              <span>
-                <strong>{user.display_name}</strong>
-                <small>{role}</small>
-              </span>
-              <Icon name="chevron" size={15} />
-            </button>
-            {profileOpen && (
-              <div className="profile-menu">
-                <div>
-                  <strong>{user.display_name}</strong>
-                  <small>{user.email}</small>
+          <div className="flex items-center gap-3 ml-auto">
+            <SyncStatusPanel />
+            <div className="profile-wrap relative">
+              <button
+                className="profile-button flex items-center gap-2 p-1.5 rounded-xl border border-line hover:bg-canvas transition cursor-pointer text-left"
+                onClick={() => setProfileOpen((value) => !value)}
+              >
+                <span className="avatar flex items-center justify-center w-7 h-7 rounded-lg bg-canvas text-xs font-bold text-ink border border-line">
+                  {initials}
+                </span>
+                <span className="hidden sm:flex flex-col text-left">
+                  <strong className="text-xs text-ink font-semibold leading-tight">
+                    {user.display_name}
+                  </strong>
+                  <small className="text-[10px] text-muted leading-tight">{role}</small>
+                </span>
+                <Icon name="chevron" size={14} />
+              </button>
+              {profileOpen && (
+                <div className="profile-menu absolute right-0 top-full mt-2 w-56 rounded-xl bg-paper border border-line shadow-xl p-2 z-50">
+                  <div className="px-3 py-2 border-b border-line mb-1">
+                    <strong className="block text-xs font-bold text-ink">
+                      {user.display_name}
+                    </strong>
+                    <small className="block text-[11px] text-muted truncate">{user.email}</small>
+                  </div>
+                  <Link
+                    href="/profile"
+                    onClick={() => setProfileOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-ink hover:bg-canvas transition"
+                  >
+                    <Icon name="user" size={16} />
+                    User profile
+                  </Link>
+                  <button
+                    onClick={() => void signOut()}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-status-danger hover:bg-status-danger-soft transition cursor-pointer text-left"
+                  >
+                    <Icon name="logout" size={16} />
+                    Sign out
+                  </button>
                 </div>
-                <Link href="/profile" onClick={() => setProfileOpen(false)}>
-                  <Icon name="user" size={17} />
-                  User profile
-                </Link>
-                <button onClick={() => void signOut()}>
-                  <Icon name="logout" size={17} />
-                  Sign out
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </header>
-        <main className="content">{children}</main>
+        <main className="content flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
+          {children}
+        </main>
       </section>
     </div>
   );

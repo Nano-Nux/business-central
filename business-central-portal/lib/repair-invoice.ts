@@ -175,7 +175,8 @@ export function createRepairInvoice({
     showRepairTicketId: shop?.show_repair_ticket_id === true,
     showFullCustomerLabels: shop?.show_full_customer_labels === true,
     showModelLabel: shop?.show_model_label !== false,
-    waitingTimeFormat: (shop?.waiting_time_format === "DATE_RANGE" ? "DATE_RANGE" : "DAYS") as "DAYS" | "DATE_RANGE",
+    waitingTimeFormat: (shop?.waiting_time_format === "DATE_RANGE" ? "DATE_RANGE" : "DAYS") as
+      "DAYS" | "DATE_RANGE",
     waitingStartDate,
     waitingEndDate,
     waitingDays:

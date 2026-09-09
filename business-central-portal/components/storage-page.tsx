@@ -116,10 +116,13 @@ export function StoragePage() {
         title="Storage"
         description="Check current stock, RETAIL pricing, catalog placement and product dates. This page is view-only."
       />
-      <div className="toolbar storage-toolbar">
-        <div className="search-box">
-          <Icon name="search" size={17} />
+      <div className="toolbar storage-toolbar flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="search-box relative flex-1 min-w-[240px] flex items-center">
+          <span className="absolute left-3 text-muted pointer-events-none flex items-center">
+            <Icon name="search" size={17} />
+          </span>
           <input
+            className="w-full h-10 pl-9 pr-3 text-sm bg-paper text-ink border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-ink/20 transition"
             value={query}
             onChange={(event) => {
               setPageIndex(0);
@@ -129,9 +132,10 @@ export function StoragePage() {
             aria-label="Search storage"
           />
         </div>
-        <label className="storage-page-size">
+        <label className="storage-page-size flex items-center gap-2 text-xs text-muted font-medium">
           <span>Rows per page</span>
           <select
+            className="h-9 px-2.5 py-1 text-xs bg-paper text-ink border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-ink/20 transition cursor-pointer"
             value={pageSize}
             onChange={(event) => {
               setPageIndex(0);
@@ -146,9 +150,11 @@ export function StoragePage() {
           </select>
         </label>
       </div>
-      <div className="table-card storage-table-card">
+      <div className="table-card storage-table-card rounded-2xl border border-line bg-paper overflow-x-auto shadow-xs">
         {resource.loading ? (
-          <Loading />
+          <div className="p-8 flex justify-center">
+            <Loading />
+          </div>
         ) : resource.error ? (
           <EmptyState title="Storage could not load" message={resource.error} />
         ) : resource.data.length === 0 ? (
@@ -158,24 +164,32 @@ export function StoragePage() {
             message="Try clearing the search or column filters. Products and stock balances appear here automatically."
           />
         ) : (
-          <table className="data-table storage-table">
+          <table className="data-table storage-table w-full text-left text-xs border-collapse">
             <thead>
-              <tr>
-                <th className="storage-number-column">
+              <tr className="border-b border-line bg-canvas">
+                <th className="storage-number-column px-3.5 py-2.5 font-bold uppercase tracking-wider text-[10px] text-muted">
                   <span className="storage-column-label">Number</span>
                 </th>
                 {visibleColumns.map((column) => (
-                  <th key={column.key}>
-                    <div className="storage-column-tools">
+                  <th
+                    key={column.key}
+                    className="px-3.5 py-2.5 font-bold uppercase tracking-wider text-[10px] text-muted"
+                  >
+                    <div className="storage-column-tools flex items-center gap-1.5 mb-1.5">
                       <input
                         aria-label={`Filter ${column.label}`}
                         value={filters[column.key] ?? ""}
                         onChange={(event) => updateFilter(column.key, event.target.value)}
                         placeholder={column.filterPlaceholder}
+                        className="w-full h-7 px-2 text-xs bg-paper text-ink border border-line rounded font-normal normal-case focus:outline-none focus:ring-1 focus:ring-ink/20"
                       />
                       <button
                         type="button"
-                        className={sort[0] === column.key ? "is-active" : ""}
+                        className={`px-1.5 py-0.5 rounded text-[11px] font-bold border transition cursor-pointer ${
+                          sort[0] === column.key
+                            ? "is-active bg-ink text-paper border-ink"
+                            : "bg-paper text-muted border-line hover:text-ink hover:bg-canvas"
+                        }`}
                         onClick={() => toggleSort(column.key)}
                         aria-label={`Sort ${column.label} ${sort[0] === column.key && sort[1] ? "descending" : "ascending"}`}
                         title={`Sort ${column.label}`}
@@ -188,12 +202,17 @@ export function StoragePage() {
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-line/60">
               {resource.data.map((item, index) => (
-                <tr key={item.id}>
-                  <td className="storage-number-column">{pageIndex * pageSize + index + 1}</td>
+                <tr key={item.id} className="hover:bg-canvas/50 transition">
+                  <td className="storage-number-column px-3.5 py-3 text-muted text-xs">
+                    {pageIndex * pageSize + index + 1}
+                  </td>
                   {visibleColumns.map((column) => (
-                    <td key={column.key} className={`storage-cell-${column.key}`}>
+                    <td
+                      key={column.key}
+                      className={`storage-cell-${column.key} px-3.5 py-3 text-ink text-xs`}
+                    >
                       {renderValue(item, column.key)}
                     </td>
                   ))}

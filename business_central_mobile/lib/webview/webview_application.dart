@@ -79,8 +79,16 @@ class _PortalWebViewState extends State<_PortalWebView> {
   window.BusinessCentralNativePrinter = {
     available: function () { return request('available'); },
     scan: function () { return request('scan'); },
-    connect: function (id) { return request('connect', { id: id }); },
-    print: function (bytes) { return request('print', { bytes: bytes }); }
+    connect: function (id, name) {
+      if (typeof id === 'object' && id !== null) {
+        return request('connect', id);
+      }
+      return request('connect', { id: id, name: name });
+    },
+    print: function (bytes) { return request('print', { bytes: bytes }); },
+    getSavedPrinter: function () { return request('getSavedPrinter'); },
+    autoConnect: function () { return request('autoConnect'); },
+    disconnect: function () { return request('disconnect'); }
   };
   window.dispatchEvent(new Event('business-central-native-printer-ready'));
 })();
@@ -263,6 +271,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
                 _refreshBridge.completeRefresh();
                 await _controller.runJavaScript(_bridgeScript);
                 await _controller.runJavaScript(_scannerBridgeScript);
+                unawaited(_printerBridge.autoConnectOnPageLoaded());
                 // await _controller.runJavaScript(_pullToRefreshScript);
               },
               onWebResourceError: (error) {

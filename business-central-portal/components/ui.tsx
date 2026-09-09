@@ -4,6 +4,7 @@ import {
   Children,
   cloneElement,
   createContext,
+  forwardRef,
   isValidElement,
   useContext,
   useEffect,
@@ -28,13 +29,23 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <header className="page-header">
-      <div>
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-        <p className="page-description">{description}</p>
+    <header className="page-header flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6 mb-6">
+      <div className="min-w-0 flex-1">
+        {eyebrow && (
+          <p className="eyebrow text-[10px] font-bold uppercase tracking-[0.08em] text-muted mb-1 m-0">
+            {eyebrow}
+          </p>
+        )}
+        <h1 className="text-2xl sm:text-3xl font-serif font-medium tracking-tight text-ink m-0 leading-snug">
+          {title}
+        </h1>
+        <p className="page-description text-xs sm:text-sm text-muted max-w-[680px] m-0 leading-relaxed mt-1">
+          {description}
+        </p>
       </div>
-      {action && <div className="page-actions">{action}</div>}
+      {action && (
+        <div className="page-actions flex flex-wrap items-center gap-2.5 shrink-0">{action}</div>
+      )}
     </header>
   );
 }
@@ -67,11 +78,14 @@ export function ListControls({
   sortLabel?: string;
 }) {
   return (
-    <div className="toolbar list-toolbar">
-      <div className="search-box">
-        <Icon name="search" size={17} />
+    <div className="toolbar list-toolbar flex flex-wrap items-center gap-3 mb-5">
+      <div className="search-box relative flex-1 min-w-[200px] flex items-center">
+        <span className="absolute left-3 text-muted pointer-events-none flex items-center">
+          <Icon name="search" size={17} />
+        </span>
         <input
           type="search"
+          className="w-full h-10 pl-9 pr-3 text-sm bg-paper text-ink border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-ink/20 transition"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder={searchPlaceholder}
@@ -79,7 +93,7 @@ export function ListControls({
         />
       </div>
       <select
-        className="filter-select"
+        className="filter-select h-10 px-3 py-2 text-sm bg-paper text-ink border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-ink/20 transition cursor-pointer"
         value={filter}
         onChange={(event) => onFilterChange(event.target.value)}
         aria-label={filterLabel}
@@ -91,7 +105,7 @@ export function ListControls({
         ))}
       </select>
       <select
-        className="filter-select"
+        className="filter-select h-10 px-3 py-2 text-sm bg-paper text-ink border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-ink/20 transition cursor-pointer"
         value={sort}
         onChange={(event) => onSortChange(event.target.value)}
         aria-label={sortLabel}
@@ -143,14 +157,26 @@ export function Button({
   icon,
   variant = "primary",
   disabled,
+  className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   icon?: IconName;
   variant?: "primary" | "secondary" | "ghost" | "danger";
 }) {
   const formSubmitting = useContext(FormSubmittingContext);
+  const variantStyles = {
+    primary: "bg-ink text-paper hover:opacity-90",
+    secondary: "bg-paper text-ink border border-line hover:bg-canvas",
+    ghost: "bg-transparent text-muted hover:text-ink hover:bg-canvas",
+    danger: "bg-status-danger text-white hover:opacity-90",
+  }[variant];
+
   return (
-    <button className={`button button-${variant}`} {...props} disabled={disabled || formSubmitting}>
+    <button
+      className={`button button-${variant} inline-flex items-center justify-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${variantStyles} ${className}`.trim()}
+      {...props}
+      disabled={disabled || formSubmitting}
+    >
       {icon && <Icon name={icon} size={18} />}
       <span>{children}</span>
     </button>
@@ -170,15 +196,24 @@ export function StatCard({
   icon: IconName;
   tone?: "mint" | "blue" | "amber" | "purple";
 }) {
+  const toneStyles = {
+    mint: "bg-status-success-soft text-status-success",
+    blue: "bg-status-info-soft text-status-info",
+    amber: "bg-status-warning-soft text-status-warning",
+    purple: "bg-status-conflict-soft text-status-conflict",
+  }[tone];
+
   return (
-    <article className="stat-card">
-      <div className={`stat-icon ${tone}`}>
+    <article className="stat-card flex items-center gap-3.5 p-4 rounded-xl border border-line bg-paper shadow-xs">
+      <div
+        className={`stat-icon ${tone} flex items-center justify-center w-10 h-10 rounded-lg shrink-0 ${toneStyles}`}
+      >
         <Icon name={icon} />
       </div>
-      <div>
-        <p>{label}</p>
-        <strong>{value}</strong>
-        <small>{note}</small>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold text-muted uppercase tracking-wider m-0">{label}</p>
+        <strong className="block text-xl font-bold text-ink mt-0.5">{value}</strong>
+        <small className="block text-xs text-muted mt-0.5 truncate">{note}</small>
       </div>
     </article>
   );
@@ -196,12 +231,12 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="empty-state">
-      <span>
+    <div className="empty-state flex flex-col items-center justify-center text-center p-8 rounded-xl border border-dashed border-line bg-paper/50">
+      <span className="flex items-center justify-center w-12 h-12 rounded-full bg-canvas text-muted mb-3">
         <Icon name={icon} size={26} />
       </span>
-      <h3>{title}</h3>
-      <p>{message}</p>
+      <h3 className="text-base font-semibold text-ink m-0 mb-1">{title}</h3>
+      <p className="text-sm text-muted m-0 mb-4 max-w-sm">{message}</p>
       {action}
     </div>
   );
@@ -216,9 +251,20 @@ export function Badge({
   children: React.ReactNode;
   tone?: StatusTone;
 }) {
+  const toneStyles: Record<StatusTone, string> = {
+    success: "bg-status-success-soft text-status-success border-status-success-border",
+    warning: "bg-status-warning-soft text-status-warning border-status-warning-border",
+    danger: "bg-status-danger-soft text-status-danger border-status-danger-border",
+    info: "bg-status-info-soft text-status-info border-status-info-border",
+    neutral: "bg-status-neutral-soft text-status-neutral border-status-neutral-border",
+    conflict: "bg-status-conflict-soft text-status-conflict border-status-conflict-border",
+  };
+
   return (
-    <span className={`badge badge-${tone}`}>
-      <i />
+    <span
+      className={`badge badge-${tone} inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${toneStyles[tone]}`}
+    >
+      <i className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
       {children}
     </span>
   );
@@ -298,25 +344,33 @@ export function Modal({
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [open, onClose]);
+
   if (!open) return null;
+  const maxWidthClass = className.includes("max-w-") ? "" : "max-w-lg";
+  const paddingClass = className.includes("p-") ? "" : "p-4 sm:p-6";
+
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs overflow-y-auto"
       role="presentation"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <section
-        className={`modal ${className}`.trim()}
+        className={`modal bg-paper rounded-2xl border border-line shadow-2xl w-full ${maxWidthClass} max-h-[92vh] overflow-y-auto ${paddingClass} ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
-        <div className="modal-head">
+        <div className="modal-head flex items-start justify-between gap-4 mb-5 pb-4 border-b border-line">
           <div>
-            <h2>{title}</h2>
-            {description && <p>{description}</p>}
+            <h2 className="text-lg font-bold text-ink m-0">{title}</h2>
+            {description && <p className="text-xs text-muted m-0 mt-1">{description}</p>}
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close">
+          <button
+            className="icon-button p-1.5 rounded-lg text-muted hover:text-ink hover:bg-canvas cursor-pointer transition"
+            onClick={onClose}
+            aria-label="Close"
+          >
             <Icon name="close" />
           </button>
         </div>
@@ -326,13 +380,97 @@ export function Modal({
   );
 }
 
+export interface PasswordInputProps extends Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "type"
+> {
+  inputClassName?: string;
+}
+
+export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
+  function PasswordInput(
+    { className = "", inputClassName = "", id, value, ...props },
+    forwardedRef,
+  ) {
+    const [show, setShow] = useState(false);
+    const internalInputRef = useRef<HTMLInputElement>(null);
+    const suppressClickUntilRef = useRef(0);
+
+    const setRefs = (node: HTMLInputElement | null) => {
+      internalInputRef.current = node;
+      if (typeof forwardedRef === "function") {
+        forwardedRef(node);
+      } else if (forwardedRef) {
+        (forwardedRef as React.MutableRefObject<HTMLInputElement | null>).current = node;
+      }
+    };
+
+    function toggle() {
+      const input = internalInputRef.current;
+      const isFocused = typeof document !== "undefined" && document.activeElement === input;
+      const start = input?.selectionStart ?? (typeof value === "string" ? value.length : undefined);
+      const end = input?.selectionEnd ?? start;
+      setShow((prev) => !prev);
+      if (isFocused) {
+        window.requestAnimationFrame(() => {
+          const nextInput = internalInputRef.current;
+          nextInput?.focus({ preventScroll: true });
+          if (typeof start === "number" && typeof end === "number") {
+            nextInput?.setSelectionRange(start, end);
+          }
+        });
+      }
+    }
+
+    return (
+      <div className={`password-field relative flex items-center w-full ${className}`.trim()}>
+        <input
+          {...props}
+          id={id}
+          ref={setRefs}
+          value={value}
+          type={show ? "text" : "password"}
+          className={`w-full h-11 pl-3.5 pr-12 text-sm bg-canvas border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 focus:bg-paper transition ${inputClassName}`.trim()}
+        />
+        <button
+          type="button"
+          className="password-toggle"
+          aria-label={show ? "Hide password" : "Show password"}
+          aria-pressed={show}
+          title={show ? "Hide password" : "Show password"}
+          onMouseDown={(event) => {
+            event.preventDefault();
+          }}
+          onTouchEnd={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            suppressClickUntilRef.current = Date.now() + 750;
+            toggle();
+          }}
+          onClick={(event) => {
+            if (Date.now() < suppressClickUntilRef.current) {
+              event.preventDefault();
+              return;
+            }
+            toggle();
+          }}
+        >
+          <Icon name={show ? "eye-off" : "eye"} size={20} />
+        </button>
+      </div>
+    );
+  },
+);
+
 export function Field({
   label,
   hint,
+  className = "",
   children,
 }: {
   label: string;
   hint?: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   const generatedId = useId();
@@ -340,28 +478,49 @@ export function Field({
   const candidate = childList.length === 1 && isValidElement(childList[0]) ? childList[0] : null;
   const isDirectControl =
     candidate !== null &&
-    typeof candidate.type === "string" &&
-    ["input", "select", "textarea"].includes(candidate.type);
-  const control = isDirectControl ? (candidate as ReactElement<{ id?: string }>) : null;
+    ((typeof candidate.type === "string" &&
+      ["input", "select", "textarea"].includes(candidate.type)) ||
+      candidate.type === PasswordInput);
+  const control = isDirectControl
+    ? (candidate as ReactElement<{ id?: string; className?: string }>)
+    : null;
   const controlId = control?.props.id ?? `${generatedId}-control`;
   const labelId = `${generatedId}-label`;
+  const spacingClass =
+    className.includes("mb-") || className.includes("my-") || className.includes("m-")
+      ? ""
+      : "mb-4";
 
   return (
-    <div className="field" {...(!control ? { role: "group", "aria-labelledby": labelId } : {})}>
-      {control ? <label htmlFor={controlId}>{label}</label> : <span id={labelId}>{label}</span>}
+    <div
+      className={`field flex flex-col gap-1.5 ${spacingClass} ${className}`.trim()}
+      {...(!control ? { role: "group", "aria-labelledby": labelId } : {})}
+    >
+      {control ? (
+        <label
+          className="text-xs font-semibold text-muted uppercase tracking-wider"
+          htmlFor={controlId}
+        >
+          {label}
+        </label>
+      ) : (
+        <span className="text-xs font-semibold text-muted uppercase tracking-wider" id={labelId}>
+          {label}
+        </span>
+      )}
       {control ? cloneElement(control, { id: controlId }) : children}
-      {hint && <small>{hint}</small>}
+      {hint && <small className="text-xs text-muted">{hint}</small>}
     </div>
   );
 }
 
 export function Loading() {
   return (
-    <div className="loading">
-      <i />
-      <i />
-      <i />
-      <span>Loading workspace…</span>
+    <div className="loading flex items-center gap-2 text-sm text-muted">
+      <i className="w-2 h-2 rounded-full bg-green animate-pulse" />
+      <i className="w-2 h-2 rounded-full bg-green animate-pulse [animation-delay:0.2s]" />
+      <i className="w-2 h-2 rounded-full bg-green animate-pulse [animation-delay:0.4s]" />
+      <span className="ml-1">Loading workspace…</span>
     </div>
   );
 }
@@ -388,35 +547,42 @@ export function Pagination({
   if (totalItems === 0) return null;
 
   return (
-    <nav className="list-pagination" aria-label={`${itemLabel} pagination`}>
-      <p>
+    <nav
+      className="list-pagination flex flex-wrap items-center justify-between gap-4 pt-4 mt-4 border-t border-line text-xs text-muted"
+      aria-label={`${itemLabel} pagination`}
+    >
+      <p className="m-0">
         Showing{" "}
-        <strong>
+        <strong className="text-ink">
           {firstItem}–{lastItem}
         </strong>{" "}
-        of <strong>{totalItems}</strong> {itemLabel}
+        of <strong className="text-ink">{totalItems}</strong> {itemLabel}
       </p>
-      <div className="pagination-controls">
+      <div className="pagination-controls flex items-center gap-2">
         <button
           type="button"
-          className="pagination-step"
+          className="pagination-step px-3 py-1.5 rounded-lg border border-line bg-paper text-ink font-medium hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
           disabled={pageIndex === 0}
           onClick={() => onPageChange(pageIndex - 1)}
           aria-label="Go to previous page"
         >
           Previous
         </button>
-        <div className="pagination-pages">
+        <div className="pagination-pages flex items-center gap-1">
           {pages.map((page, index) => (
-            <span key={page} className="pagination-page-slot">
+            <span key={page} className="pagination-page-slot flex items-center">
               {index > 0 && page - pages[index - 1] > 1 && (
-                <span className="pagination-ellipsis" aria-hidden="true">
+                <span className="pagination-ellipsis px-1 text-muted" aria-hidden="true">
                   …
                 </span>
               )}
               <button
                 type="button"
-                className={page === pageIndex ? "is-current" : ""}
+                className={`w-8 h-8 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center ${
+                  page === pageIndex
+                    ? "is-current bg-ink text-paper"
+                    : "border border-line bg-paper text-ink hover:bg-canvas"
+                }`}
                 onClick={() => onPageChange(page)}
                 aria-label={`Go to page ${page + 1}`}
                 aria-current={page === pageIndex ? "page" : undefined}
@@ -428,7 +594,7 @@ export function Pagination({
         </div>
         <button
           type="button"
-          className="pagination-step"
+          className="pagination-step px-3 py-1.5 rounded-lg border border-line bg-paper text-ink font-medium hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
           disabled={pageIndex + 1 >= totalPages}
           onClick={() => onPageChange(pageIndex + 1)}
           aria-label="Go to next page"
