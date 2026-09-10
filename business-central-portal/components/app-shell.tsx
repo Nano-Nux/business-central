@@ -62,7 +62,7 @@ const navigation: NavGroup[] = [
         href: "/stock-in",
         label: "Stock in",
         icon: "package",
-        permission: "tenant.write",
+        permission: "stock_in",
       },
       {
         href: "/stock-assets",

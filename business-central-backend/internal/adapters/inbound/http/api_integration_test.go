@@ -821,6 +821,55 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	if forbidden.StatusCode != http.StatusForbidden {
 		t.Fatalf("manager admin-operation status = %d, body = %s", forbidden.StatusCode, responseBody(forbidden))
 	}
+
+	staffRoleUpdate := requestJSON(t, app, http.MethodPatch, "/api/v1/roles/"+staffRoleID, map[string]any{
+		"permission_codes": []string{"tenant.read", "tenant.write", "stock_in"},
+	}, loginBody.Data.AccessToken)
+	if staffRoleUpdate.StatusCode != http.StatusOK {
+		t.Fatalf("tenant staff role update status = %d, body = %s", staffRoleUpdate.StatusCode, responseBody(staffRoleUpdate))
+	}
+	var updatedStaffRole struct {
+		Data auth.Role `json:"data"`
+	}
+	decodeResponse(t, staffRoleUpdate, &updatedStaffRole)
+	var hasStockIn bool
+	for _, p := range updatedStaffRole.Data.PermissionCodes {
+		if p == "stock_in" {
+			hasStockIn = true
+		}
+	}
+	if !hasStockIn {
+		t.Fatalf("expected staff role to have stock_in, got: %+v", updatedStaffRole.Data.PermissionCodes)
+	}
+
+	staffLogin := requestJSON(t, app, http.MethodPost, "/api/v1/auth/login", map[string]any{
+		"email": staffEmail, "password": "Merchant-staff-password-123", "merchant_id": account.Data.Merchant.ID,
+	}, "")
+	if staffLogin.StatusCode != http.StatusOK {
+		t.Fatalf("staff login status = %d, body = %s", staffLogin.StatusCode, responseBody(staffLogin))
+	}
+	var staffSession struct {
+		Data auth.Session `json:"data"`
+	}
+	decodeResponse(t, staffLogin, &staffSession)
+	var staffHasStockIn bool
+	for _, r := range staffSession.Data.User.Roles {
+		for _, p := range r.PermissionCodes {
+			if p == "stock_in" {
+				staffHasStockIn = true
+			}
+		}
+	}
+	if !staffHasStockIn {
+		t.Fatalf("expected staff user session to contain stock_in permission, got %+v", staffSession.Data.User.Roles)
+	}
+
+	staffRoleDisable := requestJSON(t, app, http.MethodPatch, "/api/v1/roles/"+staffRoleID, map[string]any{
+		"permission_codes": []string{"tenant.read", "tenant.write"},
+	}, loginBody.Data.AccessToken)
+	if staffRoleDisable.StatusCode != http.StatusOK {
+		t.Fatalf("tenant staff role disable stock_in status = %d, body = %s", staffRoleDisable.StatusCode, responseBody(staffRoleDisable))
+	}
 }
 
 type seededUserAPIData struct{ merchantID, identityID, membershipID, roleID, email, password string }

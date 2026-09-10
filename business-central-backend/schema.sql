@@ -6017,7 +6017,7 @@ CREATE OR REPLACE FUNCTION app_has_permission(p_permission_code VARCHAR) RETURNS
                AND (mr.valid_until IS NULL OR mr.valid_until >= now())
                AND (
                    rp.permission_code = p_permission_code
-                   OR (p_permission_code IN ('tenant.read','tenant.write','rbac.manage','membership.manage') AND r.code IN ('admin','merchant'))
+                   OR (p_permission_code IN ('tenant.read','tenant.write','rbac.manage','membership.manage','stock_in') AND r.code IN ('admin','merchant'))
                )
         );
 $$;
@@ -6211,7 +6211,8 @@ INSERT INTO permissions(code, description) VALUES
     ('tenant.read', 'Read tenant-owned business data'),
     ('tenant.write', 'Create, update, and delete tenant-owned business data'),
     ('rbac.manage', 'Manage tenant roles and permissions'),
-    ('membership.manage', 'Manage tenant memberships')
+    ('membership.manage', 'Manage tenant memberships'),
+    ('stock_in', 'Perform stock-in and inventory receipt')
 ON CONFLICT (code) DO NOTHING;
 
 ALTER TABLE user_identities ENABLE ROW LEVEL SECURITY;

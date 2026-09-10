@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Icon } from "./icons";
 import {
   Badge,
@@ -30,6 +31,7 @@ import type {
   Movement,
   PriceList,
   ProductPrice,
+  Role,
   Shop,
   User,
   Variant,
@@ -363,10 +365,27 @@ function CurrentPriceLists({
 }
 
 export function StockInPage() {
-  const { merchant, isMerchant } = useAuth();
+  const { merchant, isMerchant, can } = useAuth();
+  const router = useRouter();
   const simple = merchant?.pos_complexity_level === "SIMPLE";
   const { currentShop } = useShop();
   const offline = useOffline();
+
+  useEffect(() => {
+    if (!can("stock_in")) {
+      router.replace(isMerchant ? "/merchant/dashboard" : "/staff/dashboard");
+    }
+  }, [can, isMerchant, router]);
+
+  if (!can("stock_in")) {
+    return (
+      <EmptyState
+        icon="lock"
+        title="Access restricted"
+        message="Your account does not have permission to perform stock-in operations."
+      />
+    );
+  }
 
   const [pageIndex, setPageIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1082,9 +1101,52 @@ export function MovementsPage() {
 }
 
 export function AccountsPage() {
+  const { isMerchant } = useAuth();
   const offline = useOffline();
   const users = useResource<User>("/users?page=1&page_size=100");
   const shops = useResource<Shop>("/shops?page_index=0&page_size=100");
+  const roles = useResource<Role>("/roles");
+  const [permissionBusy, setPermissionBusy] = useState(false);
+  const [permissionError, setPermissionError] = useState("");
+
+  const staffRole = useMemo(
+    () => roles.data.find((role) => role.code?.toLowerCase() === "staff"),
+    [roles.data],
+  );
+
+  const isStockInAllowed = Boolean(staffRole?.permission_codes?.includes("stock_in"));
+
+  async function handleToggleStockIn(checked: boolean) {
+    if (!isMerchant) return;
+    if (!staffRole) {
+      setPermissionError("Staff role could not be loaded for this merchant.");
+      return;
+    }
+    if (offline.status === "offline") {
+      setPermissionError("Role permission changes require an active connection.");
+      return;
+    }
+    setPermissionBusy(true);
+    setPermissionError("");
+    try {
+      const existingCodes = staffRole.permission_codes || [];
+      const updatedCodes = checked
+        ? Array.from(new Set([...existingCodes, "stock_in"]))
+        : existingCodes.filter((code) => code !== "stock_in");
+
+      await patch(`/roles/${staffRole.id}`, {
+        permission_codes: updatedCodes,
+      });
+      await roles.reload();
+    } catch (err) {
+      setPermissionError(
+        err instanceof Error ? err.message : "Failed to update staff stock-in permission.",
+      );
+    } finally {
+      setPermissionBusy(false);
+    }
+  }
+
   const [userQuery, setUserQuery] = useState("");
   const [userFilter, setUserFilter] = useState("ALL");
   const [userSort, setUserSort] = useState("NAME_ASC");
@@ -1202,6 +1264,58 @@ export function AccountsPage() {
           </Button>
         }
       />
+      {isMerchant && (
+        <div className="table-card" style={{ marginBottom: 16, padding: "16px 20px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <label
+              className="check-field switch-field"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                cursor: isMerchant ? "pointer" : "default",
+              }}
+            >
+              <input
+                type="checkbox"
+                role="switch"
+                checked={isStockInAllowed}
+                disabled={!isMerchant || offline.status === "offline" || permissionBusy || roles.loading}
+                onChange={(event) => handleToggleStockIn(event.target.checked)}
+                aria-label="Staff Stock-In Permission"
+              />
+              <span>
+                <strong style={{ fontSize: 13, fontWeight: 600 }}>Staff Stock-In Permission</strong>
+                <small style={{ fontSize: 11, color: "var(--muted)" }}>
+                  Allow staff accounts to access stock-in and receive inventory. Only the merchant user role can control this switch (off by default).
+                </small>
+              </span>
+            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Badge tone={isStockInAllowed ? "success" : "neutral"}>
+                {permissionBusy
+                  ? "Updating…"
+                  : isStockInAllowed
+                    ? "Stock-in Enabled"
+                    : "Stock-in Disabled"}
+              </Badge>
+            </div>
+          </div>
+          {permissionError && (
+            <p className="error banner" style={{ marginTop: 10, marginBottom: 0 }}>
+              {permissionError}
+            </p>
+          )}
+        </div>
+      )}
       <ListControls
         search={userQuery}
         onSearchChange={setUserQuery}
