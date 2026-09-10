@@ -797,8 +797,9 @@ func (s *Service) CreateRole(ctx context.Context, claims *Claims, merchantID str
 }
 
 func (s *Service) UpdateRole(ctx context.Context, claims *Claims, merchantID, roleID string, request UpdateRoleRequest) (Role, error) {
-	if claims == nil || !claims.PlatformAdmin {
-		return Role{}, app.NewError("FORBIDDEN", "Platform administrator access is required.", 403)
+	isTenantAdmin := claims != nil && claims.MerchantID != "" && claims.MerchantID == merchantID
+	if claims == nil || (!claims.PlatformAdmin && !isTenantAdmin) {
+		return Role{}, app.NewError("FORBIDDEN", "Administrative access is required.", 403)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1133,7 +1134,7 @@ func (s *Service) CreateMerchantUser(ctx context.Context, claims *Claims, reques
 		Scan(&ownerRole.ID, &ownerRole.Code, &ownerRole.Name, &ownerRole.IsSystem); err != nil {
 		return MerchantUserProvisioning{}, err
 	}
-	ownerRole.PermissionCodes = []string{"tenant.read", "tenant.write", "rbac.manage", "membership.manage"}
+	ownerRole.PermissionCodes = []string{"tenant.read", "tenant.write", "rbac.manage", "membership.manage", "stock_in"}
 	if _, err := tx.Exec(ctx, `INSERT INTO role_permissions(role_id, permission_code) SELECT $1, code FROM permissions WHERE code = ANY($2::text[]) ON CONFLICT DO NOTHING`, ownerRole.ID, ownerRole.PermissionCodes); err != nil {
 		return MerchantUserProvisioning{}, err
 	}

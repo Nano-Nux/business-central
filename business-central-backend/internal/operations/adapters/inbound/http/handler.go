@@ -500,6 +500,9 @@ func (h *Handler) getTransactionHistoryDetail(c fiber.Ctx) error {
 }
 
 func (h *Handler) stockIn(c fiber.Ctx) error {
+	if err := h.requirePermission(c, "stock_in"); err != nil {
+		return err
+	}
 	var r operationsdto.StockInRequest
 	return h.operationsCreateStatus(c, &r, func(ctx context.Context, r any) (any, error) {
 		return h.Operations.StockIn(ctx, claims(c), *r.(*operationsdto.StockInRequest))

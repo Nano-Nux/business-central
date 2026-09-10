@@ -52,6 +52,7 @@ func (h *Handler) RegisterProtectedRoutes(r fiber.Router) {
 	r.Get("/admin/permissions", h.listPermissions)
 	r.Get("/admin/merchants/:id/roles", h.listRoles)
 	r.Get("/roles", h.listTenantRoles)
+	r.Patch("/roles/:roleId", h.updateTenantRole)
 	r.Post("/admin/merchants/:id/roles", h.createRole)
 	r.Get("/admin/merchants/:id/roles/:roleId", h.getRole)
 	r.Patch("/admin/merchants/:id/roles/:roleId", h.updateRole)
@@ -106,6 +107,27 @@ func (h *Handler) listTenantRoles(c fiber.Ctx) error {
 		return databaseError(err)
 	}
 	return c.JSON(map[string]any{"data": roles, "meta": map[string]any{}})
+}
+
+func (h *Handler) updateTenantRole(c fiber.Ctx) error {
+	if err := h.requirePermission(c, "rbac.manage"); err != nil {
+		return err
+	}
+	var request authdto.UpdateRoleRequest
+	if err := c.Bind().JSON(&request); err != nil {
+		return app.NewError("VALIDATION_ERROR", "Request body must be valid JSON.", 400)
+	}
+	ctx, cancel := contextWithTimeout(c)
+	defer cancel()
+	cl := claims(c)
+	if cl == nil || cl.MerchantID == "" {
+		return app.NewError("FORBIDDEN", "Tenant context required.", 403)
+	}
+	role, err := h.Authentication.UpdateRole(ctx, cl, cl.MerchantID, c.Params("roleId"), request)
+	if err != nil {
+		return noResource(err, "Role")
+	}
+	return c.JSON(map[string]any{"data": role, "meta": map[string]any{}})
 }
 
 func (h *Handler) listCurrencies(c fiber.Ctx) error {
