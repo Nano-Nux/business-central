@@ -151,7 +151,6 @@ const navigation: NavGroup[] = [
         href: "/settings",
         label: "Settings",
         icon: "settings",
-        merchantOnly: true,
       },
     ],
   },
@@ -177,14 +176,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [ready, user, router]);
 
   useEffect(() => {
-    const merchantOnly = ["/accounts", "/catalog", "/reports", "/promotions", "/settings"];
+    const merchantOnly = [
+      "/accounts",
+      "/catalog",
+      "/reports",
+      "/promotions",
+      "/settings/payment-types",
+      "/settings/merchant",
+      "/settings/application",
+      "/settings/tax-notes",
+      "/settings/repair-specs",
+      "/settings/staff",
+    ];
     if (
       ready &&
       user &&
       !isMerchant &&
       merchantOnly.some((path) => pathname === path || pathname.startsWith(`${path}/`))
-    )
-      router.replace("/staff/dashboard");
+    ) {
+      if (pathname.startsWith("/settings")) {
+        router.replace("/settings");
+      } else {
+        router.replace("/staff/dashboard");
+      }
+    }
   }, [ready, user, isMerchant, pathname, router]);
 
   useEffect(() => {

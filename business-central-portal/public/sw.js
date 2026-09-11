@@ -26,7 +26,6 @@ const SHELL_PAGES = [
   "/settings/merchant",
   "/settings/printer",
   "/settings/repair-specs",
-  "/settings/staff",
   "/settings/tax-notes",
 ];
 const SHELL_ASSETS = [
