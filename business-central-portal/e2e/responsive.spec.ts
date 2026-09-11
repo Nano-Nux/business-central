@@ -56,7 +56,6 @@ const workspaceRoutes = [
   "/settings/merchant",
   "/settings/printer",
   "/settings/repair-specs",
-  "/settings/staff",
   "/settings/tax-notes",
 ];
 

@@ -30,29 +30,44 @@ import { formatShopAddress } from "@/lib/shop-address";
 import { currencyLabel } from "@/lib/currency";
 
 export function SettingsPage() {
+  const { isMerchant } = useAuth();
+
   return (
     <>
       <PageHeader
         eyebrow="Workspace"
         title="Settings"
-        description="Manage your business details and how invoices are printed."
+        description={
+          isMerchant
+            ? "Manage your business details and how invoices are printed."
+            : "Manage thermal printer connection and receipt printing preferences for your workstation."
+        }
       />
       <div className="settings-grid">
-        <Link href="/settings/payment-types" className="settings-card">
-          <span className="stat-icon mint"><Icon name="receipt" /></span>
-          <div><h2>Payment types</h2><p>Merchant-wide Cash, Online, and future Digital payment choices.</p></div>
-          <Icon name="arrow" />
-        </Link>
-        <Link href="/settings/merchant" className="settings-card">
-          <span className="stat-icon mint">
-            <Icon name="store" />
-          </span>
-          <div>
-            <h2>Merchant & shops</h2>
-            <p>Business identity, contact details, shops and operating timezone.</p>
-          </div>
-          <Icon name="arrow" />
-        </Link>
+        {isMerchant && (
+          <Link href="/settings/payment-types" className="settings-card">
+            <span className="stat-icon mint">
+              <Icon name="receipt" />
+            </span>
+            <div>
+              <h2>Payment types</h2>
+              <p>Merchant-wide Cash, Online, and future Digital payment choices.</p>
+            </div>
+            <Icon name="arrow" />
+          </Link>
+        )}
+        {isMerchant && (
+          <Link href="/settings/merchant" className="settings-card">
+            <span className="stat-icon mint">
+              <Icon name="store" />
+            </span>
+            <div>
+              <h2>Merchant & shops</h2>
+              <p>Business identity, contact details, shops and operating timezone.</p>
+            </div>
+            <Icon name="arrow" />
+          </Link>
+        )}
         <Link href="/settings/printer" className="settings-card">
           <span className="stat-icon blue">
             <Icon name="printer" />
@@ -63,46 +78,42 @@ export function SettingsPage() {
           </div>
           <Icon name="arrow" />
         </Link>
-        <Link href="/settings/application" className="settings-card">
-          <span className="stat-icon amber">
-            <Icon name="settings" />
-          </span>
-          <div>
-            <h2>Application</h2>
-            <p>Startup behavior, confirmations and operational display preferences.</p>
-          </div>
-          <Icon name="arrow" />
-        </Link>
-        <Link href="/settings/tax-notes" className="settings-card">
-          <span className="stat-icon purple">
-            <Icon name="receipt" />
-          </span>
-          <div>
-            <h2>Tax & receipt notes</h2>
-            <p>Receipt wording, tax display and customer-facing notes.</p>
-          </div>
-          <Icon name="arrow" />
-        </Link>
-        <Link href="/settings/staff" className="settings-card">
-          <span className="stat-icon blue">
-            <Icon name="users" />
-          </span>
-          <div>
-            <h2>Staff settings</h2>
-            <p>Counter permissions and staff-facing workflow defaults.</p>
-          </div>
-          <Icon name="arrow" />
-        </Link>
-        <Link href="/settings/repair-specs" className="settings-card">
-          <span className="stat-icon mint">
-            <Icon name="repair" />
-          </span>
-          <div>
-            <h2>Repair specifications</h2>
-            <p>Fault presets and repair intake defaults.</p>
-          </div>
-          <Icon name="arrow" />
-        </Link>
+        {isMerchant && (
+          <Link href="/settings/application" className="settings-card">
+            <span className="stat-icon amber">
+              <Icon name="settings" />
+            </span>
+            <div>
+              <h2>Application</h2>
+              <p>Startup behavior, confirmations and operational display preferences.</p>
+            </div>
+            <Icon name="arrow" />
+          </Link>
+        )}
+        {isMerchant && (
+          <Link href="/settings/tax-notes" className="settings-card">
+            <span className="stat-icon purple">
+              <Icon name="receipt" />
+            </span>
+            <div>
+              <h2>Tax & receipt notes</h2>
+              <p>Receipt wording, tax display and customer-facing notes.</p>
+            </div>
+            <Icon name="arrow" />
+          </Link>
+        )}
+        {isMerchant && (
+          <Link href="/settings/repair-specs" className="settings-card">
+            <span className="stat-icon mint">
+              <Icon name="repair" />
+            </span>
+            <div>
+              <h2>Repair specifications</h2>
+              <p>Fault presets and repair intake defaults.</p>
+            </div>
+            <Icon name="arrow" />
+          </Link>
+        )}
       </div>
     </>
   );
@@ -141,8 +152,7 @@ export function OperationalSettingsPage({
         setValues({
           defaultStatus:
             currentShop.default_status ?? currentShop.address?.default_status ?? "DIAGNOSING",
-          confirmation:
-            currentShop.confirmation ?? currentShop.address?.confirmation ?? "always",
+          confirmation: currentShop.confirmation ?? currentShop.address?.confirmation ?? "always",
         });
       } else if (section === "tax-notes") {
         setValues({
@@ -303,7 +313,11 @@ export function OperationalSettingsPage({
   if (section === "application") {
     return (
       <>
-        <PageHeader eyebrow="Settings" title={labels[section][0]} description={labels[section][1]} />
+        <PageHeader
+          eyebrow="Settings"
+          title={labels[section][0]}
+          description={labels[section][1]}
+        />
         <Form className="card settings-stack" onSubmit={save}>
           <Field label="Shop">
             <select
@@ -379,7 +393,9 @@ export function OperationalSettingsPage({
             onChange={(event) => setValues({ ...values, confirmation: event.target.value })}
           >
             <option value="always">Always require confirmation for key workflow actions</option>
-            <option value="critical_only">Require confirmation only for cancellations & deletes</option>
+            <option value="critical_only">
+              Require confirmation only for cancellations & deletes
+            </option>
             <option value="never">Fast counter flow — minimal confirmation prompts</option>
           </select>
         </Field>
@@ -411,7 +427,8 @@ function RepairFormSettingsPage() {
       setShowFullCustomerLabels(currentShop?.show_full_customer_labels === true);
       setShowModelLabel(currentShop?.show_model_label !== false);
       setWaitingTimeFormat(
-        (currentShop?.waiting_time_format === "DATE_RANGE" ? "DATE_RANGE" : "DAYS") as "DAYS" | "DATE_RANGE",
+        (currentShop?.waiting_time_format === "DATE_RANGE" ? "DATE_RANGE" : "DAYS") as
+          "DAYS" | "DATE_RANGE",
       );
     }, 0);
     return () => window.clearTimeout(timer);
@@ -525,7 +542,10 @@ function RepairFormSettingsPage() {
         title="Repair form specifications"
         description="Configure versioned ticket and device fields rendered during repair intake and on printable invoices."
       />
-      <div className="button-group" style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}>
+      <div
+        className="button-group"
+        style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}
+      >
         <Link href="/repairs/issue-presets" className="button secondary">
           Manage Issue Presets
         </Link>
@@ -537,7 +557,10 @@ function RepairFormSettingsPage() {
         <div className="card-head">
           <div>
             <h2>Repair invoice display</h2>
-            <p>Choose which device details and ticket identifiers customers see in previews and printed invoices.</p>
+            <p>
+              Choose which device details and ticket identifiers customers see in previews and
+              printed invoices.
+            </p>
           </div>
         </div>
         <Field label="Shop">
@@ -576,7 +599,9 @@ function RepairFormSettingsPage() {
           <span>
             <strong>Show full customer labels</strong>
             <small>
-              When off (default), customer info is short (&ldquo;Name&rdquo; and &ldquo;Phone&rdquo;). When on, shows &ldquo;Customer Name&rdquo; and &ldquo;Customer Phone&rdquo;.
+              When off (default), customer info is short (&ldquo;Name&rdquo; and
+              &ldquo;Phone&rdquo;). When on, shows &ldquo;Customer Name&rdquo; and &ldquo;Customer
+              Phone&rdquo;.
             </small>
           </span>
         </label>
@@ -586,7 +611,9 @@ function RepairFormSettingsPage() {
             onChange={(event) => setWaitingTimeFormat(event.target.value as "DAYS" | "DATE_RANGE")}
           >
             <option value="DAYS">Number of days - days (e.g. 3 - days)</option>
-            <option value="DATE_RANGE">Start date - end date (e.g. Aug 26, 2026 – Aug 29, 2026)</option>
+            <option value="DATE_RANGE">
+              Start date - end date (e.g. Aug 26, 2026 – Aug 29, 2026)
+            </option>
           </select>
         </Field>
         <label className="check-field switch-field">
@@ -628,7 +655,8 @@ function RepairFormSettingsPage() {
           <span>
             <strong>Show &ldquo;Model&rdquo; label</strong>
             <small>
-              Shows the &ldquo;Model&rdquo; label in the same row with the model name. On by default.
+              Shows the &ldquo;Model&rdquo; label in the same row with the model name. On by
+              default.
             </small>
           </span>
         </label>
@@ -998,7 +1026,7 @@ export function MerchantSettingsPage() {
 
 export function PrinterSettingsPage() {
   const { currentShop, shops, selectShop } = useShop();
-  const { merchant } = useAuth();
+  const { merchant, isMerchant, can } = useAuth();
   const offline = useOffline();
   const [available, setAvailable] = useState<boolean | null>(null);
   const [devices, setDevices] = useState<PrinterDevice[]>([]);
@@ -1083,6 +1111,13 @@ export function PrinterSettingsPage() {
     event.preventDefault();
     if (!currentShop) return;
     localStorage.setItem(`bc.printer.footerNote.${currentShop.id}`, footerNote);
+    localStorage.setItem(`bc.printer.paperWidthMm.${currentShop.id}`, String(paperWidthMm));
+    localStorage.setItem(`bc.printer.fontSizePx.${currentShop.id}`, String(fontSizePx));
+
+    if (!isMerchant && !can("membership.manage")) {
+      setMessage("Printer preferences saved on this device.");
+      return;
+    }
     try {
       if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
         throw new Error("Offline storage is required to save the footer note while disconnected.");
@@ -1301,7 +1336,9 @@ export function PrinterSettingsPage() {
               >
                 <option value={58}>57–58 mm (≈ 2¼ in) — small and mobile receipt printers</option>
                 <option value={80}>80 mm (≈ 3⅛ in) — portable and desktop receipt printers</option>
-                <option value={44}>38–44 mm (≈ 1½–1¾ in) — mini, label and tax-meter printers</option>
+                <option value={44}>
+                  38–44 mm (≈ 1½–1¾ in) — mini, label and tax-meter printers
+                </option>
                 <option value={110}>110 mm (≈ 4.3 in) — wide portable document printers</option>
                 <option value={210}>210 mm (≈ 8.3 in) — mobile A4 document printers</option>
               </select>

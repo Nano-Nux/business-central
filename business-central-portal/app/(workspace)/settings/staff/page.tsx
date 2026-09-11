@@ -1,4 +1,5 @@
-import { OperationalSettingsPage } from "@/components/settings-pages";
+import { redirect } from "next/navigation";
+
 export default function Page() {
-  return <OperationalSettingsPage section="staff" />;
+  redirect("/settings");
 }
