@@ -1,0 +1,67 @@
+/*
+ * Compact Layout - Streamlined Rail Navigation
+ * --------------------------------------------
+ * Maximizes workspace screen real-estate with a sleek, space-saving
+ * 72px icon-rail sidebar on desktop viewports.
+ */
+
+:root[data-layout="compact-layout"],
+[data-layout="compact-layout"] {
+  --sidebar-width: 72px;
+}
+
+@media (min-width: 1025px) {
+  [data-layout="compact-layout"] .sidebar {
+    width: 72px;
+    padding: 16px 8px;
+    align-items: center;
+  }
+
+  [data-layout="compact-layout"] .main-area {
+    margin-left: 72px;
+  }
+
+  [data-layout="compact-layout"] .brand {
+    justify-content: center;
+    padding: 0;
+  }
+
+  [data-layout="compact-layout"] .brand > span:last-child {
+    display: none;
+  }
+
+  [data-layout="compact-layout"] .shop-switcher {
+    padding: 6px;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  [data-layout="compact-layout"] .shop-switcher-info {
+    display: none;
+  }
+
+  [data-layout="compact-layout"] .nav-group > p {
+    text-align: center;
+    font-size: 9px;
+    margin: 8px 0 4px;
+  }
+
+  [data-layout="compact-layout"] .nav-group a {
+    justify-content: center;
+    padding: 10px;
+    position: relative;
+  }
+
+  [data-layout="compact-layout"] .nav-group a span {
+    display: none;
+  }
+
+  [data-layout="compact-layout"] .nav-group a i {
+    right: 4px;
+  }
+
+  [data-layout="compact-layout"] .sidebar-help {
+    display: none;
+  }
+}

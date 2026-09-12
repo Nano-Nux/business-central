@@ -1,0 +1,34 @@
+/*
+ * Compact Layout - High-Density POS Register
+ * ------------------------------------------
+ * Dense, scan-first product grid and compact cart spacing to fit
+ * more items onto smaller screens and registers without excessive scrolling.
+ */
+
+[data-layout="compact-layout"] .pos-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 390px);
+}
+
+[data-layout="compact-layout"] .product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+[data-layout="compact-layout"] .product-tile-main {
+  min-height: 94px;
+  padding: 8px;
+}
+
+[data-layout="compact-layout"] .cart-head {
+  padding: 16px 18px 12px;
+}
+
+[data-layout="compact-layout"] .cart-lines {
+  padding: 4px 14px;
+}
+
+[data-layout="compact-layout"] .cart-line {
+  padding: 10px 0;
+}

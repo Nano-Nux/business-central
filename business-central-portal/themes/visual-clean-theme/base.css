@@ -1,0 +1,9 @@
+/*
+ * Visual Clean - Base & Canvas
+ * ----------------------------
+ * Foundation canvas and resets.
+ */
+
+[data-theme="visual-clean-theme"] body {
+  background-color: var(--canvas);
+}

@@ -28,6 +28,16 @@ import { imageUploadMarker } from "@/lib/offline-images";
 import { putCachedResource } from "@/lib/offline-db";
 import { formatShopAddress } from "@/lib/shop-address";
 import { currencyLabel } from "@/lib/currency";
+import {
+  AVAILABLE_THEMES,
+  AVAILABLE_LAYOUTS,
+  applyTheme,
+  applyLayout,
+  getStoredTheme,
+  getStoredLayout,
+  resolveInitialTheme,
+  resolveInitialLayout,
+} from "@/lib/theme-storage";
 
 export function SettingsPage() {
   const { isMerchant } = useAuth();
@@ -75,6 +85,16 @@ export function SettingsPage() {
           <div>
             <h2>Printer</h2>
             <p>Bluetooth permission, device connection, image proof and font sizing.</p>
+          </div>
+          <Icon name="arrow" />
+        </Link>
+        <Link href="/settings/theme" className="settings-card">
+          <span className="stat-icon mint">
+            <Icon name="palette" />
+          </span>
+          <div>
+            <h2>Theme</h2>
+            <p>Visual theme appearance and interface styling preferences.</p>
           </div>
           <Icon name="arrow" />
         </Link>
@@ -1424,6 +1444,351 @@ export function PrinterSettingsPage() {
           <InvoiceReceipt invoice={repairPreview} variant="repair" />
         </div>
       </section>
+    </>
+  );
+}
+
+export function ThemeSettingsPage() {
+  const [currentTheme, setCurrentTheme] = useState<string>(getStoredTheme);
+  const [currentLayout, setCurrentLayout] = useState<string>(getStoredLayout);
+  const [activeCategory, setActiveCategory] = useState<"theme" | "layout">("theme");
+  const [appliedNotice, setAppliedNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    void resolveInitialTheme().then(setCurrentTheme);
+    void resolveInitialLayout().then(setCurrentLayout);
+  }, []);
+
+  const handleSelectTheme = (themeId: string) => {
+    applyTheme(themeId);
+    setCurrentTheme(themeId);
+    const themeObj = AVAILABLE_THEMES.find((t) => t.id === themeId);
+    setAppliedNotice(`Applied theme: ${themeObj?.name ?? themeId}`);
+    setTimeout(() => setAppliedNotice(null), 3000);
+  };
+
+  const handleSelectLayout = (layoutId: string) => {
+    applyLayout(layoutId);
+    setCurrentLayout(layoutId);
+    const layoutObj = AVAILABLE_LAYOUTS.find((l) => l.id === layoutId);
+    setAppliedNotice(`Applied layout: ${layoutObj?.name ?? layoutId}`);
+    setTimeout(() => setAppliedNotice(null), 3000);
+  };
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Settings"
+        title="Theme & Layout"
+        description="Customize your workspace appearance. Theme controls colors, while Layout controls workspace structure and density. Both operate independently."
+        action={
+          <Link href="/settings" className="btn btn-secondary">
+            Back to settings
+          </Link>
+        }
+      />
+
+      {appliedNotice && (
+        <div style={{ marginBottom: "16px" }}>
+          <StatusBadge status="ACTIVE" label={appliedNotice} />
+        </div>
+      )}
+
+      {/* Category Navigation Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          marginBottom: "20px",
+          borderBottom: "1px solid var(--line)",
+          paddingBottom: "12px",
+        }}
+      >
+        <button
+          type="button"
+          className="button"
+          style={{
+            background: activeCategory === "theme" ? "var(--accent, #2563eb)" : "transparent",
+            color: activeCategory === "theme" ? "#ffffff" : "var(--muted)",
+            border: activeCategory === "theme" ? "none" : "1px solid var(--line)",
+            padding: "8px 18px",
+            fontWeight: 700,
+            fontSize: "13px",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+          onClick={() => setActiveCategory("theme")}
+        >
+          Theme (Colors)
+        </button>
+        <button
+          type="button"
+          className="button"
+          style={{
+            background: activeCategory === "layout" ? "var(--accent, #2563eb)" : "transparent",
+            color: activeCategory === "layout" ? "#ffffff" : "var(--muted)",
+            border: activeCategory === "layout" ? "none" : "1px solid var(--line)",
+            padding: "8px 18px",
+            fontWeight: 700,
+            fontSize: "13px",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+          onClick={() => setActiveCategory("layout")}
+        >
+          Layout (Structure)
+        </button>
+      </div>
+
+      {activeCategory === "theme" ? (
+        <>
+          <div style={{ marginBottom: "14px" }}>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>Color Theme</h3>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--muted)" }}>
+              Choose your visual color palette. Changing theme does not affect workspace layout.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            }}
+          >
+            {AVAILABLE_THEMES.map((theme) => {
+              const isActive = currentTheme === theme.id;
+              return (
+                <div
+                  key={theme.id}
+                  className="card"
+                  style={{
+                    cursor: "pointer",
+                    position: "relative",
+                    border: isActive
+                      ? "2px solid var(--accent, #2563eb)"
+                      : "1px solid var(--line)",
+                    transition: "all 0.18s ease",
+                  }}
+                  onClick={() => handleSelectTheme(theme.id)}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 650 }}>{theme.name}</h3>
+                      {theme.badge && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            padding: "2px 7px",
+                            borderRadius: "999px",
+                            background: "var(--green-soft)",
+                            color: "var(--green)",
+                            marginTop: "4px",
+                            display: "inline-block",
+                          }}
+                        >
+                          {theme.badge}
+                        </span>
+                      )}
+                    </div>
+                    {isActive ? (
+                      <StatusBadge status="ACTIVE" label="Active" />
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        className="mini-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectTheme(theme.id);
+                        }}
+                      >
+                        Select
+                      </Button>
+                    )}
+                  </div>
+
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--muted)",
+                      lineHeight: 1.5,
+                      margin: "0 0 16px",
+                    }}
+                  >
+                    {theme.description}
+                  </p>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      paddingTop: "12px",
+                      borderTop: "1px solid var(--line)",
+                    }}
+                  >
+                    <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>
+                      Palette:
+                    </span>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {theme.previewColors.map((color, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            width: "18px",
+                            height: "18px",
+                            borderRadius: "50%",
+                            backgroundColor: color,
+                            border: "1px solid rgba(0,0,0,0.12)",
+                            display: "inline-block",
+                          }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ marginBottom: "14px" }}>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>Workspace Layout</h3>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--muted)" }}>
+              Choose your navigation structure and density. Changing layout does not affect active colors.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            }}
+          >
+            {AVAILABLE_LAYOUTS.map((layout) => {
+              const isActive = currentLayout === layout.id;
+              return (
+                <div
+                  key={layout.id}
+                  className="card"
+                  style={{
+                    cursor: "pointer",
+                    position: "relative",
+                    border: isActive
+                      ? "2px solid var(--accent, #2563eb)"
+                      : "1px solid var(--line)",
+                    transition: "all 0.18s ease",
+                  }}
+                  onClick={() => handleSelectLayout(layout.id)}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 650 }}>{layout.name}</h3>
+                      {layout.badge && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            padding: "2px 7px",
+                            borderRadius: "999px",
+                            background: "var(--green-soft)",
+                            color: "var(--green)",
+                            marginTop: "4px",
+                            display: "inline-block",
+                          }}
+                        >
+                          {layout.badge}
+                        </span>
+                      )}
+                    </div>
+                    {isActive ? (
+                      <StatusBadge status="ACTIVE" label="Active" />
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        className="mini-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectLayout(layout.id);
+                        }}
+                      >
+                        Select
+                      </Button>
+                    )}
+                  </div>
+
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--muted)",
+                      lineHeight: 1.5,
+                      margin: "0 0 16px",
+                    }}
+                  >
+                    {layout.description}
+                  </p>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      paddingTop: "12px",
+                      borderTop: "1px solid var(--line)",
+                      fontSize: "12px",
+                      color: "var(--muted)",
+                    }}
+                  >
+                    <Icon name={layout.id === "compact-layout" ? "box" : "home"} size={16} />
+                    <span>
+                      {layout.id === "compact-layout"
+                        ? "72px icon rail navigation · Dense POS grid"
+                        : "250px full sidebar · Balanced spacious grid"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      <div
+        className="card"
+        style={{ marginTop: "24px", background: "var(--surface-muted, #f8fafc)" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <Icon name="settings" size={18} />
+          <div>
+            <h4 style={{ margin: 0, fontSize: "13px", fontWeight: 600 }}>
+              Independent device-local persistence
+            </h4>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--muted)" }}>
+              Theme and layout selections operate independently. Changing one never alters the other.
+              Preferences are stored locally on this workstation and in mobile SQLite when using the
+              mobile application.
+            </p>
+          </div>
+        </div>
+      </div>
     </>
   );
 }

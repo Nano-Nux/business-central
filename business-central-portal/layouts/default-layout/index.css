@@ -1,0 +1,7 @@
+/*
+ * Default Layout Aggregator
+ * -------------------------
+ * Standard balanced layout for business-central-portal.
+ */
+@import "./shell.css";
+@import "./pos.css";

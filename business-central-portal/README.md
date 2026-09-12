@@ -35,11 +35,72 @@ Authentication tokens are refreshed through the backend's rotating refresh
 token flow. The service worker caches the application shell and static assets,
 but never caches authenticated API responses.
 
-## Visual theme
+## Visual themes and layouts
 
-The portal palette is controlled from `app/theme.css`. Change the foundational
-`--theme-*` values in that file to recolor every screen; page and component
-styles consume those shared tokens rather than defining their own colors.
+The portal appearance is organized into two independent, modular categories:
+1. **Themes (Color Palettes)** under the root-level `themes/` directory:
+   - `themes/default-theme/`: High-contrast architectural monochrome palette ("Monochrome Precision").
+     - `theme.css`: Core grayscale tokens, borders, and neutral badge styling.
+     - `index.css`: Theme entrypoint.
+   - `themes/visual-clean-theme/`: Modern, vibrant workspace palette ("Visual Clean") featuring royal sapphire brand actions, emerald revenue highlights, warm amber metrics, ruby danger alerts, amethyst categories, and pure white cards on a crisp cool-slate canvas.
+     - `theme.css`: Core brand palettes, HSL tokens, and base gradients.
+     - `login.css`: Branded authentication screens and login backdrop.
+     - `shell.css`: Topbar navigation, active shop selectors, and status indicators.
+     - `components.css`: Buttons, search inputs, badges, and modals.
+     - `pos.css`: Visual accents for POS cart cards, total badges, and checkout buttons.
+     - `products.css`: Catalog stock pill badges and pricing highlights.
+     - `repairs.css`: Intake status tags, device diagnosis chips, and photo uploads.
+     - `invoices-settings.css`: Financial summaries, invoice previews, and settings cards.
+     - `index.css`: Theme entrypoint aggregating all visual modules.
+2. **Layouts (Workspace Structures)** under the root-level `layouts/` directory (at the same level with `themes/`):
+   - `layouts/default-layout/`: Standard balanced workspace with full-width 250px sidebar and comfortable desktop proportions.
+     - `shell.css`: Standard 250px navigation drawer and spacious main content canvas.
+     - `pos.css`: Standard 2-column POS register with comfortable catalog card geometry (`minmax(155px, 1fr)`).
+     - `index.css`: Layout entrypoint.
+   - `layouts/compact-layout/`: Space-saving 72px icon-rail navigation and dense scan-first POS catalog grid, maximizing screen real-estate for registers and smaller laptops.
+     - `shell.css`: Streamlined 72px icon rail with floating tooltips and condensed header margins.
+     - `pos.css`: High-density catalog grid (`minmax(130px, 1fr)`), compact cart item spacing, and sticky bottom checkout summary.
+     - `index.css`: Layout entrypoint.
+
+Available themes and layouts are imported in `app/globals.css`:
+
+```css
+/* Color Themes */
+@import "../themes/default-theme/index.css";
+@import "../themes/visual-clean-theme/index.css";
+
+/* Workspace Layouts */
+@import "../layouts/default-layout/index.css";
+@import "../layouts/compact-layout/index.css";
+```
+
+The active theme is selected via `[data-theme="..."]` and the active layout via `[data-layout="..."]` on the root `<html>` element.
+
+### Complete Independence
+**Theme and Layout are 100% orthogonal and independent**:
+- Changing your color theme preserves your active layout.
+- Changing your workspace layout preserves your active color theme.
+- Any theme works seamlessly with any layout.
+
+Users can choose their preferred theme and layout in the workspace under **Settings → Theme & Layout** (`/settings/theme`), which features dedicated category tabs for **Theme (Colors)** and **Layout (Structure)** and is universally accessible to all user roles (Merchants, Managers, and Staff).
+
+### Multi-Tier Storage & Mobile Backward Compatibility
+
+Preferences are stored client-side under independent keys (`bc.theme` and `bc.layout`) with no backend database schema required. To guarantee robust persistence across all client environments—especially for clients running older mobile applications who do not update their mobile binary every time—storage uses a resilient multi-tier engine:
+
+| Tier | Mechanism | Purpose / Durability |
+|---|---|---|
+| **Tier 1** | LocalStorage | Instant synchronous read/write (`bc.theme`, `theme`, `bc_theme` & `bc.layout`, `layout`, `bc_layout`). |
+| **Tier 2** | Persistent Cookies | 1-year persistent cookie (`max-age=31536000; SameSite=Lax`) preserved by Android `CookieManager` and iOS `WKHTTPCookieStore` across WebView process kills. |
+| **Tier 3** | IndexedDB Fallback | `bc_theme_fallback` database with `settings` store, providing durable disk persistence for sandboxed WebViews. |
+| **Tier 4** | Memory Cache | In-memory session cache guarding against restricted WebView environments that throw `SecurityError`. |
+| **Tier 5** | Native SQLite Bridge | Communicates with Flutter's `NativeStorageBridge` (`BusinessCentralStorageChannel`) with 400ms timeout safeguards. |
+
+#### Backward Compatibility Strategy for Un-updated Mobile WebViews:
+1. **Dual/Triple-Key Companion Writes**: Every theme change synchronously writes `bc.theme`, `theme`, and `bc_theme`. Every layout change writes `bc.layout`, `layout`, and `bc_layout`. Older client scripts or extensions querying legacy keys continue to find the correct value.
+2. **Legacy Key & Nickname Normalization**: Reading handles legacy nicknames (`"default"`, `"monochrome"` $\rightarrow$ `default-theme`; `"clean"`, `"visual-clean"` $\rightarrow$ `visual-clean-theme`; `"compact"`, `"rail"` $\rightarrow$ `compact-layout`) and parses legacy JSON configurations (`{"theme": "...", "layout": "..."}`).
+3. **Cross-Tier Auto-Healing**: When a preference is resolved from a fallback tier (e.g. cookie or legacy key), the engine automatically heals and rewrites canonical keys across all higher tiers.
+4. **Seamless Upgrade Migration**: When a user on an older mobile app version eventually updates the application, `setupDelayedBridgeListener` receives the `business-central-native-storage-ready` event and automatically syncs existing preferences into native SQLite (`appMetadata` table).
 
 ## Temporary offline PWA operation
 

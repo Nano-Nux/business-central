@@ -1,0 +1,25 @@
+/*
+ * Default Layout - Standard Workspace
+ * -----------------------------------
+ * Balanced, spacious layout with full-width sidebar navigation
+ * and standard comfortable margins.
+ */
+
+:root[data-layout="default-layout"],
+[data-layout="default-layout"] {
+  --sidebar-width: 250px;
+}
+
+[data-layout="default-layout"] .sidebar {
+  width: 250px;
+}
+
+[data-layout="default-layout"] .main-area {
+  margin-left: 250px;
+}
+
+@media (max-width: 1024px) {
+  [data-layout="default-layout"] .main-area {
+    margin-left: 0;
+  }
+}

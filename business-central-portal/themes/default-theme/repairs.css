@@ -1,0 +1,462 @@
+/* Repair lifecycle choices are status controls, so each lifecycle tone keeps
+   its color even inside the otherwise monochrome workspace. */
+.repair-status-option.status-neutral .repair-status-marker {
+  background: var(--status-neutral-soft);
+  color: var(--status-neutral);
+}
+.repair-status-option.status-info .repair-status-marker {
+  background: var(--status-info-soft);
+  color: var(--status-info);
+}
+.repair-status-option.status-warning .repair-status-marker {
+  background: var(--status-warning-soft);
+  color: var(--status-warning);
+}
+.repair-status-option.status-success .repair-status-marker {
+  background: var(--status-success-soft);
+  color: var(--status-success);
+}
+.repair-status-option.status-danger .repair-status-marker {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+}
+.repair-status-option.status-neutral .repair-status-current {
+  background: var(--status-neutral-soft);
+  color: var(--status-neutral);
+}
+.repair-status-option.status-info .repair-status-current {
+  background: var(--status-info-soft);
+  color: var(--status-info);
+}
+.repair-status-option.status-warning .repair-status-current {
+  background: var(--status-warning-soft);
+  color: var(--status-warning);
+}
+.repair-status-option.status-success .repair-status-current {
+  background: var(--status-success-soft);
+  color: var(--status-success);
+}
+.repair-status-option.status-danger .repair-status-current {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+}
+.repair-status-option.status-neutral.selected {
+  border-color: var(--status-neutral-border);
+  background: var(--status-neutral-soft);
+}
+.repair-status-option.status-info.selected {
+  border-color: var(--status-info-border);
+  background: var(--status-info-soft);
+}
+.repair-status-option.status-warning.selected {
+  border-color: var(--status-warning-border);
+  background: var(--status-warning-soft);
+}
+.repair-status-option.status-success.selected {
+  border-color: var(--status-success-border);
+  background: var(--status-success-soft);
+}
+.repair-status-option.status-danger.selected {
+  border-color: var(--status-danger-border);
+  background: var(--status-danger-soft);
+}
+.repair-status-option.status-neutral.selected .repair-status-marker {
+  background: var(--status-neutral);
+  color: var(--theme-white);
+}
+.repair-status-option.status-info.selected .repair-status-marker {
+  background: var(--status-info);
+  color: var(--theme-white);
+}
+.repair-status-option.status-warning.selected .repair-status-marker {
+  background: var(--status-warning);
+  color: var(--theme-white);
+}
+.repair-status-option.status-success.selected .repair-status-marker {
+  background: var(--status-success);
+  color: var(--theme-white);
+}
+.repair-status-option.status-danger.selected .repair-status-marker {
+  background: var(--status-danger);
+  color: var(--theme-white);
+}
+.repair-status-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 13px;
+}
+.repair-status-actions .button {
+  min-width: 170px;
+}
+.inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.inline-form select,
+.inline-form input,
+.data-table select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--theme-white);
+  padding: 0 10px;
+  font-size: 10px;
+  min-width: 0;
+}
+.inline-form > * {
+  flex: 1;
+}
+.inline-form .button {
+  flex: 0;
+}
+.configuration-empty {
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--theme-gray-50);
+  border-radius: 8px;
+  padding: 12px;
+}
+.scope-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.scope-chips > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 99px;
+  background: var(--green-soft);
+  color: var(--green);
+  padding: 6px 9px;
+  font-size: 9px;
+}
+.scope-chips button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.receipt-selection {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 8px;
+  background: var(--theme-gray-50);
+  border-radius: 9px;
+  padding: 12px;
+  margin-bottom: 15px;
+}
+.receipt-selection > div {
+  display: flex;
+  flex-direction: column;
+}
+.receipt-selection small {
+  font-size: 8px;
+  color: var(--muted);
+}
+.receipt-selection strong {
+  font-size: 10px;
+  margin-top: 3px;
+}
+.receipt-selection span {
+  font-size: 8px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.stock-mobile-nav {
+  display: none;
+}
+.stock-catalog-pane,
+.stock-receipt-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.stock-receipt-pane {
+  position: sticky;
+  top: 16px;
+}
+.stock-search {
+  width: 100%;
+  margin-bottom: 12px;
+}
+.stock-catalog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.stock-product-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.stock-product-card:hover {
+  border-color: var(--green);
+  background: var(--theme-gray-50);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgb(var(--theme-black-rgb) / 0.04);
+}
+.stock-product-card.selected {
+  border-color: var(--green);
+  background: var(--theme-gray-50);
+  box-shadow: 0 0 0 1px var(--green);
+}
+.stock-product-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--green);
+  background: var(--mint);
+  flex-shrink: 0;
+  transition: all 150ms ease;
+}
+.stock-product-icon.selected {
+  background: var(--green);
+  color: var(--theme-white);
+}
+.stock-product-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+.stock-product-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.stock-product-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stock-qty-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  white-space: nowrap;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.stock-qty-badge.in-stock {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.stock-qty-badge.out-of-stock {
+  background: var(--theme-gray-100);
+  color: var(--muted);
+}
+.stock-product-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.stock-variant-name {
+  color: var(--muted);
+}
+.stock-meta-pill {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--theme-gray-100);
+  color: var(--muted);
+  font-family: var(--font-mono, monospace);
+}
+.stock-select-indicator {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.stock-product-card.selected .stock-select-indicator {
+  color: var(--green);
+}
+.stock-change-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.stock-change-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--theme-gray-50);
+}
+.stock-prompt-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 16px 16px;
+}
+.stock-prompt-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--mint);
+  color: var(--green);
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+}
+.stock-prompt-state h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--ink);
+}
+.stock-prompt-state p {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 16px;
+  max-width: 320px;
+  line-height: 1.5;
+}
+.stock-tip-embedded {
+  width: 100%;
+  text-align: left;
+  background: var(--theme-gray-50);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.stock-tip-embedded h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.stock-tip-embedded p {
+  font-size: 10px;
+  color: var(--muted);
+  margin: 0 0 8px;
+  line-height: 1.4;
+  max-width: none;
+}
+.stock-tip-embedded ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stock-selected-spotlight {
+  background: var(--theme-gray-50);
+  border: 1px solid var(--green);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.spotlight-header {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.spotlight-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.spotlight-title small {
+  font-size: 9px;
+  color: var(--green);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.spotlight-title strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+.spotlight-variant {
+  font-size: 11px;
+  color: var(--muted);
+}
+.spotlight-stock {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.spotlight-stock small {
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.spotlight-stock strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+.spotlight-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.stock-no-match {
+  margin: 0 0 14px;
+  padding: 24px 16px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.stock-no-match p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.mt-12 {
+  margin-top: 14px;
+}
+.product-tile:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.customer-row {
+  cursor: default;
+}

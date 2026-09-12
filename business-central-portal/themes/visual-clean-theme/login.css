@@ -1,0 +1,100 @@
+/*
+ * Visual Clean - Login & Authentication Screen
+ * --------------------------------------------
+ * Rich sapphire brand gradient, radiant live status badge, frosted glass
+ * metrics, clean white form card, and tactile action CTA.
+ */
+
+[data-theme="visual-clean-theme"] .login-page {
+  background: #f4f6fb;
+}
+
+[data-theme="visual-clean-theme"] .login-story {
+  background:
+    radial-gradient(circle at 78% 18%, rgb(255 255 255 / 22%), transparent 34%),
+    radial-gradient(circle at 20% 80%, rgb(6 182 212 / 28%), transparent 40%),
+    linear-gradient(140deg, #1e3a8a 0%, #2563eb 55%, #0284c7 100%);
+  color: #ffffff;
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / 10%);
+}
+
+[data-theme="visual-clean-theme"] .login-story .brand-mark {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+  border: 1px solid rgb(255 255 255 / 40%);
+  box-shadow: 0 8px 20px -4px rgb(15 23 42 / 30%);
+}
+
+[data-theme="visual-clean-theme"] .login-story .story-pill {
+  background: rgb(255 255 255 / 15%);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgb(255 255 255 / 25%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 10%);
+}
+
+[data-theme="visual-clean-theme"] .login-story .story-pill i,
+[data-theme="visual-clean-theme"] .login-story .live-dot {
+  background: #10b981;
+  box-shadow: 0 0 10px #34d399, 0 0 0 3px rgb(16 185 129 / 30%);
+}
+
+[data-theme="visual-clean-theme"] .login-story .story-metric {
+  background: rgb(255 255 255 / 12%);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 12%);
+}
+
+[data-theme="visual-clean-theme"] .login-story .story-metric strong {
+  color: #ffffff;
+}
+
+[data-theme="visual-clean-theme"] .login-story .story-metric span {
+  color: #cbd5e1;
+}
+
+[data-theme="visual-clean-theme"] .login-panel {
+  background: #f4f6fb;
+}
+
+[data-theme="visual-clean-theme"] .login-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow:
+    0 10px 30px -5px rgb(15 23 42 / 6%),
+    0 4px 12px -2px rgb(15 23 42 / 3%);
+}
+
+[data-theme="visual-clean-theme"] .login-form input {
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+[data-theme="visual-clean-theme"] .login-form input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 18%);
+}
+
+[data-theme="visual-clean-theme"] .login-form .button-primary,
+[data-theme="visual-clean-theme"] .login-form button[type="submit"] {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  border: 1px solid #1e40af;
+  color: #ffffff;
+  box-shadow:
+    0 4px 14px -2px rgb(37 99 235 / 45%),
+    0 2px 4px rgb(37 99 235 / 20%);
+  border-radius: 10px;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+[data-theme="visual-clean-theme"] .login-form .button-primary:hover,
+[data-theme="visual-clean-theme"] .login-form button[type="submit"]:hover {
+  background: linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%);
+  box-shadow: 0 6px 18px -2px rgb(37 99 235 / 55%);
+  transform: translateY(-1px);
+}

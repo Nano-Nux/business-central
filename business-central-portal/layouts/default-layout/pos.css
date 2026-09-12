@@ -1,0 +1,16 @@
+/*
+ * Default Layout - Standard POS
+ * -----------------------------
+ * Balanced 2-column register layout with comfortable product tiles.
+ */
+
+[data-layout="default-layout"] .pos-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(390px, 430px);
+}
+
+[data-layout="default-layout"] .product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 11px;
+}
