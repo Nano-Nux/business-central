@@ -79,6 +79,12 @@ canvas {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .topbar-lang-button {
+    height: 28px;
+    padding: 0 8px;
+    gap: 4px;
+    font-size: 10px;
+  }
   .sync-status-menu {
     position: fixed;
     top: 54px;

@@ -214,8 +214,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<AuthValue>(() => {
-    const permissions = new Set(session?.user.roles.flatMap((role) => role.permission_codes) ?? []);
-    const codes = session?.user.roles.map((role) => role.code.toUpperCase()) ?? [];
+    const permissions = new Set(session?.user?.roles?.flatMap((role) => role.permission_codes ?? []) ?? []);
+    const codes = session?.user?.roles?.map((role) => role.code?.toUpperCase() ?? "") ?? [];
     const isMerchant = codes.some((role) => role === "OWNER" || role === "MERCHANT");
     const merchantScope = session?.user?.merchant_id
       ? `${session.user.merchant_id}:${session.user.membership_id}`

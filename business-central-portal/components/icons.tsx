@@ -30,9 +30,30 @@ export type IconName =
   | "eye-off"
   | "chevron"
   | "package"
-  | "palette";
+  | "palette"
+  | "book"
+  | "help"
+  | "globe";
 
 const paths: Record<IconName, React.ReactNode> = {
+  book: (
+    <>
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+      <path d="M6 6h10M6 10h10" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
+    </>
+  ),
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20" />
+    </>
+  ),
   palette: (
     <>
       <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />

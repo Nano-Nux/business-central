@@ -17,8 +17,10 @@ import {
   useListPagination,
 } from "./ui";
 import { Icon } from "./icons";
+import { useTranslation } from "@/lib/i18n";
 
 export function BrandsPage() {
+  const { t } = useTranslation();
   const brands = useResource<Brand>("/catalog/brands?page_index=0&page_size=200");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("ALL");
@@ -88,9 +90,9 @@ export function BrandsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Catalog"
-        title="Brands"
-        description="Manage the brands available when creating products."
+        eyebrow={t("nav.catalog", "Catalog")}
+        title={t("catalog.brand_label", "Brands")}
+        description={t("common.description", "Manage the brands available when creating products.")}
         action={
           <Button
             icon="plus"
@@ -100,7 +102,7 @@ export function BrandsPage() {
               setOpen(true);
             }}
           >
-            New brand
+            {t("common.add", "New brand")}
           </Button>
         }
       />
@@ -108,7 +110,7 @@ export function BrandsPage() {
       <ListControls
         search={query}
         onSearchChange={setQuery}
-        searchPlaceholder="Search brands"
+        searchPlaceholder={t("common.search", "Search brands")}
         filter={filter}
         onFilterChange={setFilter}
         filterLabel="Filter brands"
@@ -206,10 +208,10 @@ export function BrandsPage() {
           {error && <div className="form-error">{error}</div>}
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button type="submit" disabled={busy}>
-              {busy ? "Saving…" : "Save brand"}
+              {busy ? t("common.loading", "Saving…") : t("common.save", "Save brand")}
             </Button>
           </div>
         </Form>

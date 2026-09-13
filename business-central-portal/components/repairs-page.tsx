@@ -18,6 +18,7 @@ import {
   statusTone,
   useListPagination,
 } from "./ui";
+import { useTranslation } from "@/lib/i18n";
 import { patch, post } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import { useShop } from "@/lib/shop";
@@ -1369,6 +1370,7 @@ function TicketDetails({
 }
 
 export function RepairsPage() {
+  const { t } = useTranslation();
   const offline = useOffline();
   const { currentShop } = useShop();
   const { merchant, isMerchant } = useAuth();
@@ -2063,20 +2065,20 @@ export function RepairsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Service"
-        title="Repair desk"
+        eyebrow={t("repairs.eyebrow")}
+        title={t("repairs.repair_desk_title")}
         description={
           offline.status === "offline"
-            ? "Repair tickets, diagnostics, stock use, images and cash payments are saved on this device and synchronized when connected."
-            : "Track devices, consume repair parts from shop stock, and prepare service invoices."
+            ? t("repairs.repair_desk_desc")
+            : t("repairs.description")
         }
         action={
           <div className="repair-desk-actions">
             <Button icon="repair" onClick={() => setOpen(true)}>
-              {offline.status === "offline" ? "Save repair ticket" : "Create repair ticket"}
+              {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
             </Button>
             <Link className="button button-secondary" href="/repairs/catalog">
-              Repair catalog
+              {t("nav.repairs")}
             </Link>
           </div>
         }
@@ -2085,22 +2087,22 @@ export function RepairsPage() {
       <ListControls
         search={repairQuery}
         onSearchChange={setRepairQuery}
-        searchPlaceholder="Search ticket, customer, device or issue"
+        searchPlaceholder={t("common.search_placeholder")}
         filter={repairFilter}
         onFilterChange={setRepairFilter}
-        filterLabel="Filter repair tickets"
+        filterLabel={t("common.filter")}
         filterOptions={[
-          { value: "ALL", label: "All statuses" },
+          { value: "ALL", label: t("common.all") },
           ...statuses.map((status) => ({ value: status, label: statusLabels[status] })),
         ]}
         sort={repairSort}
         onSortChange={setRepairSort}
-        sortLabel="Sort repair tickets"
+        sortLabel={t("common.actions")}
         sortOptions={[
           { value: "NEWEST", label: "Newest first" },
           { value: "OLDEST", label: "Oldest first" },
-          { value: "CUSTOMER", label: "Customer A–Z" },
-          { value: "TICKET", label: "Ticket number" },
+          { value: "CUSTOMER", label: `${t("invoices.customer")} A–Z` },
+          { value: "TICKET", label: t("repairs.ticket_id") },
         ]}
       />
       <div className="repair-summary">
@@ -2108,21 +2110,21 @@ export function RepairsPage() {
           <span className="stat-icon blue">
             <Icon name="repair" />
           </span>
-          <p>Received</p>
+          <p>{t("repairs.status_received")}</p>
           <strong>{repairs.data.filter((item) => item.status === "RECEIVED").length}</strong>
         </div>
         <div>
           <span className="stat-icon amber">
             <Icon name="history" />
           </span>
-          <p>In progress</p>
+          <p>{t("repairs.status_in_progress")}</p>
           <strong>{repairs.data.filter((item) => item.status === "IN_PROGRESS").length}</strong>
         </div>
         <div>
           <span className="stat-icon amber">
             <Icon name="package" />
           </span>
-          <p>Ready for pickup</p>
+          <p>{t("repairs.status_repaired")}</p>
           <strong>
             {repairs.data.filter((item) => item.status === "READY_FOR_PICKUP").length}
           </strong>
@@ -2131,14 +2133,14 @@ export function RepairsPage() {
           <span className="stat-icon mint">
             <Icon name="check" />
           </span>
-          <p>Completed</p>
+          <p>{t("repairs.status_delivered")}</p>
           <strong>{repairs.data.filter((item) => item.status === "COMPLETED").length}</strong>
         </div>
         <div>
           <span className="stat-icon red">
             <Icon name="close" />
           </span>
-          <p>Refund</p>
+          <p>{t("invoices.refunded")}</p>
           <strong>{repairs.data.filter((item) => item.status === "REFUNDED").length}</strong>
         </div>
       </div>
@@ -2150,11 +2152,11 @@ export function RepairsPage() {
         ) : visibleRepairs.length === 0 ? (
           <EmptyState
             icon="repair"
-            title="No repair tickets"
-            message="Create a ticket when a customer brings in a device."
+            title={t("repairs.title")}
+            message={t("repairs.description")}
             action={
               <Button icon="repair" onClick={() => setOpen(true)}>
-                {offline.status === "offline" ? "Save repair ticket" : "Create ticket"}
+                {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
               </Button>
             }
           />
@@ -2162,11 +2164,11 @@ export function RepairsPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Ticket</th>
-                <th>Issue</th>
-                <th>Received</th>
-                <th>Waiting until</th>
-                <th>Status</th>
+                <th>{t("repairs.ticket_id")}</th>
+                <th>{t("repairs.reported_issue")}</th>
+                <th>{t("repairs.status_received")}</th>
+                <th>{t("repairs.waiting_time")}</th>
+                <th>{t("common.status")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -3042,10 +3044,10 @@ export function RepairsPage() {
           {error && <div className="form-error">{error}</div>}
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit">
-              {offline.status === "offline" ? "Save repair draft" : "Create ticket"}
+              {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
             </Button>
           </div>
         </Form>
@@ -3061,13 +3063,13 @@ export function RepairsPage() {
         </div>
         <div className="modal-actions no-print">
           <Button variant="secondary" icon="printer" onClick={() => window.print()}>
-            Print preview
+            {t("common.print")}
           </Button>
           <Button variant="secondary" onClick={() => downloadInvoicePDF(repairInvoice)}>
-            Download PDF
+            {t("repairs.download_pdf")}
           </Button>
           <Button icon="printer" onClick={thermalPrintPreview} disabled={thermalPreviewBusy}>
-            {thermalPreviewBusy ? "Printing…" : "Thermal print"}
+            {thermalPreviewBusy ? t("common.loading") : t("repairs.thermal_print")}
           </Button>
         </div>
         {thermalPreviewMessage && <div className="notice no-print">{thermalPreviewMessage}</div>}

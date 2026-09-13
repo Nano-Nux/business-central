@@ -54,6 +54,7 @@ const workspaceRoutes = [
   "/promotions",
   "/accounts",
   "/settings",
+  "/guide",
   "/settings/application",
   "/settings/merchant",
   "/settings/printer",
@@ -374,4 +375,3 @@ test.describe("tablet interactions", () => {
     });
   }
 });
-

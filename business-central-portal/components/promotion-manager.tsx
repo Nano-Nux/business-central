@@ -21,6 +21,7 @@ import type { Product, Promotion, Variant } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import { useOffline } from "@/lib/offline";
 import { formatMoney } from "@/lib/currency";
+import { useTranslation } from "@/lib/i18n";
 import {
   queuePromotionCodeCreate,
   queuePromotionCodeDelete,

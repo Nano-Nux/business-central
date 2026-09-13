@@ -22,9 +22,11 @@ import {
   Pagination,
   useListPagination,
 } from "./ui";
+import { useTranslation } from "@/lib/i18n";
 
 export function CategoriesPage() {
   const offline = useOffline();
+  const { t } = useTranslation();
   const categories = useResource<Category>("/catalog/categories?page_index=0&page_size=200");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("ALL");
@@ -141,9 +143,9 @@ export function CategoriesPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Catalog"
-        title="Categories"
-        description="Organize products into a simple, searchable hierarchy."
+        eyebrow={t("nav.catalog", "Catalog")}
+        title={t("catalog.category_label", "Categories")}
+        description={t("common.description", "Organize products into a simple, searchable hierarchy.")}
         action={
           <Button
             icon="plus"
@@ -153,7 +155,7 @@ export function CategoriesPage() {
               setOpen(true);
             }}
           >
-            New category
+            {t("common.add", "New category")}
           </Button>
         }
       />
@@ -164,7 +166,7 @@ export function CategoriesPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search categories…"
+            placeholder={t("common.search_placeholder", "Search categories…")}
           />
         </div>
         <select
@@ -320,10 +322,10 @@ export function CategoriesPage() {
           {error && <div className="form-error">{error}</div>}
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button type="submit" disabled={busy}>
-              {busy ? "Saving…" : "Save category"}
+              {busy ? t("common.loading", "Saving…") : t("common.save", "Save category")}
             </Button>
           </div>
         </Form>

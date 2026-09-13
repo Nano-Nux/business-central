@@ -15,6 +15,7 @@ import {
   Pagination,
   useListPagination,
 } from "./ui";
+import { useTranslation } from "@/lib/i18n";
 import { patch, post, remove } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import { useOffline } from "@/lib/offline";
@@ -77,6 +78,7 @@ function categoryTreeRows(categories: Category[]) {
 
 export function ProductsPage() {
   const offline = useOffline();
+  const { t } = useTranslation();
   const { data, loading, error, reload } = useResource<Product>(
     "/catalog/products?page_index=0&page_size=100",
   );
@@ -120,13 +122,11 @@ export function ProductsPage() {
     };
     try {
       if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
-        throw new Error("Offline storage is required to save product metadata while disconnected.");
+        throw new Error("Offline storage is required to save products while disconnected.");
       }
-      if (!editing && offline.scope && offline.storageAvailable) {
-        await queueProductCreate(offline.scope, body);
-        if (navigator.onLine) await offline.syncNow();
-      } else if (editing && offline.scope && offline.storageAvailable) {
-        await queueProductMetadataUpdate(offline.scope, editing, body);
+      if (offline.scope && offline.storageAvailable) {
+        if (editing) await queueProductMetadataUpdate(offline.scope, editing, body);
+        else await queueProductCreate(offline.scope, body);
         if (navigator.onLine) await offline.syncNow();
       } else if (editing) await patch(`/catalog/products/${editing.id}`, body);
       else await post("/catalog/products", body);
@@ -138,28 +138,30 @@ export function ProductsPage() {
       setBusy(false);
     }
   }
-  async function destroy(item: Product) {
-    if (!confirm(`Delete ${item.name}?`)) return;
-    if (offline.scope && offline.storageAvailable) {
-      await queueProductDelete(offline.scope, item);
-      if (navigator.onLine) await offline.syncNow();
-    } else if (offline.status === "offline") {
-      setFormError("Offline storage is required to remove a product while disconnected.");
-      return;
-    } else {
-      await remove(`/catalog/products/${item.id}`);
+  async function destroy(product: Product) {
+    if (!confirm(`Delete ${product.name}?`)) return;
+    try {
+      if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
+        throw new Error("Offline storage is required to remove products while disconnected.");
+      }
+      if (offline.scope && offline.storageAvailable) {
+        await queueProductDelete(offline.scope, product);
+        if (navigator.onLine) await offline.syncNow();
+      } else await remove(`/catalog/products/${product.id}`);
+      await reload();
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message : "Unable to remove product.");
     }
-    await reload();
   }
   return (
     <>
       <PageHeader
-        eyebrow="Catalog"
-        title="Products"
-        description="Create products first, then add sellable variants and SKUs."
+        eyebrow={t("nav.catalog", "Catalog")}
+        title={t("catalog.title", "Products")}
+        description={t("catalog.description", "Create products first, then add sellable variants and SKUs.")}
         action={
           <Button icon="plus" onClick={() => launch()} disabled={offline.status === "offline"}>
-            New product
+            {t("catalog.add_product", "New product")}
           </Button>
         }
       />
@@ -169,13 +171,13 @@ export function ProductsPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search products…"
+            placeholder={t("common.search_placeholder", "Search products…")}
           />
         </div>
         <select className="filter-select">
-          <option>All products</option>
-          <option>Active</option>
-          <option>Inactive</option>
+          <option>{t("common.all", "All products")}</option>
+          <option>{t("common.active", "Active")}</option>
+          <option>{t("common.inactive", "Inactive")}</option>
         </select>
       </div>
       <div className="table-card">
@@ -185,11 +187,11 @@ export function ProductsPage() {
           <EmptyState title="Products could not load" message={error} />
         ) : visible.length === 0 ? (
           <EmptyState
-            title="No products yet"
-            message="Add your first product to start selling and tracking stock."
+            title={t("catalog.no_products", "No products yet")}
+            message={t("catalog.no_products_desc", "Add your first product to start selling and tracking stock.")}
             action={
               <Button icon="plus" onClick={() => launch()} disabled={offline.status === "offline"}>
-                Add product
+                {t("catalog.add_product", "Add product")}
               </Button>
             }
           />
@@ -197,10 +199,10 @@ export function ProductsPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Product</th>
-                <th>Type</th>
-                <th>Categories</th>
-                <th>Status</th>
+                <th>{t("catalog.product_name", "Product")}</th>
+                <th>{t("common.details", "Type")}</th>
+                <th>{t("catalog.category_label", "Categories")}</th>
+                <th>{t("common.status", "Status")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -376,6 +378,7 @@ export function ProductsPage() {
 
 export function UnitsPage() {
   const offline = useOffline();
+  const { t } = useTranslation();
   const { data, loading, error, reload } = useResource<Unit>("/units?page_index=0&page_size=100");
   const [query, setQuery] = useState("");
   const [unitFilter, setUnitFilter] = useState("ALL");
@@ -460,16 +463,16 @@ export function UnitsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Catalog"
-        title="Units"
-        description="Define how products are counted, measured and sold."
+        eyebrow={t("nav.catalog", "Catalog")}
+        title={t("common.unit", "Units")}
+        description={t("common.description", "Define how products are counted, measured and sold.")}
         action={
           <Button
             icon="plus"
             disabled={offline.status === "offline" && !offline.storageAvailable}
             onClick={() => launch()}
           >
-            New unit
+            {t("common.add", "New unit")}
           </Button>
         }
       />
@@ -619,9 +622,9 @@ export function UnitsPage() {
           <ErrorNotice message={formError} />
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
-            <Button type="submit">Save unit</Button>
+            <Button type="submit">{t("common.save", "Save unit")}</Button>
           </div>
         </Form>
       </Modal>
@@ -631,6 +634,7 @@ export function UnitsPage() {
 
 export function ConversionsPage() {
   const offline = useOffline();
+  const { t } = useTranslation();
   const units = useResource<Unit>("/units?page_index=0&page_size=100");
   const conversions = useResource<Conversion>("/unit-conversions?page_index=0&page_size=100");
   const [conversionQuery, setConversionQuery] = useState("");
@@ -719,9 +723,9 @@ export function ConversionsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Catalog"
-        title="Unit conversions"
-        description="Connect purchasing packs to the base units you stock and sell."
+        eyebrow={t("nav.catalog", "Catalog")}
+        title={t("nav.variant_attributes", "Unit conversions")}
+        description={t("common.description", "Connect purchasing packs to the base units you stock and sell.")}
         action={
           <Button
             icon="plus"
@@ -731,7 +735,7 @@ export function ConversionsPage() {
               setOpen(true);
             }}
           >
-            New conversion
+            {t("common.add", "New conversion")}
           </Button>
         }
       />
@@ -873,9 +877,9 @@ export function ConversionsPage() {
           <ErrorNotice message={formError} />
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
-            <Button type="submit">Save conversion</Button>
+            <Button type="submit">{t("common.save", "Save conversion")}</Button>
           </div>
         </Form>
       </Modal>

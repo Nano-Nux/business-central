@@ -555,7 +555,7 @@ export function MovementDetailPage({ id }: { id: string }) {
         </section>
       )}
 
-      {detail.cost_allocations.length > 0 && (
+      {(detail.cost_allocations?.length ?? 0) > 0 && (
         <section>
           <h2 className="section-title">FIFO cost allocations</h2>
           <div className="table-card transaction-detail-table">

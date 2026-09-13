@@ -20,8 +20,10 @@ import {
   Pagination,
   useListPagination,
 } from "./ui";
+import { useTranslation } from "@/lib/i18n";
 
 export function CustomersPage() {
+  const { t } = useTranslation();
   const { isMerchant } = useAuth();
   const customers = useResource<Customer>("/customers?page_index=0&page_size=500");
   const [query, setQuery] = useState("");
@@ -57,31 +59,31 @@ export function CustomersPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Customers"
-        title="Customers"
-        description="Customer records captured from sales and repair tickets."
+        eyebrow={t("customers.eyebrow")}
+        title={t("customers.title")}
+        description={t("customers.description")}
       />
       <ListControls
         search={query}
         onSearchChange={setQuery}
-        searchPlaceholder="Search customers or phone"
+        searchPlaceholder={t("common.search_placeholder")}
         filter={filter}
         onFilterChange={setFilter}
-        filterLabel="Filter customers"
+        filterLabel={t("common.filter")}
         filterOptions={[
-          { value: "ALL", label: "All customers" },
-          { value: "WITH_SALES", label: "With sales" },
-          { value: "WITH_REPAIRS", label: "With repairs" },
-          { value: "NO_ACTIVITY", label: "No activity" },
+          { value: "ALL", label: t("customers.all_customers") },
+          { value: "WITH_SALES", label: t("customers.with_sales") },
+          { value: "WITH_REPAIRS", label: t("customers.with_repairs") },
+          { value: "NO_ACTIVITY", label: t("customers.no_activity") },
         ]}
         sort={sort}
         onSortChange={setSort}
-        sortLabel="Sort customers"
+        sortLabel={t("common.actions")}
         sortOptions={[
-          { value: "NAME_ASC", label: "Name A–Z" },
-          { value: "NAME_DESC", label: "Name Z–A" },
-          { value: "SALES_DESC", label: "Most sales" },
-          { value: "REPAIRS_DESC", label: "Most repairs" },
+          { value: "NAME_ASC", label: `${t("common.name")} A–Z` },
+          { value: "NAME_DESC", label: `${t("common.name")} Z–A` },
+          { value: "SALES_DESC", label: t("customers.most_sales") },
+          { value: "REPAIRS_DESC", label: t("customers.most_repairs") },
         ]}
       />
       <div className="table-card">
@@ -90,22 +92,22 @@ export function CustomersPage() {
         ) : visible.length === 0 ? (
           <EmptyState
             icon="users"
-            title="No customers found"
+            title={t("customers.no_customers_found")}
             message={
               query || filter !== "ALL"
                 ? "No customer matches the current controls."
-                : "Customers appear automatically when a name and phone are entered at checkout or repair intake."
+                : t("customers.no_customers_desc")
             }
           />
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Customer</th>
-                <th>Phone</th>
-                <th>Sales</th>
-                <th>Repairs</th>
-                <th>Access</th>
+                <th>{t("invoices.customer")}</th>
+                <th>{t("common.phone")}</th>
+                <th>{t("invoices.sales_invoices")}</th>
+                <th>{t("invoices.repair_invoices")}</th>
+                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -120,7 +122,7 @@ export function CustomersPage() {
                   <td>
                     {isMerchant ? (
                       <Link className="text-link" href={`/customers/${item.id}/edit`}>
-                        Edit
+                        {t("common.edit")}
                       </Link>
                     ) : (
                       <Badge tone="neutral">View only</Badge>
@@ -137,7 +139,7 @@ export function CustomersPage() {
         pageSize={pagination.pageSize}
         totalItems={pagination.totalItems}
         totalPages={pagination.totalPages}
-        itemLabel="customers"
+        itemLabel={t("customers.title")}
         onPageChange={pagination.setPageIndex}
       />
     </>
@@ -145,6 +147,7 @@ export function CustomersPage() {
 }
 
 export function DeliveriesPage() {
+  const { t } = useTranslation();
   const { currentShop } = useShop();
   const { isMerchant } = useAuth();
   const offline = useOffline();
@@ -223,51 +226,49 @@ export function DeliveriesPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Operations"
-        title="Deliveries"
-        description="Manage delivery options for the active shop."
+        eyebrow={t("deliveries.eyebrow")}
+        title={t("deliveries.title")}
+        description={t("deliveries.description")}
       />
       <Form className="card form-grid" onSubmit={save}>
-        <Field label="Delivery name">
+        <Field label={t("deliveries.delivery_name")}>
           <input
             required
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Courier or delivery service"
+            placeholder={t("deliveries.delivery_name")}
           />
         </Field>
-        <Field label="Delivery contact info">
+        <Field label={t("deliveries.delivery_contact")}>
           <input
             required
             value={contact}
             onChange={(event) => setContact(event.target.value)}
-            placeholder="Phone, URL or instructions"
+            placeholder={t("deliveries.delivery_contact")}
           />
         </Field>
         <div className="wide form-inline-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "10px", flexWrap: "wrap" }}>
-          <Button type="submit" icon="plus">Save delivery</Button>
+          <Button type="submit" icon="plus">{t("deliveries.save_delivery")}</Button>
           {message && <p className="notice" style={{ margin: 0 }}>{message}</p>}
         </div>
       </Form>
       <ListControls
         search={query}
         onSearchChange={setQuery}
-        searchPlaceholder="Search delivery options"
+        searchPlaceholder={t("common.search_placeholder")}
         filter={filter}
         onFilterChange={setFilter}
-        filterLabel="Filter deliveries"
+        filterLabel={t("common.filter")}
         filterOptions={[
-          { value: "ALL", label: "All deliveries" },
-          { value: "WITH_CONTACT", label: "With contact info" },
-          { value: "WITHOUT_CONTACT", label: "Missing contact info" },
+          { value: "ALL", label: t("common.all") },
+          { value: "WITH_CONTACT", label: t("deliveries.delivery_contact") },
         ]}
         sort={sort}
         onSortChange={setSort}
-        sortLabel="Sort deliveries"
+        sortLabel={t("common.actions")}
         sortOptions={[
-          { value: "NAME_ASC", label: "Name A–Z" },
-          { value: "NAME_DESC", label: "Name Z–A" },
-          { value: "CONTACT_ASC", label: "Contact A–Z" },
+          { value: "NAME_ASC", label: `${t("common.name")} A–Z` },
+          { value: "NAME_DESC", label: `${t("common.name")} Z–A` },
         ]}
       />
       <div className="table-card">
@@ -276,15 +277,15 @@ export function DeliveriesPage() {
         ) : visible.length === 0 ? (
           <EmptyState
             icon="package"
-            title="No deliveries found"
+            title={t("deliveries.title")}
             message="No delivery option matches the current controls."
           />
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Contact info</th>
+                <th>{t("common.name")}</th>
+                <th>{t("deliveries.delivery_contact")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -299,13 +300,13 @@ export function DeliveriesPage() {
                     {isMerchant && (
                       <>
                         <Link className="text-link" href={`/deliveries/${item.id}/edit`}>
-                          Edit
+                          {t("common.edit")}
                         </Link>
                         {" · "}
                       </>
                     )}
                     <button className="text-link" onClick={() => void deleteDelivery(item)}>
-                      Remove
+                      {t("common.remove")}
                     </button>
                   </td>
                 </tr>
@@ -319,7 +320,7 @@ export function DeliveriesPage() {
         pageSize={pagination.pageSize}
         totalItems={pagination.totalItems}
         totalPages={pagination.totalPages}
-        itemLabel="delivery options"
+        itemLabel={t("deliveries.title")}
         onPageChange={pagination.setPageIndex}
       />
     </>

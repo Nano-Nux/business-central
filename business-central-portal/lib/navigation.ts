@@ -77,7 +77,7 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
       { href: "/deliveries", label: "Deliveries", icon: "package", permission: "tenant.write" },
       {
         href: "/repairs",
-        label: "Repairs",
+        label: "Repair",
         icon: "repair",
         permission: "tenant.write",
       },
@@ -142,6 +142,11 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
         href: "/settings",
         label: "Settings",
         icon: "settings",
+      },
+      {
+        href: "/guide",
+        label: "Quick guide",
+        icon: "book",
       },
     ],
   },
@@ -258,4 +263,54 @@ export function formatPosModeName(posComplexityLevel?: string): {
         badge: "pos-simple",
       };
   }
+}
+
+export function getLocalizedNavLabel(
+  href: string,
+  fallback: string,
+  t?: (key: string, fallback: string) => string,
+): string {
+  if (!t) return fallback;
+  const map: Record<string, string> = {
+    "/dashboard": "nav.today",
+    "/merchant/dashboard": "nav.today",
+    "/staff/dashboard": "nav.today",
+    "/pos": "nav.pos",
+    "/catalog": "nav.catalog",
+    "/catalog/attributes": "nav.variant_attributes",
+    "/storage": "nav.storage",
+    "/stock-in": "nav.stock_in",
+    "/stock-assets": "nav.stock_barcodes",
+    "/stock-movements": "nav.stock_history",
+    "/transaction-history": "nav.transaction_history",
+    "/customers": "nav.customers",
+    "/deliveries": "nav.deliveries",
+    "/repairs": "nav.repairs",
+    "/repairs/catalog": "nav.repair_catalog",
+    "/repairs/issue-presets": "nav.issue_presets",
+    "/repairs/condition-presets": "nav.condition_presets",
+    "/invoices": "nav.invoices",
+    "/reports": "nav.reports",
+    "/promotions": "nav.promotions",
+    "/accounts": "nav.staff_accounts",
+    "/settings": "nav.settings",
+    "/guide": "nav.guide",
+  };
+  const key = map[href];
+  return key ? t(key, fallback) : fallback;
+}
+
+export function getLocalizedGroupLabel(
+  label: string,
+  t?: (key: string, fallback: string) => string,
+): string {
+  if (!t) return label;
+  const map: Record<string, string> = {
+    Overview: "nav.overview",
+    Operations: "nav.operations",
+    Insights: "nav.insights",
+    Manage: "nav.manage",
+  };
+  const key = map[label];
+  return key ? t(key, label) : label;
 }

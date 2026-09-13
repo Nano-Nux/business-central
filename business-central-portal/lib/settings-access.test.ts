@@ -33,13 +33,17 @@ describe("settings navigation and route access rules", () => {
     };
   }
 
-  it("permits staff to access main settings, printer, and theme subsettings", () => {
+  it("permits staff to access main settings, printer, theme, and language subsettings", () => {
     expect(evaluateRouteAccess("/settings", false)).toEqual({ allowed: true, redirect: null });
     expect(evaluateRouteAccess("/settings/printer", false)).toEqual({
       allowed: true,
       redirect: null,
     });
     expect(evaluateRouteAccess("/settings/theme", false)).toEqual({
+      allowed: true,
+      redirect: null,
+    });
+    expect(evaluateRouteAccess("/settings/language", false)).toEqual({
       allowed: true,
       redirect: null,
     });
@@ -94,6 +98,10 @@ describe("settings navigation and route access rules", () => {
       redirect: null,
     });
     expect(evaluateRouteAccess("/settings/theme", true)).toEqual({
+      allowed: true,
+      redirect: null,
+    });
+    expect(evaluateRouteAccess("/settings/language", true)).toEqual({
       allowed: true,
       redirect: null,
     });

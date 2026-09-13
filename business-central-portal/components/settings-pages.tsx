@@ -49,18 +49,21 @@ import {
   setCachedMerchantCustomThemes,
 } from "@/lib/theme-storage";
 
+import { useTranslation } from "@/lib/i18n";
+
 export function SettingsPage() {
   const { isMerchant } = useAuth();
+  const { t } = useTranslation();
 
   return (
     <>
       <PageHeader
-        eyebrow="Workspace"
-        title="Settings"
+        eyebrow={t("settings.language.eyebrow", "Settings")}
+        title={t("settings.page_title", "Settings")}
         description={
           isMerchant
-            ? "Manage your business details and how invoices are printed."
-            : "Manage thermal printer connection and receipt printing preferences for your workstation."
+            ? t("settings.page_description_merchant", "Manage your business details, language preferences, and how invoices are printed.")
+            : t("settings.page_description_staff", "Manage workspace language, thermal printer connection, and receipt printing preferences for your workstation.")
         }
       />
       <div className="settings-grid">
@@ -70,8 +73,8 @@ export function SettingsPage() {
               <Icon name="receipt" />
             </span>
             <div>
-              <h2>Payment types</h2>
-              <p>Merchant-wide Cash, Online, and future Digital payment choices.</p>
+              <h2>{t("settings.cards.payment_types.title", "Payment types")}</h2>
+              <p>{t("settings.cards.payment_types.description", "Merchant-wide Cash, Online, and future Digital payment choices.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -82,8 +85,8 @@ export function SettingsPage() {
               <Icon name="store" />
             </span>
             <div>
-              <h2>Merchant & shops</h2>
-              <p>Business identity, contact details, shops and operating timezone.</p>
+              <h2>{t("settings.cards.merchant_shops.title", "Merchant & shops")}</h2>
+              <p>{t("settings.cards.merchant_shops.description", "Business identity, contact details, shops and operating timezone.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -93,8 +96,8 @@ export function SettingsPage() {
             <Icon name="printer" />
           </span>
           <div>
-            <h2>Printer</h2>
-            <p>Bluetooth permission, device connection, image proof and font sizing.</p>
+            <h2>{t("settings.cards.printer.title", "Printer")}</h2>
+            <p>{t("settings.cards.printer.description", "Bluetooth permission, device connection, image proof and font sizing.")}</p>
           </div>
           <Icon name="arrow" />
         </Link>
@@ -103,8 +106,18 @@ export function SettingsPage() {
             <Icon name="palette" />
           </span>
           <div>
-            <h2>Theme</h2>
-            <p>Visual theme appearance and interface styling preferences.</p>
+            <h2>{t("settings.cards.theme.title", "Theme")}</h2>
+            <p>{t("settings.cards.theme.description", "Visual theme appearance and interface styling preferences.")}</p>
+          </div>
+          <Icon name="arrow" />
+        </Link>
+        <Link href="/settings/language" className="settings-card">
+          <span className="stat-icon blue">
+            <Icon name="globe" />
+          </span>
+          <div>
+            <h2>{t("settings.cards.language.title", "Language setting")}</h2>
+            <p>{t("settings.cards.language.description", "Choose workspace language: English, Myanmar, or Thai.")}</p>
           </div>
           <Icon name="arrow" />
         </Link>
@@ -114,8 +127,8 @@ export function SettingsPage() {
               <Icon name="settings" />
             </span>
             <div>
-              <h2>Application</h2>
-              <p>Startup behavior, confirmations and operational display preferences.</p>
+              <h2>{t("settings.cards.application.title", "Application")}</h2>
+              <p>{t("settings.cards.application.description", "Startup behavior, confirmations and operational display preferences.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -126,8 +139,8 @@ export function SettingsPage() {
               <Icon name="receipt" />
             </span>
             <div>
-              <h2>Tax & receipt notes</h2>
-              <p>Receipt wording, tax display and customer-facing notes.</p>
+              <h2>{t("settings.cards.tax_notes.title", "Tax & receipt notes")}</h2>
+              <p>{t("settings.cards.tax_notes.description", "Receipt wording, tax display and customer-facing notes.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -138,8 +151,8 @@ export function SettingsPage() {
               <Icon name="repair" />
             </span>
             <div>
-              <h2>Repair specifications</h2>
-              <p>Fault presets and repair intake defaults.</p>
+              <h2>{t("settings.cards.repair_specs.title", "Repair specifications")}</h2>
+              <p>{t("settings.cards.repair_specs.description", "Fault presets and repair intake defaults.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
