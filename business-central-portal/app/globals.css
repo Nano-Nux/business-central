@@ -3,7 +3,39 @@
 /* Color Themes */
 @import "../themes/default-theme/index.css";
 @import "../themes/visual-clean-theme/index.css";
+@import "../themes/nordic-calm-theme/index.css";
+@import "../themes/emerald-luxe-theme/index.css";
+@import "../themes/sunset-coral-theme/index.css";
+@import "../themes/ocean-teal-theme/index.css";
+@import "../themes/midnight-dark-theme/index.css";
+@import "../themes/synthwave-neon-theme/index.css";
+@import "../themes/espresso-dark-theme/index.css";
+@import "../themes/high-contrast-theme/index.css";
+@import "../themes/ruby-crimson-theme/index.css";
+@import "../themes/amber-honey-theme/index.css";
+@import "../themes/citrus-gold-theme/index.css";
+@import "../themes/lime-zest-theme/index.css";
+@import "../themes/glacier-cyan-theme/index.css";
+@import "../themes/royal-indigo-theme/index.css";
+@import "../themes/amethyst-purple-theme/index.css";
+@import "../themes/fuchsia-rose-theme/index.css";
+@import "../themes/copper-patina-theme/index.css";
+@import "../themes/lavender-dusk-theme/index.css";
+@import "../themes/clay-terracotta-theme/index.css";
+@import "../themes/matcha-pistachio-theme/index.css";
+@import "../themes/sandstone-dune-theme/index.css";
+@import "../themes/plum-wine-theme/index.css";
+@import "../themes/slate-steel-theme/index.css";
+@import "../themes/aurora-borealis-theme/index.css";
+@import "../themes/charcoal-gold-theme/index.css";
+@import "../themes/neo-mint-theme/index.css";
+@import "../themes/custom-color-theme/index.css";
 
 /* Workspace Layouts */
 @import "../layouts/default-layout/index.css";
 @import "../layouts/compact-layout/index.css";
+@import "../layouts/modern-executive-layout/index.css";
+
+/* Universal Theme-Aligned Scrollbars */
+@import "./scrollbar.css";
+

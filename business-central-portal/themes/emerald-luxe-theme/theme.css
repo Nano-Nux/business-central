@@ -1,0 +1,106 @@
+/*
+ * Imperial Emerald & Champagne Gold Theme Controls
+ * ------------------------------------------------
+ * A luxurious, botanical palette with deep pine green brand actions,
+ * champagne gold highlights, subtle jade accents, and ivory white card surfaces.
+ */
+:root[data-theme="emerald-luxe-theme"],
+[data-theme="emerald-luxe-theme"] {
+  --theme-black: #064e3b;
+  --theme-gray-950: #064e3b;
+  --theme-gray-900: #043d2e;
+  --theme-gray-800: #0f5132;
+  --theme-gray-700: #1b6348;
+  --theme-gray-600: #347d5e;
+  --theme-gray-500: #529878;
+  --theme-gray-400: #88be9f;
+  --theme-gray-300: #b5dac5;
+  --theme-gray-200: #d1e7dd;
+  --theme-gray-100: #e8f5ed;
+  --theme-gray-50: #f4faf6;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 6 78 59;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens with regal botanical and gold tones */
+  --status-success: #059669;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #dc2626;
+  --status-danger-soft: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #4d7c67;
+  --status-neutral-soft: #f0fdf4;
+  --status-neutral-border: #bbf7d0;
+  --status-conflict: #9333ea;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 6 78 59;
+
+  --ink: #064e3b;
+  --muted: #4d7c67;
+  --line: #d1e7dd;
+  --paper: #ffffff;
+  --canvas: #f4faf6;
+  --green: #065f46;
+  --green-dark: #044332;
+  --green-soft: #d1fae5;
+  --amber: #d97706;
+  --red: #dc2626;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(6 78 59 / 7%), 0 2px 6px -1px rgb(6 78 59 / 4%);
+  --border: #d1e7dd;
+  --card: #ffffff;
+  --mint: #d1fae5;
+  --text: #064e3b;
+  --surface: #ffffff;
+  --surface-muted: #e8f5ed;
+  --accent: #d97706;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #065f46;
+  --color-brand-hover: #044332;
+  --color-brand-soft: #d1fae5;
+  --color-brand-border: #a7f3d0;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #dc2626;
+  --color-rose-soft: #fef2f2;
+  --color-rose-border: #fecaca;
+  --color-purple: #9333ea;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0f766e;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="emerald-luxe-theme"] .button-primary {
+  background: #065f46;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(6 95 70 / 25%);
+}
+
+[data-theme="emerald-luxe-theme"] .button-primary:hover {
+  background: #044332;
+}
+
+[data-theme="emerald-luxe-theme"] .topbar {
+  background: rgb(244 250 246 / 92%);
+}

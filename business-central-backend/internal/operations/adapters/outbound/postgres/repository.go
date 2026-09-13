@@ -388,7 +388,7 @@ func (s *Service) ListStorage(ctx context.Context, c *authdto.Claims) ([]Storage
 		UNION ALL SELECT child.id,child.merchant_id,parent.path || ' → ' || child.name FROM catalog_categories child JOIN category_paths parent ON parent.merchant_id=child.merchant_id AND parent.id=child.parent_category_id
 	), catalog AS (SELECT pc.product_id,string_agg(DISTINCT cp.path,' / ' ORDER BY cp.path) AS path FROM catalog_product_categories pc JOIN category_paths cp ON cp.merchant_id=pc.merchant_id AND cp.id=pc.category_id GROUP BY pc.product_id)
 	SELECT v.id,COALESCE(catalog.path,''),p.name,v.name,COALESCE(b.name,''),COALESCE(u.symbol,u.name,v.unit_of_measure),COALESCE((SELECT sum(ib.quantity_on_hand) FROM inventory_balances ib JOIN locations stock_location ON stock_location.merchant_id=ib.merchant_id AND stock_location.id=ib.location_id WHERE ib.merchant_id=v.merchant_id AND ib.variant_id=v.id AND (membership_scope.shop_id IS NULL OR stock_location.shop_id=membership_scope.shop_id)),0)::text,
-		COALESCE(price.amount::text,''),CASE WHEN financial_access.allowed THEN COALESCE(cost.amount::text,'') ELSE '' END,CASE WHEN financial_access.allowed AND price.amount IS NOT NULL AND cost.amount IS NOT NULL THEN (price.amount-cost.amount)::text ELSE '' END,p.expired_date,p.manufacture_date
+		COALESCE(price.amount::text,''),CASE WHEN financial_access.allowed THEN COALESCE(cost.amount::text,v.original_price::text,'') ELSE '' END,CASE WHEN financial_access.allowed AND price.amount IS NOT NULL AND COALESCE(cost.amount,v.original_price) IS NOT NULL THEN (price.amount-COALESCE(cost.amount,v.original_price))::text ELSE '' END,p.expired_date,p.manufacture_date
 	FROM product_variants v JOIN products p ON p.merchant_id=v.merchant_id AND p.id=v.product_id LEFT JOIN catalog_brands b ON b.merchant_id=p.merchant_id AND b.id=p.brand_id LEFT JOIN unit_definitions u ON u.merchant_id=v.merchant_id AND u.id=v.base_unit_id LEFT JOIN catalog ON catalog.product_id=p.id CROSS JOIN membership_scope
 	LEFT JOIN LATERAL (SELECT pp.amount FROM product_prices pp JOIN price_lists pl ON pl.merchant_id=pp.merchant_id AND pl.id=pp.price_list_id WHERE pp.merchant_id=v.merchant_id AND pp.variant_id=v.id AND pl.code='RETAIL' AND pp.valid_from<=now() AND (pp.valid_until IS NULL OR pp.valid_until>=now()) ORDER BY pp.valid_from DESC LIMIT 1) price ON true
 	LEFT JOIN LATERAL (SELECT CASE WHEN sum(cl.quantity_remaining)>0 THEN sum(cl.quantity_remaining*cl.unit_cost)/sum(cl.quantity_remaining) END AS amount FROM inventory_cost_layers cl JOIN locations cost_location ON cost_location.merchant_id=cl.merchant_id AND cost_location.id=cl.location_id WHERE cl.merchant_id=v.merchant_id AND cl.variant_id=v.id AND cl.quantity_remaining>0 AND (membership_scope.shop_id IS NULL OR cost_location.shop_id=membership_scope.shop_id)) cost ON true
@@ -1012,9 +1012,14 @@ func (s *Service) StockIn(ctx context.Context, c *authdto.Claims, r StockInReque
 			ORDER BY occurred_at DESC, created_at DESC, id DESC
 			LIMIT 1`, c.MerchantID, r.VariantID).Scan(&r.UnitCost)
 		if errors.Is(e, pgx.ErrNoRows) {
-			return Movement{}, app.Validation("unit_cost is required for the first stock-in of this product variant.", map[string]any{"unit_cost": "Enter the original price for the first stock-in."})
-		}
-		if e != nil {
+			var origCost *string
+			_ = tx.QueryRow(ctx, `SELECT original_price::text FROM product_variants WHERE merchant_id=$1::uuid AND id=$2::uuid`, c.MerchantID, r.VariantID).Scan(&origCost)
+			if origCost != nil && *origCost != "" {
+				r.UnitCost = *origCost
+			} else {
+				return Movement{}, app.Validation("unit_cost is required for the first stock-in of this product variant.", map[string]any{"unit_cost": "Enter the original price for the first stock-in."})
+			}
+		} else if e != nil {
 			return Movement{}, e
 		}
 	}

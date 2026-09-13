@@ -1,0 +1,106 @@
+/*
+ * Slate Steel Theme Controls
+ * --------------------------
+ * A cool industrial aesthetic featuring battleship slate, brushed nickel,
+ * and high-durability cold steel accents for rugged precision.
+ */
+:root[data-theme="slate-steel-theme"],
+[data-theme="slate-steel-theme"] {
+  --theme-black: #0f172a;
+  --theme-gray-950: #0f172a;
+  --theme-gray-900: #1e293b;
+  --theme-gray-800: #334155;
+  --theme-gray-700: #475569;
+  --theme-gray-600: #64748b;
+  --theme-gray-500: #94a3b8;
+  --theme-gray-400: #cbd5e1;
+  --theme-gray-300: #e2e8f0;
+  --theme-gray-200: #f1f5f9;
+  --theme-gray-100: #f8fafc;
+  --theme-gray-50: #ffffff;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 15 23 42;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #0f766e;
+  --status-success-soft: #f0fdfa;
+  --status-success-border: #ccfbf1;
+  --status-warning: #b45309;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #b91c1c;
+  --status-danger-soft: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-info: #0369a1;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #475569;
+  --status-neutral-soft: #f1f5f9;
+  --status-neutral-border: #cbd5e1;
+  --status-conflict: #6366f1;
+  --status-conflict-soft: #eef2ff;
+  --status-conflict-border: #c7d2fe;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 15 23 42;
+
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --paper: #ffffff;
+  --canvas: #f8fafc;
+  --green: #1e293b;
+  --green-dark: #0f172a;
+  --green-soft: #f1f5f9;
+  --amber: #475569;
+  --red: #b91c1c;
+  --blue: #334155;
+  --shadow: 0 4px 20px -2px rgb(15 23 42 / 8%), 0 2px 6px -1px rgb(15 23 42 / 4%);
+  --border: #cbd5e1;
+  --card: #ffffff;
+  --mint: #f8fafc;
+  --text: #0f172a;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --accent: #475569;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #1e293b;
+  --color-brand-hover: #0f172a;
+  --color-brand-soft: #f1f5f9;
+  --color-brand-border: #cbd5e1;
+  --color-emerald: #0f766e;
+  --color-emerald-soft: #f0fdfa;
+  --color-emerald-border: #ccfbf1;
+  --color-amber: #b45309;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #b91c1c;
+  --color-rose-soft: #fef2f2;
+  --color-rose-border: #fecaca;
+  --color-purple: #6366f1;
+  --color-purple-soft: #eef2ff;
+  --color-purple-border: #c7d2fe;
+  --color-teal: #334155;
+  --color-teal-soft: #f1f5f9;
+  --color-teal-border: #cbd5e1;
+}
+
+[data-theme="slate-steel-theme"] .button-primary {
+  background: #1e293b;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(30 41 59 / 25%);
+}
+
+[data-theme="slate-steel-theme"] .button-primary:hover {
+  background: #0f172a;
+}
+
+[data-theme="slate-steel-theme"] .topbar {
+  background: rgb(248 250 252 / 92%);
+}

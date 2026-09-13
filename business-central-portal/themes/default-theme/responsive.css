@@ -39,6 +39,23 @@ canvas {
   max-width: 100%;
 }
 
+@media (max-width: 1024px) {
+  .menu-button,
+  .icon-button.menu-button {
+    display: grid;
+  }
+  .sidebar .sidebar-close {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    display: grid;
+    z-index: 10;
+  }
+  .sidebar > .brand {
+    padding-right: 40px;
+  }
+}
+
 @media (max-width: 800px) {
   .content {
     width: 100%;
@@ -88,7 +105,7 @@ canvas {
     top: 12px;
     right: 10px;
     display: grid;
-    z-index: 1;
+    z-index: 10;
   }
   .sidebar > .brand {
     padding-right: 40px;
@@ -390,4 +407,90 @@ canvas {
   padding: 4px 10px;
   font-size: 0.8125rem;
   line-height: 1.2;
+}
+
+/* Repair Presets Responsiveness */
+@media (max-width: 860px) {
+  .preset-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .preset-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .preset-type-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .preset-tab-link {
+    justify-content: center;
+    padding: 10px 12px;
+  }
+  .preset-templates-card .preset-template-chips {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+    margin-right: -10px;
+    scrollbar-width: thin;
+  }
+  .preset-templates-card .preset-chip-btn {
+    flex-shrink: 0;
+    width: auto;
+    white-space: nowrap;
+  }
+  .preset-card-bottom {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .preset-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .preset-action-btn {
+    min-height: 42px;
+    justify-content: center;
+  }
+  .preset-mobile-fab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: fixed;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    right: max(16px, env(safe-area-inset-right));
+    z-index: 60;
+    box-shadow: 0 6px 20px rgb(var(--theme-black-rgb) / 0.3);
+    border-radius: 99px;
+    padding: 12px 20px;
+    background: var(--green);
+    color: var(--theme-white);
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      transform 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .preset-mobile-fab:active {
+    transform: scale(0.96);
+  }
+  .modal {
+    padding-bottom: max(32px, calc(16px + env(safe-area-inset-bottom)));
+  }
+}
+
+@media (max-width: 440px) {
+  .preset-card-actions {
+    grid-template-columns: 1fr;
+  }
+  .preset-grid {
+    grid-template-columns: 1fr;
+  }
 }

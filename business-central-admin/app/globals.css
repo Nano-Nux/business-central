@@ -22,3 +22,41 @@ form { display:grid; gap:17px; margin-top:28px; } label { display:grid; gap:7px;
 .data-list { display:grid; margin-top:22px; } .data-row { display:flex; align-items:center; gap:11px; padding:14px 4px; border-top:1px solid #edf1ee; } .data-info { min-width:0; flex:1; } .data-info strong,.data-info small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .data-info strong { font-size:12px; } .data-info small { margin-top:4px; color:var(--muted); font-size:10px; } .currency-symbol,.role-icon,.shop-icon { display:grid; place-items:center; flex:0 0 auto; width:36px; height:36px; border-radius:9px; background:var(--mint); color:var(--green); font-size:11px; font-weight:800; }
 .neutral { margin-left:5px; color:#64736b; background:#eef2ef; } .dropdown { position:relative; } .dropdown summary { min-height:43px; padding:12px 38px 12px 13px; border:1px solid #d8e2db; border-radius:9px; background:#fff; color:var(--ink); font-weight:400; list-style:none; cursor:pointer; } .dropdown summary::-webkit-details-marker { display:none; } .dropdown summary::after { position:absolute; top:13px; right:14px; content:"⌄"; color:#738078; } .dropdown-menu { position:absolute; z-index:5; top:calc(100% + 5px); left:0; right:0; display:grid; max-height:240px; overflow:auto; padding:7px; border:1px solid #d8e2db; border-radius:9px; background:#fff; box-shadow:0 16px 40px #17221d1c; } .check-option { display:flex; grid-template-columns:none; align-items:flex-start; gap:9px; padding:9px; border-radius:7px; cursor:pointer; } .check-option:hover { background:#f2f8f4; } .check-option input { width:auto; margin:2px 0 0; padding:0; } .check-option span { min-width:0; } .check-option strong,.check-option small { display:block; } .check-option small { margin-top:3px; color:var(--muted); font-weight:400; line-height:1.35; }
 @media (max-width:900px) { .sidebar { flex-basis:190px; width:190px; } .content { padding:32px 24px; } .workspace { grid-template-columns:1fr; } } @media (max-width:620px) { .app-shell { display:block; } .sidebar { width:100%; min-height:auto; padding:16px 20px; border-right:0; border-bottom:1px solid var(--line); } .side-label { margin:18px 0 10px; } nav { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; } .nav-button { flex:0 0 auto; width:auto; white-space:nowrap; } .side-bottom { display:flex; align-items:center; gap:14px; margin-top:14px; } .admin-chip { flex:1; min-width:0; padding:12px 0 0; } .link-button { flex:0 0 auto; } .content { padding:28px 16px; } .topbar { align-items:stretch; margin-bottom:26px; } .topbar > button { width:100%; } .status { margin-top:15px; } .stats { grid-template-columns:1fr; gap:10px; } .stats article { padding:16px; } .stats article strong { margin:5px 0 3px; } .workspace { gap:12px; } .panel { padding:17px; } .panel-heading { flex-wrap:wrap; } .compact-field { width:100%; min-width:0; } .user-row { flex-wrap:wrap; } .user-info { min-width:calc(100% - 55px); } .admin-actions { grid-template-columns:1fr; } .modal-backdrop { align-items:start; padding:12px; } .modal { max-height:calc(100dvh - 24px); padding:20px; } }
+
+/* Universal Theme-Aligned Scrollbars */
+:root {
+  --scrollbar-size: 7px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: #d8e2db;
+  --scrollbar-thumb-hover: #718078;
+  --scrollbar-thumb-active: var(--green);
+}
+html, body, * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+  border: 1px solid transparent;
+}
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+

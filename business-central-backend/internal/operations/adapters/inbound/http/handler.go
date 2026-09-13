@@ -58,6 +58,11 @@ func (h *Handler) RegisterRoutes(r fiber.Router) {
 	r.Get("/inventory/receivable-lines", h.listReceivableLines)
 	r.Post("/inventory/stock-in", h.stockIn)
 	r.Post("/inventory/stock-checkout", h.stockOut)
+	r.Get("/custom-themes", h.listCustomThemes)
+	r.Get("/custom-themes/:id", h.getCustomTheme)
+	r.Post("/custom-themes", h.createCustomTheme)
+	r.Patch("/custom-themes/:id", h.updateCustomTheme)
+	r.Delete("/custom-themes/:id", h.deleteCustomTheme)
 }
 
 func (h *Handler) listPaymentTypeCategories(c fiber.Ctx) error {
@@ -590,6 +595,17 @@ func (h *Handler) requirePermission(c fiber.Ctx, permission string) error {
 	}
 	if !allowed {
 		return app.NewError("FORBIDDEN", "You do not have permission to perform this action.", 403)
+	}
+	return nil
+}
+
+func (h *Handler) requireMerchant(c fiber.Ctx) error {
+	allowed, err := h.Authorization.HasAnyRole(c.Context(), claims(c), "owner", "merchant")
+	if err != nil {
+		return app.Internal(err)
+	}
+	if !allowed {
+		return app.NewError("FORBIDDEN", "Only the merchant owner can manage custom themes.", 403)
 	}
 	return nil
 }

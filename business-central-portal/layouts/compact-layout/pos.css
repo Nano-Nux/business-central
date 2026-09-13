@@ -1,34 +1,256 @@
 /*
  * Compact Layout - High-Density POS Register
  * ------------------------------------------
- * Dense, scan-first product grid and compact cart spacing to fit
- * more items onto smaller screens and registers without excessive scrolling.
+ * Dense, scan-first product grid across Desktop, Tablet, and Mobile.
+ * Full-width and full-height edge-to-edge layout without container margins.
  */
 
-[data-layout="compact-layout"] .pos-page {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 390px);
+/* ==========================================================================
+   0. Global POS Container Reset for Compact Layout
+   ========================================================================== */
+[data-layout="compact-layout"] .content:has(.pos-page),
+[data-layout="compact-layout"] .content.content-pos {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  width: 100% !important;
+  flex: 1 1 0% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
-[data-layout="compact-layout"] .product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 8px;
+[data-layout="compact-layout"] .main-area:has(.pos-page),
+[data-layout="compact-layout"] .main-area.main-area-pos {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-[data-layout="compact-layout"] .product-tile-main {
-  min-height: 94px;
-  padding: 8px;
+/* ==========================================================================
+   1. Desktop Viewport (>= 1025px)
+   ========================================================================== */
+@media (min-width: 1025px) {
+  [data-layout="compact-layout"] .pos-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+    gap: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  [data-layout="compact-layout"] .pos-catalog {
+    padding: 16px 20px;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    min-width: 0;
+  }
+
+  [data-layout="compact-layout"] .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
+  [data-layout="compact-layout"] .product-tile-main {
+    min-height: 90px;
+    padding: 8px;
+  }
+
+  [data-layout="compact-layout"] .cart-panel {
+    border-left: 1px solid var(--line);
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    position: static;
+    top: auto;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  [data-layout="compact-layout"] .cart-panel-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    overflow: hidden;
+  }
+
+  [data-layout="compact-layout"] .cart-head {
+    flex: 0 0 auto;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  [data-layout="compact-layout"] .customer-row {
+    flex: 0 0 auto;
+  }
+
+  [data-layout="compact-layout"] .cart-lines {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 12px;
+  }
+
+  [data-layout="compact-layout"] .cart-line {
+    padding: 8px 0;
+  }
+
+  [data-layout="compact-layout"] .cart-totals {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--line);
+  }
 }
 
-[data-layout="compact-layout"] .cart-head {
-  padding: 16px 18px 12px;
+/* ==========================================================================
+   2. Tablet Viewport (641px - 1024px)
+   ========================================================================== */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [data-layout="compact-layout"] .pos-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 310px;
+    gap: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  [data-layout="compact-layout"] .pos-catalog {
+    padding: 14px 16px;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    min-width: 0;
+  }
+
+  [data-layout="compact-layout"] .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 7px;
+  }
+
+  [data-layout="compact-layout"] .product-tile-main {
+    min-height: 84px;
+    padding: 7px;
+  }
+
+  [data-layout="compact-layout"] .cart-panel {
+    border-left: 1px solid var(--line);
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    position: static;
+    top: auto;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  [data-layout="compact-layout"] .cart-panel-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    overflow: hidden;
+  }
+
+  [data-layout="compact-layout"] .cart-head {
+    flex: 0 0 auto;
+    padding: 12px 14px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  [data-layout="compact-layout"] .customer-row {
+    flex: 0 0 auto;
+  }
+
+  [data-layout="compact-layout"] .cart-lines {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2px 10px;
+  }
+
+  [data-layout="compact-layout"] .cart-line {
+    padding: 7px 0;
+  }
+
+  [data-layout="compact-layout"] .cart-totals {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--line);
+  }
 }
 
-[data-layout="compact-layout"] .cart-lines {
-  padding: 4px 14px;
-}
+/* ==========================================================================
+   3. Mobile Viewport (<= 640px)
+   ========================================================================== */
+@media (max-width: 640px) {
+  [data-layout="compact-layout"] .content:has(.pos-page),
+  [data-layout="compact-layout"] .content.content-pos {
+    padding: 0 !important;
+    overflow-y: auto !important;
+  }
 
-[data-layout="compact-layout"] .cart-line {
-  padding: 10px 0;
+  [data-layout="compact-layout"] .pos-page {
+    display: block;
+    min-height: calc(100vh - 54px);
+    width: 100%;
+  }
+
+  [data-layout="compact-layout"] .pos-catalog {
+    padding: 10px 8px 140px;
+  }
+
+  [data-layout="compact-layout"] .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 6px;
+  }
+
+  [data-layout="compact-layout"] .product-tile-main {
+    min-height: 78px;
+    padding: 6px;
+  }
+
+  [data-layout="compact-layout"] .product-tile-title {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  [data-layout="compact-layout"] .product-tile-price {
+    font-size: 11px;
+    margin-top: 2px;
+  }
 }

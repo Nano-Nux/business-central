@@ -1,16 +1,223 @@
 /*
- * Default Layout - Standard POS
- * -----------------------------
- * Balanced 2-column register layout with comfortable product tiles.
+ * Default Layout - Standard Spacious POS Register
+ * -----------------------------------------------
+ * Full-width and full-height edge-to-edge register on Desktop and Tablet;
+ * fluid vertical stack with bottom sheet on Mobile.
  */
 
-[data-layout="default-layout"] .pos-page {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(390px, 430px);
+/* ==========================================================================
+   0. Global POS Container Reset for Default Layout
+   ========================================================================== */
+[data-layout="default-layout"] .content:has(.pos-page),
+[data-layout="default-layout"] .content.content-pos {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  width: 100% !important;
+  flex: 1 1 0% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
-[data-layout="default-layout"] .product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
-  gap: 11px;
+[data-layout="default-layout"] .main-area:has(.pos-page),
+[data-layout="default-layout"] .main-area.main-area-pos {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   1. Desktop Viewport (>= 1025px) - Edge-to-Edge 2-Column Register
+   ========================================================================== */
+@media (min-width: 1025px) {
+  [data-layout="default-layout"] .pos-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(390px, 440px);
+    gap: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  [data-layout="default-layout"] .pos-catalog {
+    padding: 24px clamp(20px, 2.5vw, 36px);
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    min-width: 0;
+  }
+
+  [data-layout="default-layout"] .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+    gap: 12px;
+  }
+
+  [data-layout="default-layout"] .cart-panel {
+    border-left: 1px solid var(--line);
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    position: static;
+    top: auto;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  [data-layout="default-layout"] .cart-panel-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    overflow: hidden;
+  }
+
+  [data-layout="default-layout"] .cart-head {
+    flex: 0 0 auto;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  [data-layout="default-layout"] .customer-row {
+    flex: 0 0 auto;
+  }
+
+  [data-layout="default-layout"] .cart-lines {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px 20px;
+  }
+
+  [data-layout="default-layout"] .cart-totals {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* ==========================================================================
+   2. Tablet Viewport (641px - 1024px)
+   ========================================================================== */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [data-layout="default-layout"] .pos-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 350px;
+    gap: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  [data-layout="default-layout"] .pos-catalog {
+    padding: 18px 20px;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    min-width: 0;
+  }
+
+  [data-layout="default-layout"] .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+    gap: 10px;
+  }
+
+  [data-layout="default-layout"] .cart-panel {
+    border-left: 1px solid var(--line);
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    position: static;
+    top: auto;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  [data-layout="default-layout"] .cart-panel-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    overflow: hidden;
+  }
+
+  [data-layout="default-layout"] .cart-head {
+    flex: 0 0 auto;
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  [data-layout="default-layout"] .customer-row {
+    flex: 0 0 auto;
+  }
+
+  [data-layout="default-layout"] .cart-lines {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px 16px;
+  }
+
+  [data-layout="default-layout"] .cart-totals {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding: 14px 18px 18px;
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* ==========================================================================
+   3. Mobile Viewport (<= 640px)
+   ========================================================================== */
+@media (max-width: 640px) {
+  [data-layout="default-layout"] .content:has(.pos-page),
+  [data-layout="default-layout"] .content.content-pos {
+    padding: 0 !important;
+    overflow-y: auto !important;
+  }
+
+  [data-layout="default-layout"] .pos-page {
+    display: block;
+    min-height: calc(100vh - 62px);
+    width: 100%;
+  }
+
+  [data-layout="default-layout"] .pos-catalog {
+    padding: 14px 12px 160px;
+  }
+
+  [data-layout="default-layout"] .product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
 }

@@ -36,7 +36,7 @@ type UserForm = {
   merchant_slug: string;
   default_currency_code: string;
   merchant_country_code: string;
-  pos_complexity_level: "SIMPLE" | "COMPLEX";
+  pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
 };
 const emptyForm: UserForm = {
   display_name: "",
@@ -597,6 +597,10 @@ export default function UsersPage() {
                 <label className="pos-complexity-option">
                   <input type="radio" name="pos_complexity_level" value="COMPLEX" checked={form.pos_complexity_level === "COMPLEX"} onChange={() => setForm({ ...form, pos_complexity_level: "COMPLEX" })} />
                   <span><strong>POS complex</strong><small>Keep separate variants, SKUs, units, and prices.</small></span>
+                </label>
+                <label className="pos-complexity-option">
+                  <input type="radio" name="pos_complexity_level" value="MINI" checked={form.pos_complexity_level === "MINI"} onChange={() => setForm({ ...form, pos_complexity_level: "MINI" })} />
+                  <span><strong>POS mini</strong><small>Simplified catalog: auto-unit, direct cost &amp; selling price, streamlined repairs.</small></span>
                 </label>
               </fieldset>
             )}

@@ -186,5 +186,3 @@ func autoCreateRepairPresets(ctx context.Context, tx pgx.Tx, merchantID, shopID 
 	}
 	return nil
 }
-
-

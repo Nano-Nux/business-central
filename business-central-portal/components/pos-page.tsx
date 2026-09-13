@@ -44,7 +44,8 @@ export function PosPage() {
   const router = useRouter();
   const { currentShop } = useShop();
   const { merchant } = useAuth();
-  const simple = merchant?.pos_complexity_level === "SIMPLE";
+  const simple =
+    merchant?.pos_complexity_level === "SIMPLE" || merchant?.pos_complexity_level === "MINI";
   const offline = useOffline();
   const catalog = useResource<SaleItem>(
     `/pos/catalog?page_index=0&page_size=200${currentShop ? `&shop_id=${encodeURIComponent(currentShop.id)}` : ""}`,

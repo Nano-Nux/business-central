@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { PendingOfflineChangesError, useAuth } from "@/lib/auth";
-import { Icon, type IconName } from "./icons";
+import { Icon } from "./icons";
 import { BrandIcon } from "./brand-icon";
 import { Loading } from "./ui";
 import { useShop } from "@/lib/shop";
@@ -13,152 +13,12 @@ import { SyncStatusPanel } from "./sync-status-panel";
 import { formatShopAddress } from "@/lib/shop-address";
 import { resolveMediaURL } from "@/lib/media-url";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: IconName;
-  permission?: string;
-  merchantOnly?: boolean;
-};
-type NavGroup = { label: string; items: NavItem[] };
-
-const navigation: NavGroup[] = [
-  {
-    label: "Overview",
-    items: [
-      { href: "/dashboard", label: "Today", icon: "home" },
-      {
-        href: "/pos",
-        label: "Point of sale",
-        icon: "cart",
-        permission: "tenant.write",
-      },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      {
-        href: "/catalog",
-        label: "Catalog",
-        icon: "catalog",
-        permission: "tenant.read",
-        merchantOnly: true,
-      },
-      {
-        href: "/catalog/attributes",
-        label: "Variant attributes",
-        icon: "tag",
-        permission: "tenant.write",
-        merchantOnly: true,
-      },
-      {
-        href: "/storage",
-        label: "Storage",
-        icon: "package",
-        permission: "tenant.read",
-      },
-      {
-        href: "/stock-in",
-        label: "Stock in",
-        icon: "package",
-        permission: "stock_in",
-      },
-      {
-        href: "/stock-assets",
-        label: "Stock barcodes",
-        icon: "box",
-        permission: "tenant.write",
-      },
-      {
-        href: "/stock-movements",
-        label: "Stock history",
-        icon: "history",
-        permission: "tenant.read",
-      },
-      {
-        href: "/transaction-history",
-        label: "Transaction history",
-        icon: "receipt",
-        permission: "tenant.read",
-      },
-      { href: "/customers", label: "Customers", icon: "users", permission: "tenant.read" },
-      { href: "/deliveries", label: "Deliveries", icon: "package", permission: "tenant.write" },
-      {
-        href: "/repairs",
-        label: "Repairs",
-        icon: "repair",
-        permission: "tenant.write",
-      },
-      {
-        href: "/repairs/catalog",
-        label: "Repair catalog",
-        icon: "catalog",
-        permission: "tenant.write",
-      },
-      {
-        href: "/repairs/issue-presets",
-        label: "Issue presets",
-        icon: "tag",
-        permission: "tenant.write",
-        merchantOnly: true,
-      },
-      {
-        href: "/repairs/condition-presets",
-        label: "Condition presets",
-        icon: "tag",
-        permission: "tenant.write",
-        merchantOnly: true,
-      },
-    ],
-  },
-  {
-    label: "Insights",
-    items: [
-      {
-        href: "/invoices",
-        label: "Invoices",
-        icon: "receipt",
-        permission: "tenant.read",
-      },
-      {
-        href: "/reports",
-        label: "Reports",
-        icon: "chart",
-        permission: "tenant.read",
-        merchantOnly: true,
-      },
-      {
-        href: "/promotions",
-        label: "Promotions",
-        icon: "tag",
-        permission: "tenant.write",
-        merchantOnly: true,
-      },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
-      {
-        href: "/accounts",
-        label: "Staff accounts",
-        icon: "users",
-        permission: "membership.manage",
-        merchantOnly: true,
-      },
-      {
-        href: "/settings",
-        label: "Settings",
-        icon: "settings",
-      },
-    ],
-  },
-];
+import { getFilteredNavigationGroups } from "@/lib/navigation";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const isPos = pathname === "/pos" || pathname.startsWith("/pos/");
   const { user, merchant, merchantReady, ready, isMerchant, can, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -228,30 +88,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const groups = useMemo(
     () =>
-      navigation
-        .map((group) => ({
-          ...group,
-          items: group.items
-            .filter(
-              (item) =>
-                (!item.merchantOnly || isMerchant) &&
-                (!item.permission || can(item.permission)) &&
-                (item.href !== "/catalog/attributes" ||
-                  merchant?.pos_complexity_level === "COMPLEX") &&
-                (!item.href.startsWith("/repairs") ||
-                  currentShop?.module_codes?.includes("repair")),
-            )
-            .map((item) => {
-              return item.href === "/dashboard"
-                ? {
-                    ...item,
-                    href: isMerchant ? "/merchant/dashboard" : "/staff/dashboard",
-                  }
-                : item;
-            }),
-        }))
-        .filter((group) => group.items.length),
-    [can, isMerchant, currentShop, merchant?.pos_complexity_level],
+      getFilteredNavigationGroups({
+        posComplexityLevel: merchant?.pos_complexity_level,
+        isMerchant,
+        can,
+        moduleCodes: currentShop?.module_codes,
+        mapDashboardForRole: true,
+      }),
+    [can, isMerchant, currentShop?.module_codes, merchant?.pos_complexity_level],
   );
   if (!ready || !user || !merchantReady)
     return (
@@ -396,7 +240,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Icon name="arrow" size={16} />
         </div>
       </aside>
-      <section className="main-area">
+      <section className={`main-area ${isPos ? "main-area-pos" : ""}`}>
         <header className="topbar">
           <button
             className="icon-button menu-button"
@@ -492,7 +336,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </header>
-        <main className="content">{children}</main>
+        <main className={`content ${isPos ? "content-pos" : ""}`}>{children}</main>
       </section>
     </div>
   );

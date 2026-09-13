@@ -46,6 +46,8 @@ const workspaceRoutes = [
   "/repairs",
   "/repairs/repair-id/edit",
   "/repairs/catalog",
+  "/repairs/issue-presets",
+  "/repairs/condition-presets",
   "/repairs/sync-review/operation-id",
   "/invoices",
   "/reports",
@@ -345,3 +347,31 @@ test.describe("phone interactions", () => {
     expect(box!.y + box!.height).toBeLessThanOrEqual(812);
   });
 });
+
+test.describe("tablet interactions", () => {
+  for (const { name, viewport } of [
+    { name: "iPad Mini portrait", viewport: { width: 768, height: 1024 } },
+    { name: "iPad Air portrait", viewport: { width: 820, height: 1180 } },
+    { name: "iPad Pro landscape", viewport: { width: 1024, height: 768 } },
+  ]) {
+    test(`navigation drawer remains usable on ${name}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await mockWorkspace(page);
+      await page.goto("/merchant/dashboard");
+
+      const menuBtn = page.getByRole("button", { name: "Open menu" });
+      await expect(menuBtn).toBeVisible();
+      await menuBtn.click();
+
+      const sidebar = page.locator(".sidebar");
+      await expect(sidebar).toHaveClass(/open/);
+      await expect(sidebar).toBeInViewport();
+
+      const closeBtn = page.getByRole("button", { name: "Close menu" });
+      await expect(closeBtn).toBeVisible();
+      await closeBtn.click();
+      await expect(sidebar).not.toHaveClass(/open/);
+    });
+  }
+});
+

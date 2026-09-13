@@ -52,6 +52,8 @@ export type Product = {
   category_names: string[];
   images?: CatalogImage[];
   sync_version?: number;
+  original_price?: string;
+  sell_price?: string;
 };
 
 export type CatalogImage = {
@@ -207,7 +209,7 @@ export type Merchant = {
   legal_name?: string;
   default_currency_code: string;
   country_code?: string;
-  pos_complexity_level: "SIMPLE" | "COMPLEX";
+  pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
   is_active: boolean;
 };
 export type Currency = {

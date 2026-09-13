@@ -1,0 +1,138 @@
+/*
+ * Charcoal Gold Theme Controls
+ * ----------------------------
+ * An ultra-luxurious dark executive aesthetic:
+ * matte charcoal obsidian canvas, 24K bullion gold accents,
+ * champagne gilded borders, and luminous metallic highlights.
+ */
+:root[data-theme="charcoal-gold-theme"],
+[data-theme="charcoal-gold-theme"] {
+  --theme-black: #fefce8;
+  --theme-gray-950: #ffffff;
+  --theme-gray-900: #fef9c3;
+  --theme-gray-800: #fef08a;
+  --theme-gray-700: #fde047;
+  --theme-gray-600: #eab308;
+  --theme-gray-500: #ca8a04;
+  --theme-gray-400: #a16207;
+  --theme-gray-300: #854d0e;
+  --theme-gray-200: #3f3f46;
+  --theme-gray-100: #27272a;
+  --theme-gray-50: #18181b;
+  --theme-white: #18181b;
+
+  --theme-black-rgb: 254 252 232;
+  --theme-white-rgb: 24 24 27;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #10b981;
+  --status-success-soft: #064e3b;
+  --status-success-border: #059669;
+  --status-warning: #eab308;
+  --status-warning-soft: #422006;
+  --status-warning-border: #a16207;
+  --status-danger: #f43f5e;
+  --status-danger-soft: #4c0519;
+  --status-danger-border: #be123c;
+  --status-info: #38bdf8;
+  --status-info-soft: #082f49;
+  --status-info-border: #0284c7;
+  --status-neutral: #fde047;
+  --status-neutral-soft: #3f2c00;
+  --status-neutral-border: #854d0e;
+  --status-conflict: #c084fc;
+  --status-conflict-soft: #3b0764;
+  --status-conflict-border: #7e22ce;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 0 0 0;
+
+  --ink: #fefce8;
+  --muted: #eab308;
+  --line: #3f3f46;
+  --paper: #18181b;
+  --canvas: #09090b;
+  --green: #eab308;
+  --green-dark: #ca8a04;
+  --green-soft: #27272a;
+  --amber: #eab308;
+  --red: #f43f5e;
+  --blue: #38bdf8;
+  --shadow: 0 4px 24px -2px rgb(234 179 8 / 16%), 0 2px 6px -1px rgb(0 0 0 / 50%);
+  --border: #3f3f46;
+  --card: #18181b;
+  --mint: #27272a;
+  --text: #fefce8;
+  --surface: #18181b;
+  --surface-muted: #121215;
+  --accent: #ca8a04;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #eab308;
+  --color-brand-hover: #facc15;
+  --color-brand-soft: #422006;
+  --color-brand-border: #a16207;
+  --color-emerald: #10b981;
+  --color-emerald-soft: #064e3b;
+  --color-emerald-border: #059669;
+  --color-amber: #eab308;
+  --color-amber-soft: #422006;
+  --color-amber-border: #a16207;
+  --color-rose: #f43f5e;
+  --color-rose-soft: #4c0519;
+  --color-rose-border: #be123c;
+  --color-purple: #c084fc;
+  --color-purple-soft: #3b0764;
+  --color-purple-border: #7e22ce;
+  --color-teal: #14b8a6;
+  --color-teal-soft: #042f2e;
+  --color-teal-border: #0f766e;
+}
+
+[data-theme="charcoal-gold-theme"] .button-primary {
+  background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);
+  color: #09090b;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgb(234 179 8 / 30%);
+}
+
+[data-theme="charcoal-gold-theme"] .button-primary:hover {
+  background: linear-gradient(135deg, #facc15 0%, #d97706 100%);
+}
+
+[data-theme="charcoal-gold-theme"] .topbar {
+  background: rgb(9 9 11 / 92%);
+  border-bottom-color: #27272a;
+}
+
+[data-theme="charcoal-gold-theme"] input,
+[data-theme="charcoal-gold-theme"] select,
+[data-theme="charcoal-gold-theme"] textarea {
+  background: #27272a;
+  color: #fefce8;
+  border-color: #3f3f46;
+}
+
+[data-theme="charcoal-gold-theme"] input:focus,
+[data-theme="charcoal-gold-theme"] select:focus,
+[data-theme="charcoal-gold-theme"] textarea:focus {
+  border-color: #eab308;
+  box-shadow: 0 0 0 3px rgb(234 179 8 / 25%);
+}
+
+[data-theme="charcoal-gold-theme"] table th {
+  background: #121215;
+  color: #fde047;
+  border-bottom-color: #27272a;
+}
+
+[data-theme="charcoal-gold-theme"] table td {
+  border-bottom-color: #1f1f23;
+}
+
+[data-theme="charcoal-gold-theme"] tbody tr:hover {
+  background: rgb(234 179 8 / 10%);
+}

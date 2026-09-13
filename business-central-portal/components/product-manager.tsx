@@ -18,6 +18,7 @@ import {
 } from "./ui";
 import { resolveMediaURL } from "@/lib/media-url";
 import { patch, post, remove } from "@/lib/api";
+import { formatMoney } from "@/lib/currency";
 import { useResource } from "@/lib/use-resource";
 import { useOffline } from "@/lib/offline";
 import { useAuth } from "@/lib/auth";
@@ -548,7 +549,8 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
 export function ProductManager() {
   const offline = useOffline();
   const { merchant } = useAuth();
-  const simple = merchant?.pos_complexity_level === "SIMPLE";
+  const mini = merchant?.pos_complexity_level === "MINI";
+  const simple = merchant?.pos_complexity_level === "SIMPLE" || mini;
   const products = useResource<Product>("/catalog/products?page_index=0&page_size=100");
   const categories = useResource<Category>("/catalog/categories?page_index=0&page_size=200");
   const brands = useResource<Brand>("/catalog/brands?page_index=0&page_size=200");
@@ -607,11 +609,22 @@ export function ProductManager() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
+    const originalPriceRaw = values.get("original_price");
+    const sellPriceRaw = values.get("sell_price");
+    const originalPrice =
+      originalPriceRaw !== null && String(originalPriceRaw).trim() !== ""
+        ? Number(originalPriceRaw)
+        : undefined;
+    const sellPrice =
+      sellPriceRaw !== null && String(sellPriceRaw).trim() !== ""
+        ? Number(sellPriceRaw)
+        : undefined;
+
     const body = {
       name: String(values.get("name")).trim(),
       barcode: productBarcode.trim() || undefined,
       description: String(values.get("description") || "") || undefined,
-      product_type: String(values.get("product_type")),
+      product_type: String(values.get("product_type") || (mini ? "PHYSICAL" : "")),
       manufacture_date: String(values.get("manufacture_date") || "") || undefined,
       expired_date: String(values.get("expired_date") || "") || undefined,
       brand_id: String(values.get("brand_id") || "") || undefined,
@@ -620,28 +633,41 @@ export function ProductManager() {
         simple && values.get("category_id")
           ? [String(values.get("category_id"))]
           : editing?.category_ids,
+      ...(mini
+        ? {
+            original_price: originalPrice,
+            sell_price: sellPrice,
+          }
+        : {}),
       ...(simple && !editing
         ? {
             standard_variant: {
-              base_unit_id: String(values.get("base_unit_id")),
-              attributes: Object.fromEntries(
-                attributes.data.flatMap((definition) => {
-                  const raw = String(values.get(`attribute_${definition.code}`) ?? "").trim();
-                  return raw
-                    ? [
-                        [
-                          definition.code,
-                          definition.value_type === "NUMBER"
-                            ? Number(raw)
-                            : definition.value_type === "BOOLEAN"
-                              ? raw === "true"
-                              : raw,
-                        ],
-                      ]
-                    : [];
-                }),
-              ),
+              base_unit_id: mini ? "" : String(values.get("base_unit_id")),
+              attributes: mini
+                ? {}
+                : Object.fromEntries(
+                    attributes.data.flatMap((definition) => {
+                      const raw = String(values.get(`attribute_${definition.code}`) ?? "").trim();
+                      return raw
+                        ? [
+                            [
+                              definition.code,
+                              definition.value_type === "NUMBER"
+                                ? Number(raw)
+                                : definition.value_type === "BOOLEAN"
+                                  ? raw === "true"
+                                  : raw,
+                            ],
+                          ]
+                        : [];
+                    }),
+                  ),
               is_stock_tracked: true,
+              ...(mini
+                ? {
+                    original_price: originalPrice,
+                  }
+                : {}),
             },
           }
         : {}),
@@ -714,9 +740,11 @@ export function ProductManager() {
         eyebrow="Catalog"
         title="Products"
         description={
-          simple
-            ? "Create products with one automatically managed selling and stock unit."
-            : "Manage product records and the variants that become sellable SKUs."
+          mini
+            ? "Create products with direct original and sell pricing."
+            : simple
+              ? "Create products with one automatically managed selling and stock unit."
+              : "Manage product records and the variants that become sellable SKUs."
         }
         action={
           <Button
@@ -873,9 +901,11 @@ export function ProductManager() {
             message={
               query
                 ? "No product matches this search."
-                : simple
-                  ? "Create a product, then set its price."
-                  : "Create a product, add a variant, then set its price."
+                : mini
+                  ? "Create a product to get started."
+                  : simple
+                    ? "Create a product, then set its price."
+                    : "Create a product, add a variant, then set its price."
             }
           />
         ) : (
@@ -886,7 +916,9 @@ export function ProductManager() {
                   <tr>
                     <th>Product</th>
                     <th>Classification</th>
-                    <th>Type</th>
+                    {!mini && <th>Type</th>}
+                    {mini && <th>Cost</th>}
+                    {mini && <th>Sell price</th>}
                     <th>Status</th>
                     {!simple && <th>Variants</th>}
                     <th></th>
@@ -965,19 +997,35 @@ export function ProductManager() {
                             {!brandName && !categoryName && <small className="muted">—</small>}
                           </div>
                         </td>
-                        <td>
-                          <Badge
-                            tone={
-                              item.product_type === "PHYSICAL"
-                                ? "info"
-                                : item.product_type === "SERVICE"
-                                  ? "warning"
-                                  : "neutral"
-                            }
-                          >
-                            {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
-                          </Badge>
-                        </td>
+                        {!mini && (
+                          <td>
+                            <Badge
+                              tone={
+                                item.product_type === "PHYSICAL"
+                                  ? "info"
+                                  : item.product_type === "SERVICE"
+                                    ? "warning"
+                                    : "neutral"
+                              }
+                            >
+                              {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
+                            </Badge>
+                          </td>
+                        )}
+                        {mini && (
+                          <td>
+                            {item.original_price
+                              ? formatMoney(item.original_price, merchant?.default_currency_code)
+                              : "—"}
+                          </td>
+                        )}
+                        {mini && (
+                          <td>
+                            {item.sell_price
+                              ? formatMoney(item.sell_price, merchant?.default_currency_code)
+                              : "—"}
+                          </td>
+                        )}
                         <td>
                           <Badge tone={item.is_active ? "success" : "neutral"}>
                             {item.is_active ? "Active" : "Inactive"}
@@ -1083,17 +1131,29 @@ export function ProductManager() {
                     </div>
 
                     <div className="product-mobile-card-tags">
-                      <Badge
-                        tone={
-                          item.product_type === "PHYSICAL"
-                            ? "info"
-                            : item.product_type === "SERVICE"
-                              ? "warning"
-                              : "neutral"
-                        }
-                      >
-                        {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
-                      </Badge>
+                      {!mini && (
+                        <Badge
+                          tone={
+                            item.product_type === "PHYSICAL"
+                              ? "info"
+                              : item.product_type === "SERVICE"
+                                ? "warning"
+                                : "neutral"
+                          }
+                        >
+                          {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
+                        </Badge>
+                      )}
+                      {mini && item.original_price && (
+                        <span className="product-barcode-pill" title="Cost">
+                          Cost: {formatMoney(item.original_price, merchant?.default_currency_code)}
+                        </span>
+                      )}
+                      {mini && item.sell_price && (
+                        <span className="product-barcode-pill" title="Sell price">
+                          Price: {formatMoney(item.sell_price, merchant?.default_currency_code)}
+                        </span>
+                      )}
                       {item.barcode && (
                         <span className="product-barcode-pill">
                           <Icon name="cart" size={11} />
@@ -1174,13 +1234,41 @@ export function ProductManager() {
                 placeholder="Optional product barcode"
               />
             </Field>
-            <Field label="Product type">
-              <select name="product_type" defaultValue={editing?.product_type ?? "PHYSICAL"}>
-                <option value="PHYSICAL">Physical</option>
-                <option value="DIGITAL">Digital</option>
-                <option value="SERVICE">Service</option>
-              </select>
-            </Field>
+            {mini ? (
+              <input type="hidden" name="product_type" value="PHYSICAL" />
+            ) : (
+              <Field label="Product type">
+                <select name="product_type" defaultValue={editing?.product_type ?? "PHYSICAL"}>
+                  <option value="PHYSICAL">Physical</option>
+                  <option value="DIGITAL">Digital</option>
+                  <option value="SERVICE">Service</option>
+                </select>
+              </Field>
+            )}
+            {mini && (
+              <>
+                <Field label="Original price (cost)" hint="Baseline purchase cost for this product">
+                  <input
+                    name="original_price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    defaultValue={editing?.original_price ?? ""}
+                  />
+                </Field>
+                <Field label="Sell price (retail)" hint="Selling price in standard retail price list">
+                  <input
+                    name="sell_price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    defaultValue={editing?.sell_price ?? ""}
+                  />
+                </Field>
+              </>
+            )}
             <Field label="Manufacture date (optional)">
               <input
                 name="manufacture_date"
@@ -1234,7 +1322,7 @@ export function ProductManager() {
               key={editing?.id ?? "new-product"}
               currentUrl={editing?.images?.[0]?.image_url}
             />
-            {simple && !editing && (
+            {simple && !editing && !mini && (
               <>
                 <Field label="Unit attachment">
                   <select name="base_unit_id" required defaultValue="">

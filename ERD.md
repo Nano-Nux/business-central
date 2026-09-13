@@ -76,10 +76,12 @@ nullable legacy byte payload only for compatibility with already queued mobile
 and offline synchronization records. Shop logos use the same URL/source fields
 inside the existing `shops.address` JSON snapshot.
 
-`merchants.pos_complexity_level` is `SIMPLE` or `COMPLEX`. It changes the
-merchant workflow only: SIMPLE products still use `product_variants` as the
+`merchants.pos_complexity_level` is `SIMPLE`, `COMPLEX`, or `MINI`. It changes the
+merchant workflow only: SIMPLE and MINI products still use `product_variants` as the
 canonical sellable, priced, and stock-tracked record, with exactly one standard
-variant created by the backend.
+variant created by the backend. MINI mode automates default unit creation, bundles cost
+and retail price configuration into product creation, hides standalone pricing/units,
+and organizes repair sub-pages under a unified repair hub.
 
 The ERD intentionally shows the core system of record. Channel-specific UI, shipping-provider, CRM, and vertical-service extensions can reference these aggregates without creating competing masters.
 

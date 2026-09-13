@@ -1,0 +1,138 @@
+/*
+ * Synthwave Cyber Neon Theme Controls
+ * -------------------------------------
+ * A retro-futuristic synthwave aesthetic featuring deep cosmic violet canvas,
+ * dark amethyst cards, electric purple and neon magenta brand highlights,
+ * vibrant cyan accents, and glowing night-mode telemetry.
+ */
+:root[data-theme="synthwave-neon-theme"],
+[data-theme="synthwave-neon-theme"] {
+  --theme-black: #faf5ff;
+  --theme-gray-950: #ffffff;
+  --theme-gray-900: #f5f3ff;
+  --theme-gray-800: #ede9fe;
+  --theme-gray-700: #ddd6fe;
+  --theme-gray-600: #c4b5fd;
+  --theme-gray-500: #a78bfa;
+  --theme-gray-400: #7c3aed;
+  --theme-gray-300: #5b21b6;
+  --theme-gray-200: #3b2762;
+  --theme-gray-100: #23193d;
+  --theme-gray-50: #140e25;
+  --theme-white: #1a1330;
+
+  --theme-black-rgb: 250 245 255;
+  --theme-white-rgb: 26 19 48;
+  --theme-brand-filter: none;
+
+  /* Status tokens with glowing cyber tones */
+  --status-success: #10b981;
+  --status-success-soft: #064e3b;
+  --status-success-border: #059669;
+  --status-warning: #f59e0b;
+  --status-warning-soft: #451a03;
+  --status-warning-border: #b45309;
+  --status-danger: #f43f5e;
+  --status-danger-soft: #4c0519;
+  --status-danger-border: #be123c;
+  --status-info: #06b6d4;
+  --status-info-soft: #083344;
+  --status-info-border: #0891b2;
+  --status-neutral: #c4b5fd;
+  --status-neutral-soft: #2e1065;
+  --status-neutral-border: #4c1d95;
+  --status-conflict: #ec4899;
+  --status-conflict-soft: #500724;
+  --status-conflict-border: #be185d;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 0 0 0;
+
+  --ink: #faf5ff;
+  --muted: #a78bfa;
+  --line: #3b2762;
+  --paper: #1a1330;
+  --canvas: #0c0a17;
+  --green: #a855f7;
+  --green-dark: #9333ea;
+  --green-soft: #2e1065;
+  --amber: #f59e0b;
+  --red: #f43f5e;
+  --blue: #06b6d4;
+  --shadow: 0 4px 24px -2px rgb(168 85 247 / 18%), 0 2px 6px -1px rgb(0 0 0 / 40%);
+  --border: #3b2762;
+  --card: #1a1330;
+  --mint: #2e1065;
+  --text: #faf5ff;
+  --surface: #1a1330;
+  --surface-muted: #140e25;
+  --accent: #ec4899;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #a855f7;
+  --color-brand-hover: #c084fc;
+  --color-brand-soft: #3b136f;
+  --color-brand-border: #7e22ce;
+  --color-emerald: #10b981;
+  --color-emerald-soft: #064e3b;
+  --color-emerald-border: #059669;
+  --color-amber: #f59e0b;
+  --color-amber-soft: #451a03;
+  --color-amber-border: #b45309;
+  --color-rose: #f43f5e;
+  --color-rose-soft: #4c0519;
+  --color-rose-border: #be123c;
+  --color-purple: #ec4899;
+  --color-purple-soft: #500724;
+  --color-purple-border: #be185d;
+  --color-teal: #06b6d4;
+  --color-teal-soft: #083344;
+  --color-teal-border: #0891b2;
+}
+
+[data-theme="synthwave-neon-theme"] .button-primary {
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgb(236 72 153 / 35%);
+}
+
+[data-theme="synthwave-neon-theme"] .button-primary:hover {
+  background: linear-gradient(135deg, #c084fc 0%, #f472b6 100%);
+}
+
+[data-theme="synthwave-neon-theme"] .topbar {
+  background: rgb(12 10 23 / 92%);
+  border-bottom-color: #3b2762;
+}
+
+[data-theme="synthwave-neon-theme"] input,
+[data-theme="synthwave-neon-theme"] select,
+[data-theme="synthwave-neon-theme"] textarea {
+  background: #23193d;
+  color: #faf5ff;
+  border-color: #4c337d;
+}
+
+[data-theme="synthwave-neon-theme"] input:focus,
+[data-theme="synthwave-neon-theme"] select:focus,
+[data-theme="synthwave-neon-theme"] textarea:focus {
+  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgb(236 72 153 / 30%);
+}
+
+[data-theme="synthwave-neon-theme"] table th {
+  background: #140e25;
+  color: #c4b5fd;
+  border-bottom-color: #3b2762;
+}
+
+[data-theme="synthwave-neon-theme"] table td {
+  border-bottom-color: #271a44;
+}
+
+[data-theme="synthwave-neon-theme"] tbody tr:hover {
+  background: rgb(46 16 101 / 40%);
+}

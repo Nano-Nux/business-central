@@ -367,7 +367,8 @@ function CurrentPriceLists({
 export function StockInPage() {
   const { merchant, isMerchant, can } = useAuth();
   const router = useRouter();
-  const simple = merchant?.pos_complexity_level === "SIMPLE";
+  const mini = merchant?.pos_complexity_level === "MINI";
+  const simple = merchant?.pos_complexity_level === "SIMPLE" || mini;
   const { currentShop } = useShop();
   const offline = useOffline();
 
@@ -376,16 +377,6 @@ export function StockInPage() {
       router.replace(isMerchant ? "/merchant/dashboard" : "/staff/dashboard");
     }
   }, [can, isMerchant, router]);
-
-  if (!can("stock_in")) {
-    return (
-      <EmptyState
-        icon="lock"
-        title="Access restricted"
-        message="Your account does not have permission to perform stock-in operations."
-      />
-    );
-  }
 
   const [pageIndex, setPageIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
@@ -477,7 +468,7 @@ export function StockInPage() {
         quantity: rawQuantity,
         event_key: `direct-stock-in:${crypto.randomUUID()}`,
       };
-      const unitCost = String(form.get("unit_cost") ?? "").trim();
+      const unitCost = !mini ? String(form.get("unit_cost") ?? "").trim() : "";
       if (unitCost) payload.unit_cost = unitCost;
       if (
         offline.status === "offline" &&
@@ -514,15 +505,27 @@ export function StockInPage() {
     }
   }
 
+  if (!can("stock_in")) {
+    return (
+      <EmptyState
+        icon="lock"
+        title="Access restricted"
+        message="Your account does not have permission to perform stock-in operations."
+      />
+    );
+  }
+
   return (
     <>
       <PageHeader
         eyebrow="Inventory"
         title="Stock in"
         description={
-          isMerchant
-            ? "Choose a product and enter the received quantity. The original purchase cost is optional when this product has been stocked before."
-            : "Choose a product and enter the received quantity. The latest recorded original price is reused automatically."
+          mini
+            ? "Choose a product and enter the received quantity. The original cost configured on the product is used automatically."
+            : isMerchant
+              ? "Choose a product and enter the received quantity. The original purchase cost is optional when this product has been stocked before."
+              : "Choose a product and enter the received quantity. The latest recorded original price is reused automatically."
         }
       />
 
@@ -562,9 +565,11 @@ export function StockInPage() {
                 {simple
                   ? "Only products with inventory tracking enabled are shown."
                   : "Only variants with Track inventory enabled are shown."}{" "}
-                {isMerchant
-                  ? " The cost entered here is used later to calculate profit."
-                  : " The latest recorded cost is reused later to calculate profit."}
+                {mini
+                  ? " The original cost configured on the product is used automatically."
+                  : isMerchant
+                    ? " The cost entered here is used later to calculate profit."
+                    : " The latest recorded cost is reused later to calculate profit."}
               </p>
             </div>
           </div>
@@ -758,9 +763,11 @@ export function StockInPage() {
                 <ul>
                   <li>Selling price stays in the RETAIL price list.</li>
                   <li>
-                    {isMerchant
-                      ? "Original price is the amount you paid per unit."
-                      : "The latest original price is reused automatically."}
+                    {mini
+                      ? "Original cost is configured on the product and reused automatically."
+                      : isMerchant
+                        ? "Original price is the amount you paid per unit."
+                        : "The latest original price is reused automatically."}
                   </li>
                   <li>Stock quantity updates immediately upon receipt.</li>
                 </ul>
@@ -841,7 +848,7 @@ export function StockInPage() {
                   />
                 </Field>
 
-                {isMerchant && (
+                {isMerchant && !mini && (
                   <Field
                     label="Original price per unit"
                     hint="Optional after the first stock-in; leave blank to reuse the latest cost."

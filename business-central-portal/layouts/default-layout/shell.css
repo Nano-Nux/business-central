@@ -1,8 +1,7 @@
 /*
- * Default Layout - Standard Workspace
+ * Default Layout - Spacious Workspace
  * -----------------------------------
- * Balanced, spacious layout with full-width sidebar navigation
- * and standard comfortable margins.
+ * Balanced, comfortable workspace density across Desktop, Tablet, and Mobile.
  */
 
 :root[data-layout="default-layout"],
@@ -10,16 +9,151 @@
   --sidebar-width: 250px;
 }
 
-[data-layout="default-layout"] .sidebar {
-  width: 250px;
+/* ==========================================================================
+   1. Desktop Viewport (>= 1025px)
+   ========================================================================== */
+@media (min-width: 1025px) {
+  [data-layout="default-layout"] .sidebar {
+    width: 250px;
+    transform: none;
+    padding: 25px 17px 18px;
+  }
+
+  [data-layout="default-layout"] .main-area {
+    margin-left: 250px;
+  }
+
+  [data-layout="default-layout"] .content {
+    padding: clamp(24px, 3vw, 42px);
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+
+  [data-layout="default-layout"] .topbar {
+    height: 66px;
+    padding: 0 clamp(22px, 3vw, 42px);
+  }
 }
 
-[data-layout="default-layout"] .main-area {
-  margin-left: 250px;
-}
+/* ==========================================================================
+   2. Tablet Viewport (641px - 1024px)
+   ========================================================================== */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [data-layout="default-layout"] .sidebar {
+    width: 260px;
+    transform: translateX(-105%);
+    transition: transform 0.24s ease;
+    box-shadow: 10px 0 40px rgb(var(--theme-black-rgb, 0 0 0) / 0.15);
+  }
 
-@media (max-width: 1024px) {
+  [data-layout="default-layout"] .sidebar.open {
+    transform: translateX(0);
+  }
+
+  [data-layout="default-layout"] .sidebar .sidebar-close {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    display: grid;
+    z-index: 10;
+  }
+
+  [data-layout="default-layout"] .sidebar > .brand {
+    padding-right: 40px;
+  }
+
+  [data-layout="default-layout"] .mobile-scrim.show {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgb(var(--theme-black-rgb, 0 0 0) / 0.35);
+    z-index: 39;
+  }
+
   [data-layout="default-layout"] .main-area {
     margin-left: 0;
+  }
+
+  [data-layout="default-layout"] .menu-button,
+  [data-layout="default-layout"] .icon-button.menu-button {
+    display: grid;
+  }
+
+  [data-layout="default-layout"] .content {
+    padding: 20px 22px;
+    max-width: 100%;
+  }
+
+  [data-layout="default-layout"] .topbar {
+    height: 62px;
+    padding: 0 20px;
+    gap: 12px;
+  }
+}
+
+/* ==========================================================================
+   3. Mobile Viewport (<= 640px)
+   ========================================================================== */
+@media (max-width: 640px) {
+  [data-layout="default-layout"] .sidebar {
+    width: 82vw;
+    max-width: 300px;
+    transform: translateX(-105%);
+    transition: transform 0.24s ease;
+    box-shadow: 10px 0 40px rgb(var(--theme-black-rgb, 0 0 0) / 0.18);
+  }
+
+  [data-layout="default-layout"] .sidebar.open {
+    transform: translateX(0);
+  }
+
+  [data-layout="default-layout"] .sidebar .sidebar-close {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    display: grid;
+    z-index: 10;
+  }
+
+  [data-layout="default-layout"] .sidebar > .brand {
+    padding-right: 40px;
+  }
+
+  [data-layout="default-layout"] .mobile-scrim.show {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgb(var(--theme-black-rgb, 0 0 0) / 0.35);
+    z-index: 39;
+  }
+
+  [data-layout="default-layout"] .main-area {
+    margin-left: 0;
+  }
+
+  [data-layout="default-layout"] .menu-button,
+  [data-layout="default-layout"] .icon-button.menu-button {
+    display: grid;
+  }
+
+  [data-layout="default-layout"] .content {
+    padding: 16px 14px;
+    max-width: 100%;
+  }
+
+  [data-layout="default-layout"] .topbar {
+    height: 56px;
+    padding: 0 14px;
+    gap: 10px;
+  }
+
+  [data-layout="default-layout"] .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  [data-layout="default-layout"] .page-header h1 {
+    font-size: 24px;
   }
 }

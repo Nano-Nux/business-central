@@ -47,7 +47,7 @@ export type Merchant = {
   default_currency_code: string;
   timezone: string;
   country_code?: string;
-  pos_complexity_level: "SIMPLE" | "COMPLEX";
+  pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -73,9 +73,13 @@ export class ApiError extends Error {
   }
 }
 
-const baseURL = (
+const rawBaseURL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"
 ).replace(/\/$/, "");
+
+const baseURL = rawBaseURL.endsWith("/api/v1")
+  ? rawBaseURL
+  : `${rawBaseURL}/api/v1`;
 
 async function request<T>(
   path: string,
@@ -128,7 +132,7 @@ export const updateMerchant = (
   token: string,
   merchantID: string,
   data: {
-    pos_complexity_level?: "SIMPLE" | "COMPLEX";
+    pos_complexity_level?: "SIMPLE" | "COMPLEX" | "MINI";
     default_currency_code?: string;
     name?: string;
     legal_name?: string | null;
@@ -173,7 +177,7 @@ export const createMerchantUser = (
     merchant_legal_name?: string;
     default_currency_code: string;
     merchant_country_code?: string;
-    pos_complexity_level: "SIMPLE" | "COMPLEX";
+    pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
     email: string;
     password: string;
     display_name: string;

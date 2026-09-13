@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -137,7 +138,10 @@ func (s *Service) ListProducts(ctx context.Context, claims *authdto.Claims) ([]P
 	rows, err := s.pool.Query(ctx, `WITH ctx AS (SELECT set_config('app.user_id',$2,true), set_config('app.merchant_id',$1,true)) SELECT p.id,p.merchant_id,p.brand_id,p.name,(SELECT br.code FROM barcode_registry br WHERE br.merchant_id=p.merchant_id AND br.product_id=p.id AND br.is_active ORDER BY br.is_primary DESC,br.created_at LIMIT 1),p.description,p.product_type,p.is_active,
 		COALESCE((SELECT array_agg(pc.category_id::text ORDER BY c.sort_order,c.name) FROM catalog_product_categories pc JOIN catalog_categories c ON c.merchant_id=pc.merchant_id AND c.id=pc.category_id WHERE pc.merchant_id=p.merchant_id AND pc.product_id=p.id),ARRAY[]::text[]),
 		COALESCE((SELECT array_agg(c.name ORDER BY c.sort_order,c.name) FROM catalog_product_categories pc JOIN catalog_categories c ON c.merchant_id=pc.merchant_id AND c.id=pc.category_id WHERE pc.merchant_id=p.merchant_id AND pc.product_id=p.id),ARRAY[]::text[]),
-		p.manufacture_date,p.expired_date,p.created_at,p.updated_at,COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=p.merchant_id AND entity_type='CATALOG_PRODUCT' AND entity_id=p.id),0) FROM products p CROSS JOIN ctx WHERE p.merchant_id=$1::uuid ORDER BY p.name`, claims.MerchantID, claims.IdentityID)
+		p.manufacture_date,p.expired_date,
+		(SELECT pv.original_price::text FROM product_variants pv WHERE pv.merchant_id=p.merchant_id AND pv.product_id=p.id ORDER BY pv.created_at ASC LIMIT 1),
+		(SELECT pp.amount::text FROM product_prices pp JOIN price_lists pl ON pl.merchant_id=pp.merchant_id AND pl.id=pp.price_list_id JOIN product_variants pv ON pv.merchant_id=pp.merchant_id AND pv.id=pp.variant_id WHERE pv.merchant_id=p.merchant_id AND pv.product_id=p.id AND (pl.code='RETAIL' OR pl.is_default) AND pp.valid_from<=now() AND (pp.valid_until IS NULL OR pp.valid_until>=now()) ORDER BY pl.is_default DESC, pp.valid_from DESC LIMIT 1),
+		p.created_at,p.updated_at,COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=p.merchant_id AND entity_type='CATALOG_PRODUCT' AND entity_id=p.id),0) FROM products p CROSS JOIN ctx WHERE p.merchant_id=$1::uuid ORDER BY p.name`, claims.MerchantID, claims.IdentityID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +149,7 @@ func (s *Service) ListProducts(ctx context.Context, claims *authdto.Claims) ([]P
 	out := []Product{}
 	for rows.Next() {
 		var v Product
-		if err := rows.Scan(&v.ID, &v.MerchantID, &v.BrandID, &v.Name, &v.Barcode, &v.Description, &v.ProductType, &v.IsActive, &v.CategoryIDs, &v.CategoryNames, &v.ManufactureDate, &v.ExpiredDate, &v.CreatedAt, &v.UpdatedAt, &v.SyncVersion); err != nil {
+		if err := rows.Scan(&v.ID, &v.MerchantID, &v.BrandID, &v.Name, &v.Barcode, &v.Description, &v.ProductType, &v.IsActive, &v.CategoryIDs, &v.CategoryNames, &v.ManufactureDate, &v.ExpiredDate, &v.OriginalPrice, &v.SellPrice, &v.CreatedAt, &v.UpdatedAt, &v.SyncVersion); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -222,7 +226,10 @@ func (s *Service) GetProduct(ctx context.Context, claims *authdto.Claims, id str
 	err := s.pool.QueryRow(ctx, `WITH ctx AS (SELECT set_config('app.user_id',$3,true), set_config('app.merchant_id',$1,true)) SELECT p.id,p.merchant_id,p.brand_id,p.name,(SELECT br.code FROM barcode_registry br WHERE br.merchant_id=p.merchant_id AND br.product_id=p.id AND br.is_active ORDER BY br.is_primary DESC,br.created_at LIMIT 1),p.description,p.product_type,p.is_active,
 		COALESCE((SELECT array_agg(pc.category_id::text ORDER BY c.sort_order,c.name) FROM catalog_product_categories pc JOIN catalog_categories c ON c.merchant_id=pc.merchant_id AND c.id=pc.category_id WHERE pc.merchant_id=p.merchant_id AND pc.product_id=p.id),ARRAY[]::text[]),
 		COALESCE((SELECT array_agg(c.name ORDER BY c.sort_order,c.name) FROM catalog_product_categories pc JOIN catalog_categories c ON c.merchant_id=pc.merchant_id AND c.id=pc.category_id WHERE pc.merchant_id=p.merchant_id AND pc.product_id=p.id),ARRAY[]::text[]),
-		p.manufacture_date,p.expired_date,p.created_at,p.updated_at,COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=p.merchant_id AND entity_type='CATALOG_PRODUCT' AND entity_id=p.id),0) FROM products p CROSS JOIN ctx WHERE p.merchant_id=$1::uuid AND p.id=$2::uuid`, claims.MerchantID, id, claims.IdentityID).Scan(&v.ID, &v.MerchantID, &v.BrandID, &v.Name, &v.Barcode, &v.Description, &v.ProductType, &v.IsActive, &v.CategoryIDs, &v.CategoryNames, &v.ManufactureDate, &v.ExpiredDate, &v.CreatedAt, &v.UpdatedAt, &v.SyncVersion)
+		p.manufacture_date,p.expired_date,
+		(SELECT pv.original_price::text FROM product_variants pv WHERE pv.merchant_id=p.merchant_id AND pv.product_id=p.id ORDER BY pv.created_at ASC LIMIT 1),
+		(SELECT pp.amount::text FROM product_prices pp JOIN price_lists pl ON pl.merchant_id=pp.merchant_id AND pl.id=pp.price_list_id JOIN product_variants pv ON pv.merchant_id=pp.merchant_id AND pv.id=pp.variant_id WHERE pv.merchant_id=p.merchant_id AND pv.product_id=p.id AND (pl.code='RETAIL' OR pl.is_default) AND pp.valid_from<=now() AND (pp.valid_until IS NULL OR pp.valid_until>=now()) ORDER BY pl.is_default DESC, pp.valid_from DESC LIMIT 1),
+		p.created_at,p.updated_at,COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=p.merchant_id AND entity_type='CATALOG_PRODUCT' AND entity_id=p.id),0) FROM products p CROSS JOIN ctx WHERE p.merchant_id=$1::uuid AND p.id=$2::uuid`, claims.MerchantID, id, claims.IdentityID).Scan(&v.ID, &v.MerchantID, &v.BrandID, &v.Name, &v.Barcode, &v.Description, &v.ProductType, &v.IsActive, &v.CategoryIDs, &v.CategoryNames, &v.ManufactureDate, &v.ExpiredDate, &v.OriginalPrice, &v.SellPrice, &v.CreatedAt, &v.UpdatedAt, &v.SyncVersion)
 	if err != nil {
 		return v, err
 	}
@@ -252,6 +259,17 @@ func (s *Service) CreateProduct(ctx context.Context, claims *authdto.Claims, r P
 	if complexityLevel == "SIMPLE" && r.StandardVariant == nil {
 		return Product{}, app.Validation("standard_variant is required for POS simple products.", nil)
 	}
+	if complexityLevel == "MINI" {
+		if r.StandardVariant == nil {
+			r.StandardVariant = &StandardVariantRequest{}
+		}
+		if r.OriginalPrice != nil && r.StandardVariant.OriginalPrice == nil {
+			r.StandardVariant.OriginalPrice = r.OriginalPrice
+		}
+		if r.SellPrice != nil && r.StandardVariant.SellPrice == nil {
+			r.StandardVariant.SellPrice = r.SellPrice
+		}
+	}
 	var v Product
 	err = tx.QueryRow(ctx, `INSERT INTO products(merchant_id,brand_id,name,description,product_type,is_active,manufacture_date,expired_date) VALUES($1::uuid,$2::uuid,$3,$4,$5,COALESCE($6::boolean,true),$7,$8) RETURNING id,merchant_id,brand_id,name,description,product_type,is_active,manufacture_date,expired_date,created_at,updated_at`, claims.MerchantID, r.BrandID, strings.TrimSpace(r.Name), r.Description, typ, r.IsActive, r.ManufactureDate, r.ExpiredDate).Scan(&v.ID, &v.MerchantID, &v.BrandID, &v.Name, &v.Description, &v.ProductType, &v.IsActive, &v.ManufactureDate, &v.ExpiredDate, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
@@ -268,23 +286,60 @@ func (s *Service) CreateProduct(ctx context.Context, claims *authdto.Claims, r P
 			return Product{}, err
 		}
 	}
-	if complexityLevel == "SIMPLE" {
+	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
 		standard := r.StandardVariant
+		if standard == nil {
+			standard = &StandardVariantRequest{}
+		}
 		attrs := standard.Attributes
 		if len(attrs) == 0 {
 			attrs = json.RawMessage(`{}`)
 		}
-		if strings.TrimSpace(standard.BaseUnitID) == "" {
-			return Product{}, app.Validation("standard_variant.base_unit_id is required for POS simple products.", nil)
-		}
 		var unitCode string
-		if err = tx.QueryRow(ctx, `SELECT code FROM unit_definitions WHERE merchant_id=$1::uuid AND id=$2::uuid AND is_active`, claims.MerchantID, standard.BaseUnitID).Scan(&unitCode); err != nil {
-			return Product{}, app.Validation("standard_variant.base_unit_id must reference an active merchant unit.", nil)
+		if strings.TrimSpace(standard.BaseUnitID) == "" {
+			if complexityLevel == "MINI" {
+				err = tx.QueryRow(ctx, `SELECT id::text, code FROM unit_definitions WHERE merchant_id=$1::uuid AND is_active ORDER BY CASE WHEN code='PCS' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`, claims.MerchantID).Scan(&standard.BaseUnitID, &unitCode)
+				if errors.Is(err, pgx.ErrNoRows) {
+					err = tx.QueryRow(ctx, `INSERT INTO unit_definitions(merchant_id, code, name, symbol, dimension_code, allows_decimal, is_active) VALUES ($1::uuid, 'PCS', 'Piece', 'Pcs', 'COUNT', false, true) RETURNING id::text, code`, claims.MerchantID).Scan(&standard.BaseUnitID, &unitCode)
+				}
+				if err != nil {
+					return Product{}, err
+				}
+			} else {
+				return Product{}, app.Validation("standard_variant.base_unit_id is required for POS simple products.", nil)
+			}
+		} else {
+			if err = tx.QueryRow(ctx, `SELECT code FROM unit_definitions WHERE merchant_id=$1::uuid AND id=$2::uuid AND is_active`, claims.MerchantID, standard.BaseUnitID).Scan(&unitCode); err != nil {
+				return Product{}, app.Validation("standard_variant.base_unit_id must reference an active merchant unit.", nil)
+			}
+		}
+		var origCost *string
+		if standard.OriginalPrice != nil && strings.TrimSpace(*standard.OriginalPrice) != "" {
+			trimmed := strings.TrimSpace(*standard.OriginalPrice)
+			origCost = &trimmed
 		}
 		var variant Variant
-		err = tx.QueryRow(ctx, `INSERT INTO product_variants(merchant_id,product_id,sku,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked) VALUES($1::uuid,$2::uuid,'STD-' || replace($2::uuid::text,'-',''),$3,$4,$5,$6::uuid,COALESCE($7::boolean,true)) RETURNING id,merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked,created_at,updated_at`, claims.MerchantID, v.ID, v.Name, string(attrs), unitCode, standard.BaseUnitID, standard.IsStockTracked).Scan(&variant.ID, &variant.MerchantID, &variant.ProductID, &variant.SKU, &variant.Barcode, &variant.Name, &variant.Attributes, &variant.UnitOfMeasure, &variant.BaseUnitID, &variant.IsStockTracked, &variant.CreatedAt, &variant.UpdatedAt)
+		err = tx.QueryRow(ctx, `INSERT INTO product_variants(merchant_id,product_id,sku,name,attributes,unit_of_measure,base_unit_id,original_price,is_stock_tracked) VALUES($1::uuid,$2::uuid,'STD-' || replace($2::uuid::text,'-',''),$3,$4,$5,$6::uuid,$7,COALESCE($8::boolean,true)) RETURNING id,merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,original_price::text,is_stock_tracked,created_at,updated_at`, claims.MerchantID, v.ID, v.Name, string(attrs), unitCode, standard.BaseUnitID, origCost, standard.IsStockTracked).Scan(&variant.ID, &variant.MerchantID, &variant.ProductID, &variant.SKU, &variant.Barcode, &variant.Name, &variant.Attributes, &variant.UnitOfMeasure, &variant.BaseUnitID, &variant.OriginalPrice, &variant.IsStockTracked, &variant.CreatedAt, &variant.UpdatedAt)
 		if err != nil {
 			return Product{}, err
+		}
+		v.OriginalPrice = variant.OriginalPrice
+		if standard.SellPrice != nil && strings.TrimSpace(*standard.SellPrice) != "" {
+			sellAmt := strings.TrimSpace(*standard.SellPrice)
+			var priceListID string
+			err = tx.QueryRow(ctx, `SELECT id::text FROM price_lists WHERE merchant_id=$1::uuid AND (code='RETAIL' OR is_default) ORDER BY is_default DESC, created_at ASC LIMIT 1`, claims.MerchantID).Scan(&priceListID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				var curr string
+				_ = tx.QueryRow(ctx, `SELECT default_currency_code FROM merchants WHERE id=$1::uuid`, claims.MerchantID).Scan(&curr)
+				err = tx.QueryRow(ctx, `INSERT INTO price_lists(merchant_id, code, currency_code, is_default) VALUES($1::uuid, 'RETAIL', $2::char(3), true) RETURNING id::text`, claims.MerchantID, curr).Scan(&priceListID)
+			}
+			if err != nil {
+				return Product{}, err
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO product_prices(merchant_id, price_list_id, variant_id, amount, valid_from) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now()) ON CONFLICT (merchant_id, price_list_id, variant_id) DO UPDATE SET amount=EXCLUDED.amount, valid_until=NULL`, claims.MerchantID, priceListID, variant.ID, sellAmt); err != nil {
+				return Product{}, err
+			}
+			v.SellPrice = &sellAmt
 		}
 		if err = validateAndStoreVariantAttributes(ctx, tx, claims.MerchantID, v.ID, variant.ID, attrs); err != nil {
 			return Product{}, err
@@ -348,9 +403,53 @@ func (s *Service) UpdateProduct(ctx context.Context, claims *authdto.Claims, id 
 			return Product{}, err
 		}
 	}
-	if complexityLevel == "SIMPLE" {
+	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
 		if _, err = tx.Exec(ctx, `UPDATE product_variants SET name=$3,updated_at=now() WHERE merchant_id=$1::uuid AND product_id=$2::uuid`, claims.MerchantID, v.ID, v.Name); err != nil {
 			return Product{}, err
+		}
+		var stdVariantID string
+		_ = tx.QueryRow(ctx, `SELECT id::text FROM product_variants WHERE merchant_id=$1::uuid AND product_id=$2::uuid ORDER BY created_at ASC LIMIT 1`, claims.MerchantID, v.ID).Scan(&stdVariantID)
+
+		origPriceInput := r.OriginalPrice
+		if origPriceInput == nil && r.StandardVariant != nil {
+			origPriceInput = r.StandardVariant.OriginalPrice
+		}
+		if origPriceInput != nil && stdVariantID != "" {
+			trimmed := strings.TrimSpace(*origPriceInput)
+			if trimmed != "" {
+				if _, err = tx.Exec(ctx, `UPDATE product_variants SET original_price=$3::numeric, updated_at=now() WHERE merchant_id=$1::uuid AND id=$2::uuid`, claims.MerchantID, stdVariantID, trimmed); err != nil {
+					return Product{}, err
+				}
+				v.OriginalPrice = &trimmed
+			} else {
+				if _, err = tx.Exec(ctx, `UPDATE product_variants SET original_price=NULL, updated_at=now() WHERE merchant_id=$1::uuid AND id=$2::uuid`, claims.MerchantID, stdVariantID); err != nil {
+					return Product{}, err
+				}
+			}
+		}
+
+		sellPriceInput := r.SellPrice
+		if sellPriceInput == nil && r.StandardVariant != nil {
+			sellPriceInput = r.StandardVariant.SellPrice
+		}
+		if sellPriceInput != nil && stdVariantID != "" {
+			trimmed := strings.TrimSpace(*sellPriceInput)
+			if trimmed != "" {
+				var priceListID string
+				err = tx.QueryRow(ctx, `SELECT id::text FROM price_lists WHERE merchant_id=$1::uuid AND (code='RETAIL' OR is_default) ORDER BY is_default DESC, created_at ASC LIMIT 1`, claims.MerchantID).Scan(&priceListID)
+				if errors.Is(err, pgx.ErrNoRows) {
+					var curr string
+					_ = tx.QueryRow(ctx, `SELECT default_currency_code FROM merchants WHERE id=$1::uuid`, claims.MerchantID).Scan(&curr)
+					err = tx.QueryRow(ctx, `INSERT INTO price_lists(merchant_id, code, currency_code, is_default) VALUES($1::uuid, 'RETAIL', $2::char(3), true) RETURNING id::text`, claims.MerchantID, curr).Scan(&priceListID)
+				}
+				if err != nil {
+					return Product{}, err
+				}
+				if _, err = tx.Exec(ctx, `INSERT INTO product_prices(merchant_id, price_list_id, variant_id, amount, valid_from) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now()) ON CONFLICT (merchant_id, price_list_id, variant_id) DO UPDATE SET amount=EXCLUDED.amount, valid_until=NULL`, claims.MerchantID, priceListID, stdVariantID, trimmed); err != nil {
+					return Product{}, err
+				}
+				v.SellPrice = &trimmed
+			}
 		}
 	}
 	if err = tx.QueryRow(ctx, `INSERT INTO sync_entity_versions(merchant_id,entity_type,entity_id,version,updated_at) VALUES($1::uuid,'CATALOG_PRODUCT',$2::uuid,1,now()) ON CONFLICT (merchant_id,entity_type,entity_id) DO UPDATE SET version=sync_entity_versions.version+1,updated_at=now() RETURNING version`, claims.MerchantID, v.ID).Scan(&v.SyncVersion); err != nil {
@@ -972,7 +1071,7 @@ func validateAndStoreVariantAttributes(ctx context.Context, tx pgx.Tx, merchantI
 }
 
 func (s *Service) ListVariants(ctx context.Context, c *authdto.Claims, productID string) ([]Variant, error) {
-	rows, err := s.pool.Query(ctx, `WITH ctx AS (SELECT set_config('app.user_id',$2,true), set_config('app.merchant_id',$1,true)) SELECT v.id,v.merchant_id,v.product_id,v.sku,v.barcode,v.name,v.attributes,v.unit_of_measure,v.base_unit_id,v.is_stock_tracked,v.created_at,v.updated_at,COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=v.merchant_id AND entity_type='CATALOG_VARIANT' AND entity_id=v.id),0) FROM product_variants v CROSS JOIN ctx WHERE v.merchant_id=$1::uuid AND v.product_id=$3 ORDER BY v.name`, c.MerchantID, c.IdentityID, productID)
+	rows, err := s.pool.Query(ctx, `WITH ctx AS (SELECT set_config('app.user_id',$2,true), set_config('app.merchant_id',$1,true)) SELECT v.id,v.merchant_id,v.product_id,v.sku,v.barcode,v.name,v.attributes,v.unit_of_measure,v.base_unit_id,v.original_price::text,v.is_stock_tracked,v.created_at,v.updated_at,COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=v.merchant_id AND entity_type='CATALOG_VARIANT' AND entity_id=v.id),0) FROM product_variants v CROSS JOIN ctx WHERE v.merchant_id=$1::uuid AND v.product_id=$3 ORDER BY v.name`, c.MerchantID, c.IdentityID, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -980,7 +1079,7 @@ func (s *Service) ListVariants(ctx context.Context, c *authdto.Claims, productID
 	out := []Variant{}
 	for rows.Next() {
 		var v Variant
-		if err := rows.Scan(&v.ID, &v.MerchantID, &v.ProductID, &v.SKU, &v.Barcode, &v.Name, &v.Attributes, &v.UnitOfMeasure, &v.BaseUnitID, &v.IsStockTracked, &v.CreatedAt, &v.UpdatedAt, &v.SyncVersion); err != nil {
+		if err := rows.Scan(&v.ID, &v.MerchantID, &v.ProductID, &v.SKU, &v.Barcode, &v.Name, &v.Attributes, &v.UnitOfMeasure, &v.BaseUnitID, &v.OriginalPrice, &v.IsStockTracked, &v.CreatedAt, &v.UpdatedAt, &v.SyncVersion); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -1028,8 +1127,8 @@ func (s *Service) CreateVariant(ctx context.Context, c *authdto.Claims, productI
 	if err = tx.QueryRow(ctx, `SELECT pos_complexity_level FROM merchants WHERE id=$1::uuid`, c.MerchantID).Scan(&complexityLevel); err != nil {
 		return Variant{}, err
 	}
-	if complexityLevel == "SIMPLE" {
-		return Variant{}, app.NewError("POS_SIMPLE_VARIANT_MANAGED", "POS simple products use the standard variant created with the product.", 409)
+	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
+		return Variant{}, app.NewError("POS_SIMPLE_VARIANT_MANAGED", "POS simple/mini products use the standard variant created with the product.", 409)
 	}
 	var v Variant
 	err = tx.QueryRow(ctx, `INSERT INTO product_variants(merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked) VALUES($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,true)) RETURNING id,merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked,created_at,updated_at`, c.MerchantID, productID, strings.TrimSpace(r.SKU), r.Barcode, strings.TrimSpace(r.Name), string(attrs), uom, r.BaseUnitID, r.IsStockTracked).Scan(&v.ID, &v.MerchantID, &v.ProductID, &v.SKU, &v.Barcode, &v.Name, &v.Attributes, &v.UnitOfMeasure, &v.BaseUnitID, &v.IsStockTracked, &v.CreatedAt, &v.UpdatedAt)
@@ -1120,8 +1219,8 @@ func (s *Service) DeleteVariant(ctx context.Context, c *authdto.Claims, id strin
 	if err = tx.QueryRow(ctx, `SELECT pos_complexity_level FROM merchants WHERE id=$1::uuid`, c.MerchantID).Scan(&complexityLevel); err != nil {
 		return err
 	}
-	if complexityLevel == "SIMPLE" {
-		return app.NewError("POS_SIMPLE_VARIANT_MANAGED", "The standard variant belongs to its POS simple product and cannot be removed separately.", 409)
+	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
+		return app.NewError("POS_SIMPLE_VARIANT_MANAGED", "The standard variant belongs to its POS simple/mini product and cannot be removed separately.", 409)
 	}
 	var productID string
 	if err = tx.QueryRow(ctx, `SELECT product_id::text FROM product_variants WHERE merchant_id=$1::uuid AND id=$2::uuid`, c.MerchantID, id).Scan(&productID); err != nil {

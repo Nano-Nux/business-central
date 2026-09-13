@@ -460,3 +460,383 @@
 .customer-row {
   cursor: default;
 }
+
+/* ==========================================================================
+   Repair Presets (Issue Presets & Condition Presets)
+   ========================================================================== */
+
+.preset-page-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* Tab navigation between Issue Presets and Condition Presets */
+.preset-type-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: var(--theme-gray-100);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 2px;
+}
+
+.preset-tab-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.preset-tab-link:hover {
+  color: var(--ink);
+  background: var(--theme-gray-50);
+}
+
+.preset-tab-link.active {
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgb(var(--theme-black-rgb) / 0.08);
+}
+
+.preset-tab-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--theme-gray-200);
+  color: var(--muted);
+}
+
+.preset-tab-link.active .preset-tab-badge {
+  background: var(--green);
+  color: var(--theme-white);
+}
+
+/* Preset overview stats cards */
+.preset-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+/* Toolbar & quick templates */
+.preset-templates-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.preset-templates-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.preset-templates-header h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preset-templates-header p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.preset-template-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: var(--theme-gray-50);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+  text-align: left;
+}
+
+.preset-chip-btn:hover {
+  border-color: var(--green);
+  background: var(--card);
+  color: var(--green);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgb(var(--theme-black-rgb) / 0.05);
+}
+
+.preset-chip-btn .chip-icon {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.preset-chip-btn:hover .chip-icon {
+  color: var(--green);
+}
+
+/* Preset Cards Grid */
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 1px 3px rgb(var(--theme-black-rgb) / 0.03);
+  transition: all 180ms ease;
+  position: relative;
+  min-width: 0;
+}
+
+.preset-card:hover {
+  border-color: var(--green);
+  box-shadow: 0 4px 12px rgb(var(--theme-black-rgb) / 0.06);
+  transform: translateY(-2px);
+}
+
+.preset-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.preset-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preset-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.preset-type-pill.issue {
+  background: var(--status-warning-soft);
+  color: var(--status-warning);
+  border: 1px solid var(--status-warning-border);
+}
+
+.preset-type-pill.condition {
+  background: var(--status-info-soft);
+  color: var(--status-info);
+  border: 1px solid var(--status-info-border);
+}
+
+.preset-shop-badge {
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--theme-gray-100);
+  padding: 3px 7px;
+  border-radius: 5px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-card-content {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--ink);
+  margin-bottom: 14px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.preset-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.preset-meta-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.preset-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Action buttons on card */
+.preset-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.preset-action-btn:hover {
+  background: var(--theme-gray-50);
+  border-color: var(--green);
+}
+
+.preset-action-btn.danger:hover {
+  border-color: var(--status-danger-border);
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+}
+
+.preset-action-btn.copied {
+  border-color: var(--status-success-border);
+  background: var(--status-success-soft);
+  color: var(--status-success);
+}
+
+/* Floating Action Button (FAB) on mobile */
+.preset-mobile-fab {
+  display: none;
+}
+
+/* Modal styling refinements for presets */
+.preset-modal-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+  background: var(--theme-gray-50);
+  border-radius: 9px;
+  border: 1px solid var(--border);
+}
+
+.preset-modal-templates h4 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.preset-char-counter {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.preset-char-counter.warning {
+  color: var(--status-warning);
+}
+
+.preset-char-counter.danger {
+  color: var(--status-danger);
+}
+
+/* Alert notice for toast/feedback */
+.preset-toast-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  animation: slideInDown 200ms ease;
+}
+
+.preset-toast-notice.success {
+  background: var(--status-success-soft);
+  color: var(--status-success);
+  border: 1px solid var(--status-success-border);
+}
+
+.preset-toast-notice.error {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+  border: 1px solid var(--status-danger-border);
+}
+
+.preset-delete-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 9px;
+  background: var(--status-danger-soft);
+  border: 1px solid var(--status-danger-border);
+  color: var(--status-danger);
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+.preset-delete-quote {
+  font-weight: 600;
+  font-style: italic;
+  padding: 8px 12px;
+  background: rgb(255 255 255 / 0.7);
+  border-radius: 6px;
+  color: var(--ink);
+  word-break: break-word;
+}
