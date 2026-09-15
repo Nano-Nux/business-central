@@ -66,7 +66,11 @@ For every new portal feature, record:
 
 ## Design system
 
-The shared visual language still needs to be defined. Before building substantial screens, document typography, colors, spacing, components, form patterns, tables, empty states, loading states, errors, confirmation dialogs, and POS interaction patterns. `PORTAL_MOBILE_PARITY.md` is the current checklist for this work.
+The shared visual language is organized into two orthogonal, independently selectable categories:
+- **Theme (Color Palette)**: Controls semantic and brand colors (`default-theme` for Monochrome Precision, `visual-clean-theme` for high-contrast multi-color Sapphire/Emerald/Amber/Amethyst/Ruby styling).
+- **Layout (Workspace Structure & Density)**: Controls structural density and navigation rails (`default-layout` for standard 250px sidebar and spacious catalog grid, `compact-layout` for 72px icon rail and high-density scan-first POS catalog).
+
+Changing Theme never mutates Layout, and changing Layout never mutates Theme. In web and mobile WebView, preferences persist across multi-tier storage (`bc.theme`, `bc.layout`) with complete backward compatibility for un-updated mobile clients and automatic SQLite bridge synchronization.
 
 The mobile foundation uses the portal's terminology while adapting the first-run
 offline setup to a touch form with explicit local-only messaging. Authenticated

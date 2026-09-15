@@ -114,7 +114,7 @@ export default function LoginPage() {
           <p className="eyebrow">Welcome back</p>
           <h2>Sign in to your workspace</h2>
           <p className="login-intro">Use your merchant or staff account to continue.</p>
-          <form onSubmit={submit}>
+          <form className="login-form" onSubmit={submit}>
             <label className="field">
               <span>Email address</span>
               <input

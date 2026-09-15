@@ -23,6 +23,8 @@ type Product struct {
 	CategoryIDs     []string   `json:"category_ids"`
 	CategoryNames   []string   `json:"category_names"`
 	Images          []Image    `json:"images"`
+	OriginalPrice   *string    `json:"original_price,omitempty"`
+	SellPrice       *string    `json:"sell_price,omitempty"`
 	SyncVersion     int64      `json:"sync_version,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
@@ -37,6 +39,7 @@ type Variant struct {
 	Attributes     json.RawMessage `json:"attributes"`
 	UnitOfMeasure  string          `json:"unit_of_measure"`
 	BaseUnitID     string          `json:"base_unit_id"`
+	OriginalPrice  *string         `json:"original_price,omitempty"`
 	IsStockTracked bool            `json:"is_stock_tracked"`
 	Images         []Image         `json:"images"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -150,6 +153,8 @@ type ProductRequest struct {
 	ExpiredDate     *string                 `json:"expired_date,omitempty"`
 	IsActive        *bool                   `json:"is_active,omitempty"`
 	CategoryIDs     *[]string               `json:"category_ids,omitempty"`
+	OriginalPrice   *string                 `json:"original_price,omitempty"`
+	SellPrice       *string                 `json:"sell_price,omitempty"`
 	StandardVariant *StandardVariantRequest `json:"standard_variant,omitempty"`
 }
 type Barcode struct {
@@ -170,6 +175,8 @@ type StandardVariantRequest struct {
 	BaseUnitID     string          `json:"base_unit_id"`
 	Attributes     json.RawMessage `json:"attributes,omitempty"`
 	IsStockTracked *bool           `json:"is_stock_tracked,omitempty"`
+	OriginalPrice  *string         `json:"original_price,omitempty"`
+	SellPrice      *string         `json:"sell_price,omitempty"`
 }
 type VariantRequest struct {
 	SKU            string          `json:"sku"`

@@ -48,31 +48,31 @@ const areas = [
     text: "Price lists and authoritative variant prices",
     color: "purple",
   },
-  {
-    href: "/promotions",
-    icon: "tag" as const,
-    title: "Promotions",
-    text: "Discounts for products, POS and repair",
-    color: "purple",
-  },
 ];
 export default function CatalogPage() {
   const { merchant } = useAuth();
+  const mini = merchant?.pos_complexity_level === "MINI";
   const simple = merchant?.pos_complexity_level === "SIMPLE";
-  const visibleAreas = simple
+  const visibleAreas = mini
     ? areas.filter((area) =>
-        ["/categories", "/brands", "/products", "/pricing", "/units"].includes(area.href),
+        ["/categories", "/brands", "/products"].includes(area.href),
       )
-    : areas;
+    : simple
+      ? areas.filter((area) =>
+          ["/categories", "/brands", "/products", "/pricing", "/units"].includes(area.href),
+        )
+      : areas;
   return (
     <>
       <PageHeader
         eyebrow="Operations"
         title="Catalog"
         description={
-          simple
-            ? "Create products and set the prices used at checkout."
-            : "Keep everything you sell organized in one place."
+          mini
+            ? "Create products with direct original and sell prices."
+            : simple
+              ? "Create products and set the prices used at checkout."
+              : "Keep everything you sell organized in one place."
         }
       />
       <div className="catalog-grid">
@@ -84,11 +84,13 @@ export default function CatalogPage() {
             <div>
               <h2>{area.title}</h2>
               <p>
-                {simple && area.href === "/products"
-                  ? "Products and their selling details"
-                  : simple && area.href === "/pricing"
-                    ? "Price lists and authoritative product prices"
-                    : area.text}
+                {mini && area.href === "/products"
+                  ? "Products with original and sell prices"
+                  : simple && area.href === "/products"
+                    ? "Products and their selling details"
+                    : simple && area.href === "/pricing"
+                      ? "Price lists and authoritative product prices"
+                      : area.text}
               </p>
             </div>
             <Icon name="arrow" />

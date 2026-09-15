@@ -1,0 +1,106 @@
+/*
+ * Citrus Gold Theme Controls
+ * ----------------------------
+ * A radiant, energetic Tuscan gold aesthetic with sunny yellow-orange brand
+ * highlights, champagne warmth, and cheerful high-clarity surfaces.
+ */
+:root[data-theme="citrus-gold-theme"],
+[data-theme="citrus-gold-theme"] {
+  --theme-black: #1c1917;
+  --theme-gray-950: #1c1917;
+  --theme-gray-900: #292524;
+  --theme-gray-800: #44403c;
+  --theme-gray-700: #57534e;
+  --theme-gray-600: #78716c;
+  --theme-gray-500: #a8a29e;
+  --theme-gray-400: #ca8a04;
+  --theme-gray-300: #fef08a;
+  --theme-gray-200: #fef9c3;
+  --theme-gray-100: #fefce8;
+  --theme-gray-50: #fffef5;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 28 25 23;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #15803d;
+  --status-success-soft: #f0fdf4;
+  --status-success-border: #bbf7d0;
+  --status-warning: #ca8a04;
+  --status-warning-soft: #fefce8;
+  --status-warning-border: #fef08a;
+  --status-danger: #dc2626;
+  --status-danger-soft: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #78716c;
+  --status-neutral-soft: #f5f5f4;
+  --status-neutral-border: #e7e5e4;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 28 25 23;
+
+  --ink: #1c1917;
+  --muted: #78716c;
+  --line: #fef08a;
+  --paper: #ffffff;
+  --canvas: #fffef5;
+  --green: #ca8a04;
+  --green-dark: #a16207;
+  --green-soft: #fefce8;
+  --amber: #ca8a04;
+  --red: #dc2626;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(202 138 4 / 9%), 0 2px 6px -1px rgb(202 138 4 / 5%);
+  --border: #fef9c3;
+  --card: #ffffff;
+  --mint: #fefce8;
+  --text: #1c1917;
+  --surface: #ffffff;
+  --surface-muted: #fefee7;
+  --accent: #ca8a04;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #ca8a04;
+  --color-brand-hover: #a16207;
+  --color-brand-soft: #fefce8;
+  --color-brand-border: #fef08a;
+  --color-emerald: #15803d;
+  --color-emerald-soft: #f0fdf4;
+  --color-emerald-border: #bbf7d0;
+  --color-amber: #ca8a04;
+  --color-amber-soft: #fefce8;
+  --color-amber-border: #fef08a;
+  --color-rose: #dc2626;
+  --color-rose-soft: #fef2f2;
+  --color-rose-border: #fecaca;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="citrus-gold-theme"] .button-primary {
+  background: #ca8a04;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(202 138 4 / 25%);
+}
+
+[data-theme="citrus-gold-theme"] .button-primary:hover {
+  background: #a16207;
+}
+
+[data-theme="citrus-gold-theme"] .topbar {
+  background: rgb(255 254 245 / 92%);
+}

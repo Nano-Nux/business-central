@@ -1,0 +1,106 @@
+/*
+ * Coastal Ocean Teal & Mint Theme Controls
+ * ----------------------------------------
+ * A refreshing, clean marine aesthetic with vibrant teal brand actions,
+ * seafoam mint revenue highlights, cool azure accents, and a glacier-cyan canvas.
+ */
+:root[data-theme="ocean-teal-theme"],
+[data-theme="ocean-teal-theme"] {
+  --theme-black: #083344;
+  --theme-gray-950: #083344;
+  --theme-gray-900: #0e485e;
+  --theme-gray-800: #155e75;
+  --theme-gray-700: #164e63;
+  --theme-gray-600: #0e7490;
+  --theme-gray-500: #06b6d4;
+  --theme-gray-400: #67e8f9;
+  --theme-gray-300: #a5f3fc;
+  --theme-gray-200: #cffafe;
+  --theme-gray-100: #e0f2fe;
+  --theme-gray-50: #f0fdfa;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 8 51 68;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens with refreshing coastal tones */
+  --status-success: #0d9488;
+  --status-success-soft: #f0fdfa;
+  --status-success-border: #99f6e4;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #e11d48;
+  --status-danger-soft: #fff1f2;
+  --status-danger-border: #fecdd3;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #155e75;
+  --status-neutral-soft: #f0fdfa;
+  --status-neutral-border: #cffafe;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 8 51 68;
+
+  --ink: #083344;
+  --muted: #497d79;
+  --line: #bbf7d0;
+  --paper: #ffffff;
+  --canvas: #f0fdfa;
+  --green: #0d9488;
+  --green-dark: #0f766e;
+  --green-soft: #ccfbf1;
+  --amber: #d97706;
+  --red: #e11d48;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(13 148 136 / 8%), 0 2px 6px -1px rgb(13 148 136 / 4%);
+  --border: #a7f3d0;
+  --card: #ffffff;
+  --mint: #ccfbf1;
+  --text: #083344;
+  --surface: #ffffff;
+  --surface-muted: #e6fffa;
+  --accent: #0284c7;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #0d9488;
+  --color-brand-hover: #0f766e;
+  --color-brand-soft: #ccfbf1;
+  --color-brand-border: #99f6e4;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #e11d48;
+  --color-rose-soft: #fff1f2;
+  --color-rose-border: #fecdd3;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #ccfbf1;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="ocean-teal-theme"] .button-primary {
+  background: #0d9488;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(13 148 136 / 25%);
+}
+
+[data-theme="ocean-teal-theme"] .button-primary:hover {
+  background: #0f766e;
+}
+
+[data-theme="ocean-teal-theme"] .topbar {
+  background: rgb(240 253 250 / 92%);
+}

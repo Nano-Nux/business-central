@@ -1,0 +1,93 @@
+/*
+ * Visual Clean Theme Controls
+ * ----------------------------
+ * A vibrant, modern workspace aesthetic featuring rich royal sapphire brand
+ * actions, emerald revenue highlights, warm amber metrics, ruby danger accents,
+ * and pure white cards on a crisp, airy cool-slate canvas.
+ */
+:root[data-theme="visual-clean-theme"],
+[data-theme="visual-clean-theme"] {
+  --theme-black: #0f172a;
+  --theme-gray-950: #0f172a;
+  --theme-gray-900: #1e293b;
+  --theme-gray-800: #334155;
+  --theme-gray-700: #475569;
+  --theme-gray-600: #64748b;
+  --theme-gray-500: #94a3b8;
+  --theme-gray-400: #cbd5e1;
+  --theme-gray-300: #e2e8f0;
+  --theme-gray-200: #e2e8f0;
+  --theme-gray-100: #f1f5f9;
+  --theme-gray-50: #f4f6fb;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 15 23 42;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens with vibrant, high-clarity color tones */
+  --status-success: #059669;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #e11d48;
+  --status-danger-soft: #fff1f2;
+  --status-danger-border: #fecdd3;
+  --status-info: #2563eb;
+  --status-info-soft: #eff6ff;
+  --status-info-border: #bfdbfe;
+  --status-neutral: #475569;
+  --status-neutral-soft: #f1f5f9;
+  --status-neutral-border: #cbd5e1;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 15 23 42;
+
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --paper: #ffffff;
+  --canvas: #f4f6fb;
+  --green: #2563eb;
+  --green-dark: #1d4ed8;
+  --green-soft: #eff6ff;
+  --amber: #d97706;
+  --red: #e11d48;
+  --blue: #2563eb;
+  --shadow: 0 4px 20px -2px rgb(15 23 42 / 6%), 0 2px 6px -1px rgb(15 23 42 / 4%);
+  --border: #e2e8f0;
+  --card: #ffffff;
+  --mint: #dbeafe;
+  --text: #0f172a;
+  --surface: #ffffff;
+  --surface-muted: #f4f6fb;
+  --accent: #2563eb;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #2563eb;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-soft: #eff6ff;
+  --color-brand-border: #bfdbfe;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #e11d48;
+  --color-rose-soft: #fff1f2;
+  --color-rose-border: #fecdd3;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}

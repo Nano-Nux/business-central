@@ -122,3 +122,15 @@ discovery, connection, and printing. Android development HTTP URLs are allowed
 by the current debug/release manifest; production should use HTTPS. Camera and
 Bluetooth printer behavior must still be verified on representative physical
 devices before release.
+
+### Native Storage Bridge & Theme/Layout Persistence
+
+The WebView provides a native storage bridge (`BusinessCentralStorageChannel` / `window.BusinessCentralNativeStorage`) enabling the portal to persist device-level settings into the mobile application's local SQLite database (`AppDatabase.appMetadata`):
+
+- **Independent Appearance Settings**: Both `bc.theme` (color palette) and `bc.layout` (workspace geometry) are stored independently without cross-mutation.
+- **Bidirectional Companion Keys**: To guarantee backward compatibility across past and future app updates, the bridge maintains paired companion keys in SQLite:
+  - `bc.theme` $\leftrightarrow$ `theme`
+  - `bc.layout` $\leftrightarrow$ `layout`
+  Writing to one automatically synchronizes the companion key. Reading checks the requested key first, falling back to the companion key if not found.
+- **Backward Compatibility for Un-updated Mobile Builds**: Clients running older installed versions of `business_central_mobile` that lack this bridge require no forced app updates. The embedded portal automatically falls back to a 4-tier web storage engine (LocalStorage + 1-year persistent cookie jar + IndexedDB + in-memory cache) with automatic data migration into SQLite whenever the mobile app is eventually upgraded.
+

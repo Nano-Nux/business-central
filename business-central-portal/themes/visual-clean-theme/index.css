@@ -1,0 +1,14 @@
+/*
+ * Visual Clean Theme Aggregator
+ * -----------------------------
+ * Modular design system for visual-clean-theme.
+ */
+@import "./theme.css";
+@import "./base.css";
+@import "./login.css";
+@import "./shell.css";
+@import "./components.css";
+@import "./pos.css";
+@import "./products.css";
+@import "./repairs.css";
+@import "./invoices-settings.css";

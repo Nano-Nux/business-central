@@ -15,6 +15,7 @@ import {
   Pagination,
   useListPagination,
 } from "./ui";
+import { useTranslation } from "@/lib/i18n";
 import { downloadInvoicePDF, invoiceCanvas } from "@/lib/invoice";
 import {
   getActivePrinter,
@@ -134,7 +135,7 @@ function mapInvoice(item: ApiInvoice): Invoice {
     discount: Number(item.discount_total),
     tax: Number(item.tax_total),
     total: Number(item.grand_total),
-    items: item.items.map((line) => ({
+    items: (item.items ?? []).map((line) => ({
       name: line.name,
       quantity: Number(line.quantity),
       price: Number(line.unit_price),
@@ -178,6 +179,7 @@ function ThermalProof({ invoice, shop }: { invoice: Invoice; shop: Shop | null }
 }
 
 export function InvoicesPage() {
+  const { t } = useTranslation();
   const { currentShop } = useShop();
   const params = useSearchParams();
   const resource = useResource<ApiInvoice>("/invoices?page_index=0&page_size=200");
@@ -298,31 +300,31 @@ export function InvoicesPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Sales"
-        title="Invoices"
-        description="Find, download and print invoices from canonical sales and service orders."
+        eyebrow={t("invoices.eyebrow")}
+        title={t("invoices.title")}
+        description={t("invoices.description")}
       />
       <ListControls
         search={query}
         onSearchChange={setQuery}
-        searchPlaceholder="Search invoice or customer"
+        searchPlaceholder={t("common.search_placeholder")}
         filter={filter}
         onFilterChange={setFilter}
-        filterLabel="Filter invoices"
+        filterLabel={t("common.filter")}
         filterOptions={[
-          { value: "ALL", label: "All invoices" },
-          { value: "POS", label: "Sales" },
-          { value: "REPAIR", label: "Repairs" },
-          { value: "PAID", label: "Paid" },
-          { value: "REFUNDED", label: "Refunded" },
+          { value: "ALL", label: t("invoices.all_invoices") },
+          { value: "POS", label: t("invoices.sales_invoices") },
+          { value: "REPAIR", label: t("invoices.repair_invoices") },
+          { value: "PAID", label: t("invoices.paid") },
+          { value: "REFUNDED", label: t("invoices.refunded") },
         ]}
         sort={sort}
         onSortChange={setSort}
-        sortLabel="Sort invoices"
+        sortLabel={t("common.actions")}
         sortOptions={[
           { value: "NEWEST", label: "Newest first" },
           { value: "OLDEST", label: "Oldest first" },
-          { value: "CUSTOMER", label: "Customer A–Z" },
+          { value: "CUSTOMER", label: `${t("invoices.customer")} A–Z` },
           { value: "TOTAL_DESC", label: "Highest total" },
         ]}
       />
@@ -334,22 +336,22 @@ export function InvoicesPage() {
         ) : visible.length === 0 ? (
           <EmptyState
             icon="receipt"
-            title="No invoices found"
+            title={t("invoices.no_invoices_found")}
             message={
               query
                 ? "No invoice matches this search."
-                : "A POS sale or repair ticket creates an invoice here, ready to print in any payment status."
+                : t("invoices.no_invoices_desc")
             }
           />
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Invoice</th>
-                <th>Customer</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Total</th>
+                <th>{t("invoices.invoice_number")}</th>
+                <th>{t("invoices.customer")}</th>
+                <th>{t("common.date")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("common.total")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -415,7 +417,7 @@ export function InvoicesPage() {
         pageSize={pagination.pageSize}
         totalItems={pagination.totalItems}
         totalPages={pagination.totalPages}
-        itemLabel="invoices"
+        itemLabel={t("invoices.title")}
         onPageChange={pagination.setPageIndex}
       />
       <Modal
@@ -436,13 +438,13 @@ export function InvoicesPage() {
             {message && <div className="notice">{message}</div>}
             <div className="modal-actions no-print">
               <Button variant="secondary" icon="printer" onClick={() => window.print()}>
-                Print
+                {t("common.print")}
               </Button>
               <Button variant="secondary" onClick={() => downloadInvoicePDF(selected)}>
-                Download PDF
+                {t("repairs.download_pdf")}
               </Button>
               <Button icon="printer" onClick={thermal}>
-                Thermal print
+                {t("repairs.thermal_print")}
               </Button>
             </div>
           </>

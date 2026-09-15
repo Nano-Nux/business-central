@@ -876,7 +876,7 @@ function RepairForm({ repair }: { repair: RepairOrder }) {
             <strong>Captured payments</strong>
             {payments.loading ? (
               <small>Loading payments...</small>
-            ) : payments.data.length === 0 ? (
+            ) : !Array.isArray(payments.data) || payments.data.length === 0 ? (
               <small className="muted">No captured payments.</small>
             ) : (
               payments.data.map((payment) => (

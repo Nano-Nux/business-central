@@ -1,0 +1,106 @@
+/*
+ * Royal Indigo Theme Controls
+ * ----------------------------
+ * A prestigious, deep galactic indigo and ultramarine aesthetic with authoritative
+ * brand actions, clean sapphire metrics, and high-clarity corporate surfaces.
+ */
+:root[data-theme="royal-indigo-theme"],
+[data-theme="royal-indigo-theme"] {
+  --theme-black: #1e1b4b;
+  --theme-gray-950: #1e1b4b;
+  --theme-gray-900: #312e81;
+  --theme-gray-800: #3730a3;
+  --theme-gray-700: #4338ca;
+  --theme-gray-600: #4f46e5;
+  --theme-gray-500: #6366f1;
+  --theme-gray-400: #818cf8;
+  --theme-gray-300: #a5b4fc;
+  --theme-gray-200: #c7d2fe;
+  --theme-gray-100: #e0e7ff;
+  --theme-gray-50: #eef2ff;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 30 27 75;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #059669;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #e11d48;
+  --status-danger-soft: #fff1f2;
+  --status-danger-border: #fecdd3;
+  --status-info: #4f46e5;
+  --status-info-soft: #eef2ff;
+  --status-info-border: #c7d2fe;
+  --status-neutral: #4338ca;
+  --status-neutral-soft: #eef2ff;
+  --status-neutral-border: #c7d2fe;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 30 27 75;
+
+  --ink: #1e1b4b;
+  --muted: #4338ca;
+  --line: #c7d2fe;
+  --paper: #ffffff;
+  --canvas: #f8fafc;
+  --green: #4f46e5;
+  --green-dark: #4338ca;
+  --green-soft: #eef2ff;
+  --amber: #d97706;
+  --red: #e11d48;
+  --blue: #4f46e5;
+  --shadow: 0 4px 20px -2px rgb(79 70 229 / 9%), 0 2px 6px -1px rgb(79 70 229 / 5%);
+  --border: #c7d2fe;
+  --card: #ffffff;
+  --mint: #eef2ff;
+  --text: #1e1b4b;
+  --surface: #ffffff;
+  --surface-muted: #f1f4fd;
+  --accent: #4f46e5;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #4f46e5;
+  --color-brand-hover: #4338ca;
+  --color-brand-soft: #eef2ff;
+  --color-brand-border: #c7d2fe;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #e11d48;
+  --color-rose-soft: #fff1f2;
+  --color-rose-border: #fecdd3;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="royal-indigo-theme"] .button-primary {
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(79 70 229 / 25%);
+}
+
+[data-theme="royal-indigo-theme"] .button-primary:hover {
+  background: #4338ca;
+}
+
+[data-theme="royal-indigo-theme"] .topbar {
+  background: rgb(248 250 252 / 92%);
+}

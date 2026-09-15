@@ -457,5 +457,3 @@ func TestFilterNewPresetValues(t *testing.T) {
 		t.Fatalf("expected only 'New Condition', got %#v", newConditions)
 	}
 }
-
-

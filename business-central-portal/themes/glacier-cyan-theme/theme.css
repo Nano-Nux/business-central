@@ -1,0 +1,106 @@
+/*
+ * Glacier Cyan Theme Controls
+ * ----------------------------
+ * A crisp arctic electric cyan aesthetic featuring high-tech cyan brand actions,
+ * cool azure highlights, crisp white cards, and an icy glacier canvas.
+ */
+:root[data-theme="glacier-cyan-theme"],
+[data-theme="glacier-cyan-theme"] {
+  --theme-black: #082f49;
+  --theme-gray-950: #082f49;
+  --theme-gray-900: #0c4a6e;
+  --theme-gray-800: #075985;
+  --theme-gray-700: #0369a1;
+  --theme-gray-600: #0284c7;
+  --theme-gray-500: #38bdf8;
+  --theme-gray-400: #7dd3fc;
+  --theme-gray-300: #bae6fd;
+  --theme-gray-200: #e0f2fe;
+  --theme-gray-100: #f0f9ff;
+  --theme-gray-50: #f0f9ff;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 8 47 73;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #059669;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #e11d48;
+  --status-danger-soft: #fff1f2;
+  --status-danger-border: #fecdd3;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #075985;
+  --status-neutral-soft: #f0f9ff;
+  --status-neutral-border: #e0f2fe;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 8 47 73;
+
+  --ink: #082f49;
+  --muted: #0369a1;
+  --line: #bae6fd;
+  --paper: #ffffff;
+  --canvas: #f0f9ff;
+  --green: #0284c7;
+  --green-dark: #0369a1;
+  --green-soft: #e0f2fe;
+  --amber: #d97706;
+  --red: #e11d48;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(2 132 199 / 9%), 0 2px 6px -1px rgb(2 132 199 / 5%);
+  --border: #bae6fd;
+  --card: #ffffff;
+  --mint: #e0f2fe;
+  --text: #082f49;
+  --surface: #ffffff;
+  --surface-muted: #e6f4fe;
+  --accent: #0284c7;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #0284c7;
+  --color-brand-hover: #0369a1;
+  --color-brand-soft: #e0f2fe;
+  --color-brand-border: #bae6fd;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #e11d48;
+  --color-rose-soft: #fff1f2;
+  --color-rose-border: #fecdd3;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="glacier-cyan-theme"] .button-primary {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(2 132 199 / 25%);
+}
+
+[data-theme="glacier-cyan-theme"] .button-primary:hover {
+  background: #0369a1;
+}
+
+[data-theme="glacier-cyan-theme"] .topbar {
+  background: rgb(240 249 255 / 92%);
+}

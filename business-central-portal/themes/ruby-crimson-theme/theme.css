@@ -1,0 +1,106 @@
+/*
+ * Ruby Crimson Theme Controls
+ * ----------------------------
+ * A bold, high-clarity crimson palette featuring rich ruby red brand actions,
+ * warm rose highlights, crisp card surfaces, and an airy soft-blush canvas.
+ */
+:root[data-theme="ruby-crimson-theme"],
+[data-theme="ruby-crimson-theme"] {
+  --theme-black: #1c1917;
+  --theme-gray-950: #1c1917;
+  --theme-gray-900: #292524;
+  --theme-gray-800: #44403c;
+  --theme-gray-700: #57534e;
+  --theme-gray-600: #78716c;
+  --theme-gray-500: #a8a29e;
+  --theme-gray-400: #d6d3d1;
+  --theme-gray-300: #e7e5e4;
+  --theme-gray-200: #f5f5f4;
+  --theme-gray-100: #fafaf9;
+  --theme-gray-50: #fff8f8;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 28 25 23;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #059669;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #dc2626;
+  --status-danger-soft: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #57534e;
+  --status-neutral-soft: #f5f5f4;
+  --status-neutral-border: #e7e5e4;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 28 25 23;
+
+  --ink: #1c1917;
+  --muted: #78716c;
+  --line: #fecaca;
+  --paper: #ffffff;
+  --canvas: #fff8f8;
+  --green: #dc2626;
+  --green-dark: #b91c1c;
+  --green-soft: #fef2f2;
+  --amber: #d97706;
+  --red: #dc2626;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(220 38 38 / 7%), 0 2px 6px -1px rgb(220 38 38 / 4%);
+  --border: #fee2e2;
+  --card: #ffffff;
+  --mint: #fef2f2;
+  --text: #1c1917;
+  --surface: #ffffff;
+  --surface-muted: #fff1f2;
+  --accent: #dc2626;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #dc2626;
+  --color-brand-hover: #b91c1c;
+  --color-brand-soft: #fef2f2;
+  --color-brand-border: #fecaca;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #dc2626;
+  --color-rose-soft: #fef2f2;
+  --color-rose-border: #fecaca;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="ruby-crimson-theme"] .button-primary {
+  background: #dc2626;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(220 38 38 / 25%);
+}
+
+[data-theme="ruby-crimson-theme"] .button-primary:hover {
+  background: #b91c1c;
+}
+
+[data-theme="ruby-crimson-theme"] .topbar {
+  background: rgb(255 248 248 / 92%);
+}

@@ -40,4 +40,9 @@ type Operations interface {
 	ListReceivableLines(context.Context, *authdto.Claims) ([]operationsdto.ReceivableLine, error)
 	StockIn(context.Context, *authdto.Claims, operationsdto.StockInRequest) (operationsdto.Movement, error)
 	StockOut(context.Context, *authdto.Claims, operationsdto.StockOutRequest) (operationsdto.Movement, error)
+	ListCustomThemes(context.Context, *authdto.Claims) ([]operationsdto.CustomTheme, error)
+	GetCustomTheme(context.Context, *authdto.Claims, string) (operationsdto.CustomTheme, error)
+	CreateCustomTheme(context.Context, *authdto.Claims, operationsdto.CustomThemeRequest) (operationsdto.CustomTheme, error)
+	UpdateCustomTheme(context.Context, *authdto.Claims, string, operationsdto.CustomThemeRequest) (operationsdto.CustomTheme, error)
+	DeleteCustomTheme(context.Context, *authdto.Claims, string) error
 }

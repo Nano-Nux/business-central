@@ -1,0 +1,16 @@
+/*
+ * Default Theme Aggregator
+ * ------------------------
+ * Preserves the exact cascade and specificity order of the original portal design.
+ */
+@import "./theme.css";
+@import "./base.css";
+@import "./login.css";
+@import "./shell.css";
+@import "./components.css";
+@import "./pos.css";
+@import "./invoices-settings.css";
+@import "./products.css";
+@import "./repairs.css";
+@import "./refinements.css";
+@import "./responsive.css";

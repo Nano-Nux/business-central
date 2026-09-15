@@ -4,6 +4,8 @@ import { AuthProvider } from "@/lib/auth";
 import { PwaRegister } from "@/components/pwa-register";
 import { ShopProvider } from "@/lib/shop";
 import { OfflineProvider } from "@/lib/offline";
+import { ThemeSync } from "@/components/theme-sync";
+import { I18nProvider } from "@/lib/i18n";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -69,18 +71,22 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        <ThemeSync />
         <Script id="random-uuid-compatibility" strategy="beforeInteractive">
           {randomUuidCompatibilityScript}
         </Script>
-        <AuthProvider>
-          <OfflineProvider>
-            <ShopProvider>
-              <PwaRegister />
-              {children}
-            </ShopProvider>
-          </OfflineProvider>
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <OfflineProvider>
+              <ShopProvider>
+                <PwaRegister />
+                {children}
+              </ShopProvider>
+            </OfflineProvider>
+          </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   );
 }
+

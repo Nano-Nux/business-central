@@ -1,0 +1,136 @@
+/*
+ * Visual Clean - Repairs & Diagnostics
+ * -------------------------------------
+ * Rich semantic status pipeline, diagnostic inspection cards,
+ * warranty pills, and repair work item tags.
+ */
+
+/* Repair Status Pipeline Markers */
+[data-theme="visual-clean-theme"] .repair-status-option.status-neutral .repair-status-marker {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-info .repair-status-marker {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-warning .repair-status-marker {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-success .repair-status-marker {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-danger .repair-status-marker {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
+/* Selected Status Option Cards */
+[data-theme="visual-clean-theme"] .repair-status-option.status-info.selected {
+  border-color: #2563eb;
+  background: #f0f7ff;
+  box-shadow: 0 2px 10px rgb(37 99 235 / 15%);
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-info.selected .repair-status-marker {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-warning.selected {
+  border-color: #d97706;
+  background: #fffdf5;
+  box-shadow: 0 2px 10px rgb(217 119 6 / 15%);
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-warning.selected .repair-status-marker {
+  background: #d97706;
+  color: #ffffff;
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-success.selected {
+  border-color: #059669;
+  background: #f0fdf7;
+  box-shadow: 0 2px 10px rgb(5 150 105 / 15%);
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-success.selected .repair-status-marker {
+  background: #059669;
+  color: #ffffff;
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-danger.selected {
+  border-color: #e11d48;
+  background: #fff5f6;
+  box-shadow: 0 2px 10px rgb(225 29 72 / 15%);
+}
+
+[data-theme="visual-clean-theme"] .repair-status-option.status-danger.selected .repair-status-marker {
+  background: #e11d48;
+  color: #ffffff;
+}
+
+/* Diagnostic & Inspection Checklist Cards */
+[data-theme="visual-clean-theme"] .repair-diagnostic-card {
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+[data-theme="visual-clean-theme"] .repair-diagnostic-card:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 4px 16px -2px rgb(37 99 235 / 10%);
+}
+
+[data-theme="visual-clean-theme"] .diagnostic-state-pass {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+[data-theme="visual-clean-theme"] .diagnostic-state-fail {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+[data-theme="visual-clean-theme"] .diagnostic-state-check {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* Warranty Badge */
+[data-theme="visual-clean-theme"] .repair-warranty-badge {
+  background: #faf5ff;
+  color: #7c3aed;
+  border: 1px solid #e9d5ff;
+  border-radius: 8px;
+  font-weight: 650;
+  font-size: 11px;
+  padding: 3px 8px;
+}

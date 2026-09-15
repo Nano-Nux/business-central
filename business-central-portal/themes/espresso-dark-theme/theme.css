@@ -1,0 +1,138 @@
+/*
+ * Espresso Dark & Warm Amber Theme Controls
+ * ------------------------------------------
+ * A comforting, zero-blue-light dark coffee lounge aesthetic featuring
+ * roasted espresso bean canvas, dark walnut cards, warm honey-amber highlights,
+ * and soothing sepia night readability.
+ */
+:root[data-theme="espresso-dark-theme"],
+[data-theme="espresso-dark-theme"] {
+  --theme-black: #fef3c7;
+  --theme-gray-950: #fffbeb;
+  --theme-gray-900: #fef3c7;
+  --theme-gray-800: #fde68a;
+  --theme-gray-700: #d4a373;
+  --theme-gray-600: #b59f8c;
+  --theme-gray-500: #8c7362;
+  --theme-gray-400: #695345;
+  --theme-gray-300: #4a3b31;
+  --theme-gray-200: #382c24;
+  --theme-gray-100: #29201a;
+  --theme-gray-50: #191310;
+  --theme-white: #1e1814;
+
+  --theme-black-rgb: 254 243 199;
+  --theme-white-rgb: 30 24 20;
+  --theme-brand-filter: none;
+
+  /* Status tokens with warm, earthy evening tones */
+  --status-success: #84cc16;
+  --status-success-soft: #1a2e05;
+  --status-success-border: #4d7c0f;
+  --status-warning: #f59e0b;
+  --status-warning-soft: #451a03;
+  --status-warning-border: #b45309;
+  --status-danger: #f87171;
+  --status-danger-soft: #450a0a;
+  --status-danger-border: #b91c1c;
+  --status-info: #38bdf8;
+  --status-info-soft: #082f49;
+  --status-info-border: #0284c7;
+  --status-neutral: #b59f8c;
+  --status-neutral-soft: #29201a;
+  --status-neutral-border: #4a3b31;
+  --status-conflict: #e879f9;
+  --status-conflict-soft: #3b0764;
+  --status-conflict-border: #a21caf;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 0 0 0;
+
+  --ink: #fef3c7;
+  --muted: #b59f8c;
+  --line: #382c24;
+  --paper: #1e1814;
+  --canvas: #14100e;
+  --green: #f59e0b;
+  --green-dark: #d97706;
+  --green-soft: #38240b;
+  --amber: #f59e0b;
+  --red: #f87171;
+  --blue: #38bdf8;
+  --shadow: 0 4px 20px -2px rgb(0 0 0 / 50%), 0 2px 6px -1px rgb(0 0 0 / 35%);
+  --border: #382c24;
+  --card: #1e1814;
+  --mint: #38240b;
+  --text: #fef3c7;
+  --surface: #1e1814;
+  --surface-muted: #191310;
+  --accent: #d97706;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #f59e0b;
+  --color-brand-hover: #fbbf24;
+  --color-brand-soft: #38240b;
+  --color-brand-border: #92400e;
+  --color-emerald: #84cc16;
+  --color-emerald-soft: #1a2e05;
+  --color-emerald-border: #4d7c0f;
+  --color-amber: #f59e0b;
+  --color-amber-soft: #451a03;
+  --color-amber-border: #b45309;
+  --color-rose: #f87171;
+  --color-rose-soft: #450a0a;
+  --color-rose-border: #b91c1c;
+  --color-purple: #e879f9;
+  --color-purple-soft: #3b0764;
+  --color-purple-border: #a21caf;
+  --color-teal: #2dd4bf;
+  --color-teal-soft: #134e4a;
+  --color-teal-border: #0f766e;
+}
+
+[data-theme="espresso-dark-theme"] .button-primary {
+  background: #f59e0b;
+  color: #14100e;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgb(245 158 11 / 28%);
+}
+
+[data-theme="espresso-dark-theme"] .button-primary:hover {
+  background: #fbbf24;
+}
+
+[data-theme="espresso-dark-theme"] .topbar {
+  background: rgb(20 16 14 / 92%);
+  border-bottom-color: #382c24;
+}
+
+[data-theme="espresso-dark-theme"] input,
+[data-theme="espresso-dark-theme"] select,
+[data-theme="espresso-dark-theme"] textarea {
+  background: #29201a;
+  color: #fef3c7;
+  border-color: #4a3b31;
+}
+
+[data-theme="espresso-dark-theme"] input:focus,
+[data-theme="espresso-dark-theme"] select:focus,
+[data-theme="espresso-dark-theme"] textarea:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 25%);
+}
+
+[data-theme="espresso-dark-theme"] table th {
+  background: #191310;
+  color: #b59f8c;
+  border-bottom-color: #382c24;
+}
+
+[data-theme="espresso-dark-theme"] table td {
+  border-bottom-color: #29201a;
+}
+
+[data-theme="espresso-dark-theme"] tbody tr:hover {
+  background: rgb(41 32 26 / 60%);
+}

@@ -23,6 +23,7 @@ import type { Delivery, Invoice, PaymentType, Promotion, Variant } from "@/lib/t
 import { getMetadata, putMetadata } from "@/lib/offline-db";
 import { BarcodeScanner } from "./barcode-scanner";
 import { randomUuid } from "@/lib/random-uuid";
+import { useTranslation } from "@/lib/i18n";
 
 type SaleItem = Variant & {
   price?: string;
@@ -44,7 +45,9 @@ export function PosPage() {
   const router = useRouter();
   const { currentShop } = useShop();
   const { merchant } = useAuth();
-  const simple = merchant?.pos_complexity_level === "SIMPLE";
+  const { t } = useTranslation();
+  const simple =
+    merchant?.pos_complexity_level === "SIMPLE" || merchant?.pos_complexity_level === "MINI";
   const offline = useOffline();
   const catalog = useResource<SaleItem>(
     `/pos/catalog?page_index=0&page_size=200${currentShop ? `&shop_id=${encodeURIComponent(currentShop.id)}` : ""}`,
@@ -583,19 +586,19 @@ export function PosPage() {
             <Icon name={mobileCartOpen ? "close" : "cart"} size={18} />
           </span>
           <span>
-            <strong>{mobileCartOpen ? "Close current order" : "View current order"}</strong>
-            <small>{cart.reduce((sum, row) => sum + row.quantity, 0)} items</small>
+            <strong>{mobileCartOpen ? t("common.close", "Close current order") : t("pos.cart", "View current order")}</strong>
+            <small>{t("pos.items_count", { count: cart.reduce((sum, row) => sum + row.quantity, 0) })}</small>
           </span>
           <b>{formatMoney(quote?.grand_total ?? subtotal, currencyCode)}</b>
         </button>
         <div id="current-order-panel" className="cart-panel-content">
           <div className="cart-head">
             <div>
-              <p className="eyebrow">Sale details</p>
-              <h2>Current order</h2>
+              <p className="eyebrow">{t("pos.title", "Sale details")}</p>
+              <h2>{t("pos.cart", "Current order")}</h2>
             </div>
             <div className="cart-head-meta">
-              <span>{cart.reduce((sum, row) => sum + row.quantity, 0)} items</span>
+              <span>{t("pos.items_count", { count: cart.reduce((sum, row) => sum + row.quantity, 0) })}</span>
               {cart.length > 0 && (
                 <button
                   onClick={() => {
@@ -605,7 +608,7 @@ export function PosPage() {
                     setError("");
                   }}
                 >
-                  Clear order
+                  {t("pos.clear_cart", "Clear order")}
                 </button>
               )}
             </div>
@@ -614,8 +617,8 @@ export function PosPage() {
             {cart.length === 0 ? (
               <EmptyState
                 icon="cart"
-                title="Cart is empty"
-                message="Tap a product to add it to this sale."
+                title={t("pos.empty_cart_title", "Cart is empty")}
+                message={t("pos.empty_cart_message", "Tap a product to add it to this sale.")}
               />
             ) : (
               cart.map((row) => (
@@ -661,7 +664,7 @@ export function PosPage() {
                 disabled={busy || !currentShop}
                 onClick={() => setDetailsOpen(true)}
               >
-                Add more detail
+                {t("common.details", "Add more detail")}
               </Button>
               <Button
                 variant="secondary"
@@ -669,21 +672,21 @@ export function PosPage() {
                 disabled={!cart.length || busy || !currentShop}
                 onClick={previewInvoice}
               >
-                Preview invoice
+                {t("invoices.print_invoice", "Preview invoice")}
               </Button>
             </div>
             <div>
-              <span>Catalog subtotal</span>
+              <span>{t("pos.subtotal_amount", "Catalog subtotal")}</span>
               <strong>{formatMoney(subtotal, currencyCode)}</strong>
             </div>
             {quote && Number(quote.discount_total) > 0 && (
               <div className="discount">
-                <span>{promotion?.name ?? "Promotion"} discount</span>
+                <span>{promotion?.name ?? t("pos.item_discount", "Promotion")} {t("pos.item_discount", "discount")}</span>
                 <strong>−{formatMoney(quote.discount_total, currencyCode)}</strong>
               </div>
             )}
             <div className="grand-total">
-              <span>Order total</span>
+              <span>{t("pos.total_amount", "Order total")}</span>
               <strong>{formatMoney(quote?.grand_total ?? subtotal, currencyCode)}</strong>
             </div>
             {error && <div className="form-error">{error}</div>}
@@ -691,7 +694,7 @@ export function PosPage() {
               disabled={!cart.length || subtotal <= 0 || busy || !currentShop}
               onClick={() => void openCheckout()}
             >
-              {busy ? "Preparing…" : "Checkout"}
+              {busy ? t("common.loading", "Preparing…") : t("pos.checkout_button", { amount: formatMoney(quote?.grand_total ?? subtotal, currencyCode) }, "Checkout")}
             </Button>
           </div>
         </div>

@@ -1,0 +1,106 @@
+/*
+ * Lavender Dusk Theme Controls
+ * ----------------------------
+ * A calming French Provençal lavender and misty lilac aesthetic with soft
+ * pastel purple brand actions, silvery haze canvas, and serene readability.
+ */
+:root[data-theme="lavender-dusk-theme"],
+[data-theme="lavender-dusk-theme"] {
+  --theme-black: #2e1065;
+  --theme-gray-950: #2e1065;
+  --theme-gray-900: #4c1d95;
+  --theme-gray-800: #5b21b6;
+  --theme-gray-700: #6d28d9;
+  --theme-gray-600: #7c3aed;
+  --theme-gray-500: #8b5cf6;
+  --theme-gray-400: #a78bfa;
+  --theme-gray-300: #c4b5fd;
+  --theme-gray-200: #ddd6fe;
+  --theme-gray-100: #ede9fe;
+  --theme-gray-50: #faf8ff;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 46 16 101;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #059669;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #e11d48;
+  --status-danger-soft: #fff1f2;
+  --status-danger-border: #fecdd3;
+  --status-info: #8b5cf6;
+  --status-info-soft: #ede9fe;
+  --status-info-border: #ddd6fe;
+  --status-neutral: #6b7280;
+  --status-neutral-soft: #f3f4f6;
+  --status-neutral-border: #e5e7eb;
+  --status-conflict: #ec4899;
+  --status-conflict-soft: #fdf2f8;
+  --status-conflict-border: #fbcfe8;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 46 16 101;
+
+  --ink: #2e1065;
+  --muted: #6b7280;
+  --line: #ede9fe;
+  --paper: #ffffff;
+  --canvas: #faf8ff;
+  --green: #8b5cf6;
+  --green-dark: #7c3aed;
+  --green-soft: #ede9fe;
+  --amber: #d97706;
+  --red: #e11d48;
+  --blue: #8b5cf6;
+  --shadow: 0 4px 20px -2px rgb(139 92 246 / 8%), 0 2px 6px -1px rgb(139 92 246 / 4%);
+  --border: #ede9fe;
+  --card: #ffffff;
+  --mint: #ede9fe;
+  --text: #2e1065;
+  --surface: #ffffff;
+  --surface-muted: #f5f3ff;
+  --accent: #8b5cf6;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #8b5cf6;
+  --color-brand-hover: #7c3aed;
+  --color-brand-soft: #ede9fe;
+  --color-brand-border: #ddd6fe;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #e11d48;
+  --color-rose-soft: #fff1f2;
+  --color-rose-border: #fecdd3;
+  --color-purple: #8b5cf6;
+  --color-purple-soft: #ede9fe;
+  --color-purple-border: #ddd6fe;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="lavender-dusk-theme"] .button-primary {
+  background: #8b5cf6;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(139 92 246 / 25%);
+}
+
+[data-theme="lavender-dusk-theme"] .button-primary:hover {
+  background: #7c3aed;
+}
+
+[data-theme="lavender-dusk-theme"] .topbar {
+  background: rgb(250 248 255 / 92%);
+}

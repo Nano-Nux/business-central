@@ -1,6 +1,9 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import Link from "next/link";
+import { Icon } from "./icons";
+import { useAuth } from "@/lib/auth";
 import {
   Button,
   EmptyState,
@@ -33,6 +36,8 @@ type Service = {
 };
 
 export function RepairCatalogPage() {
+  const { merchant } = useAuth();
+  const mini = merchant?.pos_complexity_level === "MINI";
   const offline = useOffline();
   const services = useResource<Service>("/services/catalog?page_index=0&page_size=100");
   const [query, setQuery] = useState("");
@@ -109,6 +114,26 @@ export function RepairCatalogPage() {
   }
   return (
     <>
+      {mini && (
+        <div style={{ marginBottom: "1rem" }}>
+          <Link
+            href="/repairs"
+            className="text-link"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+            }}
+          >
+            <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
+              <Icon name="arrow" size={14} />
+            </span>
+            <span>Back to Repairs</span>
+          </Link>
+        </div>
+      )}
       <PageHeader
         eyebrow="Repairs"
         title="Repair catalog"
