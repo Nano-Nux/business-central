@@ -62,7 +62,7 @@ describe("navigation engine", () => {
       expect(allHrefs).toContain("/promotions");
       expect(allHrefs).toContain("/accounts");
       expect(allHrefs).toContain("/settings");
-      expect(allHrefs).toContain("/guide");
+      expect(allHrefs).not.toContain("/guide");
     });
   });
 

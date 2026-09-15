@@ -48,13 +48,6 @@ const areas = [
     text: "Price lists and authoritative variant prices",
     color: "purple",
   },
-  {
-    href: "/promotions",
-    icon: "tag" as const,
-    title: "Promotions",
-    text: "Discounts for products, POS and repair",
-    color: "purple",
-  },
 ];
 export default function CatalogPage() {
   const { merchant } = useAuth();
@@ -62,7 +55,7 @@ export default function CatalogPage() {
   const simple = merchant?.pos_complexity_level === "SIMPLE";
   const visibleAreas = mini
     ? areas.filter((area) =>
-        ["/categories", "/brands", "/products", "/promotions"].includes(area.href),
+        ["/categories", "/brands", "/products"].includes(area.href),
       )
     : simple
       ? areas.filter((area) =>

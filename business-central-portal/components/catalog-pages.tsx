@@ -465,7 +465,10 @@ export function UnitsPage() {
       <PageHeader
         eyebrow={t("nav.catalog", "Catalog")}
         title={t("common.unit", "Units")}
-        description={t("common.description", "Define how products are counted, measured and sold.")}
+        description={t(
+          "catalog.units_description",
+          "Define how products are counted, measured and sold.",
+        )}
         action={
           <Button
             icon="plus"
@@ -725,7 +728,10 @@ export function ConversionsPage() {
       <PageHeader
         eyebrow={t("nav.catalog", "Catalog")}
         title={t("nav.variant_attributes", "Unit conversions")}
-        description={t("common.description", "Connect purchasing packs to the base units you stock and sell.")}
+        description={t(
+          "catalog.unit_conversions_description",
+          "Connect purchasing packs to the base units you stock and sell.",
+        )}
         action={
           <Button
             icon="plus"

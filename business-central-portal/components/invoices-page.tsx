@@ -135,7 +135,7 @@ function mapInvoice(item: ApiInvoice): Invoice {
     discount: Number(item.discount_total),
     tax: Number(item.tax_total),
     total: Number(item.grand_total),
-    items: item.items.map((line) => ({
+    items: (item.items ?? []).map((line) => ({
       name: line.name,
       quantity: Number(line.quantity),
       price: Number(line.unit_price),

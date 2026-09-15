@@ -325,7 +325,7 @@ export function RepairPresetsPage({ type }: { type: "ISSUE" | "CONDITION" }) {
           <div className="preset-template-chips">
             {starterTemplates.map((template) => {
               const alreadyExists = presets.data.some(
-                (p) => p.value.toLowerCase() === template.value.toLowerCase(),
+                (p) => (p.value ?? "").toLowerCase() === template.value.toLowerCase(),
               );
               return (
                 <button

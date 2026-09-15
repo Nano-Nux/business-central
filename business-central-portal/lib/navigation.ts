@@ -143,11 +143,11 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
         label: "Settings",
         icon: "settings",
       },
-      {
-        href: "/guide",
-        label: "Quick guide",
-        icon: "book",
-      },
+      // {
+      //   href: "/guide",
+      //   label: "Quick guide",
+      //   icon: "book",
+      // },
     ],
   },
 ];

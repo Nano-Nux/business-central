@@ -144,8 +144,11 @@ export function CategoriesPage() {
     <>
       <PageHeader
         eyebrow={t("nav.catalog", "Catalog")}
-        title={t("catalog.category_label", "Categories")}
-        description={t("common.description", "Organize products into a simple, searchable hierarchy.")}
+        title={t("catalog.categories_title", "Categories")}
+        description={t(
+          "catalog.categories_description",
+          "Organize products into a simple, searchable hierarchy.",
+        )}
         action={
           <Button
             icon="plus"

@@ -2078,7 +2078,7 @@ export function RepairsPage() {
               {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
             </Button>
             <Link className="button button-secondary" href="/repairs/catalog">
-              {t("nav.repairs")}
+              {t("nav.repair_catalog", "Repair catalog")}
             </Link>
           </div>
         }

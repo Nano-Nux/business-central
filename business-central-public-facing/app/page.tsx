@@ -1,65 +1,133 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState } from "react";
+import Navbar from "@/components/Navbar";
+import Hero from "@/components/Hero";
+import HeroInteractiveSimulator from "@/components/HeroInteractiveSimulator";
+import ModuleCatalogue from "@/components/ModuleCatalogue";
+import StoreOperations from "@/components/StoreOperations";
+import OfflineSyncDeepDive from "@/components/OfflineSyncDeepDive";
+import RoiCalculator from "@/components/RoiCalculator";
+import ComparisonTable from "@/components/ComparisonTable";
+import PricingSection from "@/components/PricingSection";
+import TestimonialsAndMetrics from "@/components/TestimonialsAndMetrics";
+import FaqSection from "@/components/FaqSection";
+import DemoModal from "@/components/DemoModal";
+import Footer from "@/components/Footer";
+import { ArrowRight } from "lucide-react";
 
 export default function Home() {
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
+
+  const scrollToSandbox = () => {
+    const el = document.getElementById("interactive-demo");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col selection:bg-slate-900 selection:text-white">
+      {/* Navigation Header */}
+      <Navbar onOpenDemoModal={() => setDemoModalOpen(true)} />
+
+      {/* Main Page Flow */}
+      <main className="flex-1 flex flex-col">
+        {/* 1. Hero Section */}
+        <Hero
+          onOpenDemoModal={() => setDemoModalOpen(true)}
+          onExploreSandbox={scrollToSandbox}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        {/* 2. Interactive Product Sandbox Simulator */}
+        <HeroInteractiveSimulator />
+
+        {/* 3. Daily Store Operations & Hardware */}
+        <StoreOperations onOpenDemoModal={() => setDemoModalOpen(true)} />
+
+        {/* 4. Module Catalogue */}
+        <ModuleCatalogue />
+
+        {/* 5. Edge Offline Protocol Deep-Dive */}
+        <OfflineSyncDeepDive />
+
+        {/* 6. Interactive ROI & Cost Calculator */}
+        <RoiCalculator onOpenDemoModal={() => setDemoModalOpen(true)} />
+
+        {/* 7. Detailed Comparison Table */}
+        <ComparisonTable />
+
+        {/* 8. Verified Customer Testimonials & Metrics */}
+        <TestimonialsAndMetrics />
+
+        {/* 9. Transparent Pricing */}
+        <PricingSection onOpenDemoModal={() => setDemoModalOpen(true)} />
+
+        {/* 10. Searchable FAQ */}
+        <FaqSection />
+
+        {/* 11. High-Converting Conversion Banner */}
+        <section id="cta-banner" aria-labelledby="cta-heading" className="py-16 md:py-24 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="relative rounded-3xl p-8 sm:p-16 bg-slate-950 text-white shadow-xl border border-slate-800 text-center overflow-hidden">
+              <div className="relative z-10">
+                <span className="text-xs font-bold px-3.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 inline-block mb-4 shadow-xs">
+                  Unify Your Operations Today
+                </span>
+
+                <h2 id="cta-heading" className="text-3xl sm:text-5xl font-black text-white tracking-tight max-w-3xl mx-auto leading-tight">
+                  Ready to upgrade your store and repair management?
+                </h2>
+
+                <p className="mt-4 text-slate-300 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+                  Join forward-thinking retailers and electronics service chains running on sub-second checkout,
+                  strict FIFO stock valuation, and zero-downtime offline mobility.
+                </p>
+
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5">
+                  <button
+                    id="btn-cta-walkthrough"
+                    onClick={() => setDemoModalOpen(true)}
+                    className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>Request Platform Walkthrough</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    id="btn-cta-interactive-demo"
+                    onClick={scrollToSandbox}
+                    className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-white font-semibold text-sm border border-slate-700 hover:border-slate-600 shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer"
+                  >
+                    Try Interactive Demo
+                  </button>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-5 text-xs text-slate-400">
+                  <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Free 14-day evaluation
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    No credit card required
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Full onboarding support
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
+
+      {/* Global Footer */}
+      <Footer />
+
+      {/* Demo Booking Modal */}
+      <DemoModal isOpen={demoModalOpen} onClose={() => setDemoModalOpen(false)} />
     </div>
   );
 }

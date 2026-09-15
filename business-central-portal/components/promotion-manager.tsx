@@ -408,11 +408,11 @@ export function PromotionManager() {
               </div>
               <h2>{item.name}</h2>
               <strong>
-                {item.promotion_type.includes("PERCENT")
-                  ? `${item.value}%`
-                  : `${formatMoney(item.value, merchant?.default_currency_code)}`}{" "}
-                off
-              </strong>
+            {(item.promotion_type ?? "").includes("PERCENT")
+              ? `${item.value}%`
+              : `${formatMoney(item.value, merchant?.default_currency_code)} `}
+            off
+          </strong>
               <p>
                 {Number(item.minimum_subtotal) > 0
                   ? `Minimum ${formatMoney(item.minimum_subtotal, merchant?.default_currency_code)}`

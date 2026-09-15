@@ -91,8 +91,11 @@ export function BrandsPage() {
     <>
       <PageHeader
         eyebrow={t("nav.catalog", "Catalog")}
-        title={t("catalog.brand_label", "Brands")}
-        description={t("common.description", "Manage the brands available when creating products.")}
+        title={t("catalog.brands_title", "Brands")}
+        description={t(
+          "catalog.brands_description",
+          "Manage the brands available when creating products.",
+        )}
         action={
           <Button
             icon="plus"
