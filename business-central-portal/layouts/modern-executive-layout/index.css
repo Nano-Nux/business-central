@@ -1,0 +1,9 @@
+/*
+ * Modern Executive Layout Aggregator
+ * -----------------------------------
+ * Ultra-premium workspace layout for business-central-portal.
+ * Integrates floating island shell, ergonomic POS register, and universal page styling.
+ */
+@import "./shell.css";
+@import "./pos.css";
+@import "./pages.css";

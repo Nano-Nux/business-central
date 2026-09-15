@@ -734,8 +734,8 @@ func (r *Repository) applyCatalogProductOperation(ctx context.Context, tx pgx.Tx
 	if err := tx.QueryRow(ctx, `SELECT pos_complexity_level FROM merchants WHERE id=$1::uuid`, claims.MerchantID).Scan(&complexityLevel); err != nil {
 		return dto.OperationResult{}, err
 	}
-	if complexityLevel == "SIMPLE" && operation.OperationType == "CREATE" {
-		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "ONLINE_REQUIRED", "POS simple products must be created online so their standard variant is created atomically.")
+	if (complexityLevel == "SIMPLE" || complexityLevel == "MINI") && operation.OperationType == "CREATE" {
+		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "ONLINE_REQUIRED", "POS simple and mini products must be created online so their standard variant is created atomically.")
 	}
 	var payload catalogProductSyncPayload
 	if err := json.Unmarshal(operation.Payload, &payload); err != nil || operation.OperationType != "DELETE" && validateCatalogProductPayload(payload) != nil {
@@ -975,8 +975,8 @@ func (r *Repository) applyCatalogVariantOperation(ctx context.Context, tx pgx.Tx
 	if err := tx.QueryRow(ctx, `SELECT pos_complexity_level FROM merchants WHERE id=$1::uuid`, claims.MerchantID).Scan(&complexityLevel); err != nil {
 		return dto.OperationResult{}, err
 	}
-	if complexityLevel == "SIMPLE" {
-		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "POS_SIMPLE_VARIANT_MANAGED", "POS simple standard variants are managed with their product.")
+	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
+		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "POS_SIMPLE_VARIANT_MANAGED", "POS simple and mini standard variants are managed with their product.")
 	}
 	var payload catalogVariantSyncPayload
 	if err := json.Unmarshal(operation.Payload, &payload); err != nil || operation.OperationType != "DELETE" && validateCatalogVariantPayload(payload) != nil {
@@ -1806,10 +1806,18 @@ func (r *Repository) applyStockReceiptOperation(ctx context.Context, tx pgx.Tx, 
 			FROM inventory_movements
 			WHERE merchant_id=$1::uuid AND variant_id=$2::uuid AND movement_type='RECEIPT' AND unit_cost IS NOT NULL
 			ORDER BY occurred_at DESC, created_at DESC, id DESC
-			LIMIT 1`, claims.MerchantID, payload.VariantID).Scan(&payload.UnitCost); errors.Is(err, pgx.ErrNoRows) {
-			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "UNIT_COST_REQUIRED", "The first stock-in for this product variant requires an original unit cost.")
-		} else if err != nil {
-			return dto.OperationResult{}, err
+			LIMIT 1`, claims.MerchantID, payload.VariantID).Scan(&payload.UnitCost); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				var origCost *string
+				_ = tx.QueryRow(ctx, `SELECT original_price::text FROM product_variants WHERE merchant_id=$1::uuid AND id=$2::uuid`, claims.MerchantID, payload.VariantID).Scan(&origCost)
+				if origCost != nil && *origCost != "" {
+					payload.UnitCost = *origCost
+				} else {
+					return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "UNIT_COST_REQUIRED", "The first stock-in for this product variant requires an original unit cost.")
+				}
+			} else {
+				return dto.OperationResult{}, err
+			}
 		}
 	}
 	if operation.BaseVersion != nil && *operation.BaseVersion != 0 {

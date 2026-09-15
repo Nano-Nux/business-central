@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Icon } from "./icons";
 import { Badge, Button, EmptyState, Field, Form, Loading, PageHeader, StatusBadge } from "./ui";
 import {
@@ -13,7 +13,7 @@ import {
   usingNativePrinterBridge,
   type PrinterDevice,
 } from "@/lib/thermal-printer";
-import { patch, post, remove } from "@/lib/api";
+import { list, patch, post, remove } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import type { CustomFieldDefinition, Merchant, Shop } from "@/lib/types";
 import { useShop } from "@/lib/shop";
@@ -28,19 +28,42 @@ import { imageUploadMarker } from "@/lib/offline-images";
 import { putCachedResource } from "@/lib/offline-db";
 import { formatShopAddress } from "@/lib/shop-address";
 import { currencyLabel } from "@/lib/currency";
+import { formatPosModeName, getLandingPageOptions } from "@/lib/navigation";
+import {
+  AVAILABLE_THEMES,
+  AVAILABLE_LAYOUTS,
+  applyTheme,
+  applyLayout,
+  getStoredTheme,
+  getStoredLayout,
+  resolveInitialTheme,
+  resolveInitialLayout,
+  CUSTOM_COLOR_THEME_ID,
+  getCustomThemeConfig,
+  applyCustomTheme,
+  generateHarmonious5ColorSetup,
+  isValidHexColor,
+  type MerchantCustomTheme,
+  applyMerchantCustomTheme,
+  getCachedMerchantCustomThemes,
+  setCachedMerchantCustomThemes,
+} from "@/lib/theme-storage";
+
+import { useTranslation } from "@/lib/i18n";
 
 export function SettingsPage() {
   const { isMerchant } = useAuth();
+  const { t } = useTranslation();
 
   return (
     <>
       <PageHeader
-        eyebrow="Workspace"
-        title="Settings"
+        eyebrow={t("settings.language.eyebrow", "Settings")}
+        title={t("settings.page_title", "Settings")}
         description={
           isMerchant
-            ? "Manage your business details and how invoices are printed."
-            : "Manage thermal printer connection and receipt printing preferences for your workstation."
+            ? t("settings.page_description_merchant", "Manage your business details, language preferences, and how invoices are printed.")
+            : t("settings.page_description_staff", "Manage workspace language, thermal printer connection, and receipt printing preferences for your workstation.")
         }
       />
       <div className="settings-grid">
@@ -50,8 +73,8 @@ export function SettingsPage() {
               <Icon name="receipt" />
             </span>
             <div>
-              <h2>Payment types</h2>
-              <p>Merchant-wide Cash, Online, and future Digital payment choices.</p>
+              <h2>{t("settings.cards.payment_types.title", "Payment types")}</h2>
+              <p>{t("settings.cards.payment_types.description", "Merchant-wide Cash, Online, and future Digital payment choices.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -62,8 +85,8 @@ export function SettingsPage() {
               <Icon name="store" />
             </span>
             <div>
-              <h2>Merchant & shops</h2>
-              <p>Business identity, contact details, shops and operating timezone.</p>
+              <h2>{t("settings.cards.merchant_shops.title", "Merchant & shops")}</h2>
+              <p>{t("settings.cards.merchant_shops.description", "Business identity, contact details, shops and operating timezone.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -73,8 +96,28 @@ export function SettingsPage() {
             <Icon name="printer" />
           </span>
           <div>
-            <h2>Printer</h2>
-            <p>Bluetooth permission, device connection, image proof and font sizing.</p>
+            <h2>{t("settings.cards.printer.title", "Printer")}</h2>
+            <p>{t("settings.cards.printer.description", "Bluetooth permission, device connection, image proof and font sizing.")}</p>
+          </div>
+          <Icon name="arrow" />
+        </Link>
+        <Link href="/settings/theme" className="settings-card">
+          <span className="stat-icon mint">
+            <Icon name="palette" />
+          </span>
+          <div>
+            <h2>{t("settings.cards.theme.title", "Theme")}</h2>
+            <p>{t("settings.cards.theme.description", "Visual theme appearance and interface styling preferences.")}</p>
+          </div>
+          <Icon name="arrow" />
+        </Link>
+        <Link href="/settings/language" className="settings-card">
+          <span className="stat-icon blue">
+            <Icon name="globe" />
+          </span>
+          <div>
+            <h2>{t("settings.cards.language.title", "Language setting")}</h2>
+            <p>{t("settings.cards.language.description", "Choose workspace language: English, Myanmar, or Thai.")}</p>
           </div>
           <Icon name="arrow" />
         </Link>
@@ -84,8 +127,8 @@ export function SettingsPage() {
               <Icon name="settings" />
             </span>
             <div>
-              <h2>Application</h2>
-              <p>Startup behavior, confirmations and operational display preferences.</p>
+              <h2>{t("settings.cards.application.title", "Application")}</h2>
+              <p>{t("settings.cards.application.description", "Startup behavior, confirmations and operational display preferences.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -96,8 +139,8 @@ export function SettingsPage() {
               <Icon name="receipt" />
             </span>
             <div>
-              <h2>Tax & receipt notes</h2>
-              <p>Receipt wording, tax display and customer-facing notes.</p>
+              <h2>{t("settings.cards.tax_notes.title", "Tax & receipt notes")}</h2>
+              <p>{t("settings.cards.tax_notes.description", "Receipt wording, tax display and customer-facing notes.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -108,8 +151,8 @@ export function SettingsPage() {
               <Icon name="repair" />
             </span>
             <div>
-              <h2>Repair specifications</h2>
-              <p>Fault presets and repair intake defaults.</p>
+              <h2>{t("settings.cards.repair_specs.title", "Repair specifications")}</h2>
+              <p>{t("settings.cards.repair_specs.description", "Fault presets and repair intake defaults.")}</p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -135,8 +178,30 @@ export function OperationalSettingsPage({
   } as const;
   const [message, setMessage] = useState("");
   const { currentShop, shops, selectShop } = useShop();
+  const { merchant, isMerchant, can } = useAuth();
   const offline = useOffline();
   const [values, setValues] = useState<Record<string, string>>({});
+
+  const posMode = useMemo(
+    () => formatPosModeName(merchant?.pos_complexity_level),
+    [merchant?.pos_complexity_level],
+  );
+
+  const landingPageGroups = useMemo(
+    () =>
+      getLandingPageOptions({
+        posComplexityLevel: merchant?.pos_complexity_level,
+        isMerchant,
+        can,
+        moduleCodes: currentShop?.module_codes,
+      }),
+    [merchant?.pos_complexity_level, isMerchant, can, currentShop?.module_codes],
+  );
+
+  const allLandingHrefs = useMemo(
+    () => new Set(landingPageGroups.flatMap((g) => g.items.map((i) => i.value))),
+    [landingPageGroups],
+  );
 
   useEffect(() => {
     if (!currentShop) return;
@@ -145,8 +210,6 @@ export function OperationalSettingsPage({
         setValues({
           defaultView:
             currentShop.default_view ?? currentShop.address?.default_view ?? "/dashboard",
-          currencyDisplay:
-            currentShop.currency_display ?? currentShop.address?.currency_display ?? "SYMBOL",
         });
       } else if (section === "staff") {
         setValues({
@@ -187,7 +250,6 @@ export function OperationalSettingsPage({
         updateAddress = {
           ...updateAddress,
           default_view: values.defaultView || "/dashboard",
-          currency_display: values.currencyDisplay || "SYMBOL",
         };
         successMsg = "Application settings saved and recorded in the database for this shop.";
       } else if (section === "staff") {
@@ -331,27 +393,26 @@ export function OperationalSettingsPage({
               ))}
             </select>
           </Field>
-          <Field label="Default landing view">
+          <Field
+            label="Default landing page"
+            hint={`Available options adapt to ${posMode.name} (${posMode.code}) and match your sidebar navigation.`}
+          >
             <select
               value={values.defaultView ?? "/dashboard"}
               onChange={(event) => setValues({ ...values, defaultView: event.target.value })}
             >
-              <option value="/dashboard">Dashboard</option>
-              <option value="/pos">Point of Sale (POS)</option>
-              <option value="/repairs">Repairs & Tickets</option>
-              <option value="/invoices">Invoices</option>
-              <option value="/catalog">Catalog & Products</option>
-              <option value="/customers">Customers</option>
-            </select>
-          </Field>
-          <Field label="Currency display">
-            <select
-              value={values.currencyDisplay ?? "SYMBOL"}
-              onChange={(event) => setValues({ ...values, currencyDisplay: event.target.value })}
-            >
-              <option value="SYMBOL">Currency Symbol (e.g. $ / ฿)</option>
-              <option value="CODE">Currency Code (e.g. USD / THB)</option>
-              <option value="BOTH">Both Symbol & Code (e.g. $ USD)</option>
+              {landingPageGroups.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.items.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+              {values.defaultView && !allLandingHrefs.has(values.defaultView) && (
+                <option value={values.defaultView}>{values.defaultView} (Custom)</option>
+              )}
             </select>
           </Field>
           <Button type="submit">Save settings</Button>
@@ -1424,6 +1485,1056 @@ export function PrinterSettingsPage() {
           <InvoiceReceipt invoice={repairPreview} variant="repair" />
         </div>
       </section>
+    </>
+  );
+}
+
+const SPECTRUM_PRESETS = [
+  { name: "Ruby Red", hex: "#dc2626", hue: "0°" },
+  { name: "Sunset Coral", hex: "#ea580c", hue: "20°" },
+  { name: "Amber Gold", hex: "#d97706", hue: "40°" },
+  { name: "Citrus Gold", hex: "#ca8a04", hue: "55°" },
+  { name: "Lime Zest", hex: "#65a30d", hue: "80°" },
+  { name: "Emerald Luxe", hex: "#059669", hue: "150°" },
+  { name: "Ocean Teal", hex: "#0d9488", hue: "175°" },
+  { name: "Glacier Cyan", hex: "#0284c7", hue: "195°" },
+  { name: "Royal Sapphire", hex: "#2563eb", hue: "220°" },
+  { name: "Deep Indigo", hex: "#4f46e5", hue: "245°" },
+  { name: "Amethyst Violet", hex: "#7c3aed", hue: "275°" },
+  { name: "Fuchsia Rose", hex: "#db2777", hue: "330°" },
+  { name: "Matte Charcoal", hex: "#18181b", hue: "Black" },
+];
+
+export function ThemeCustomizationStudio({
+  onApply,
+  currentTheme,
+  isMerchant,
+}: {
+  onApply: (themeId: string, label: string) => void;
+  currentTheme: string;
+  isMerchant: boolean;
+}) {
+  const initialConfig = useMemo(() => getCustomThemeConfig(), []);
+  const [color, setColor] = useState<string>(initialConfig.color || "#2563eb");
+  const [mode, setMode] = useState<"light" | "dark">(initialConfig.mode || "light");
+  const [hexInput, setHexInput] = useState<string>(initialConfig.color || "#2563eb");
+  const [hexError, setHexError] = useState<string | null>(null);
+
+  // Cloud merchant custom themes
+  const [merchantThemes, setMerchantThemes] = useState<MerchantCustomTheme[]>(
+    getCachedMerchantCustomThemes,
+  );
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [themeName, setThemeName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  const fiveColors = useMemo(() => {
+    try {
+      const validHex = isValidHexColor(color) ? color : "#2563eb";
+      return generateHarmonious5ColorSetup(validHex, mode === "dark");
+    } catch {
+      return ["#2563eb", "#1d4ed8", "#60a5fa", "#e2e8f0", mode === "dark" ? "#0f172a" : "#ffffff"];
+    }
+  }, [color, mode]);
+
+  useEffect(() => {
+    let mounted = true;
+    list<MerchantCustomTheme>("/custom-themes")
+      .then((items) => {
+        if (mounted && Array.isArray(items)) {
+          setMerchantThemes(items);
+          setCachedMerchantCustomThemes(items);
+        }
+      })
+      .catch(() => {
+        // Offline or permissions fallback
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleColorPick = (newColor: string) => {
+    setColor(newColor);
+    setHexInput(newColor);
+    setHexError(null);
+  };
+
+  const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.trim();
+    if (!val.startsWith("#") && val.length > 0) {
+      val = "#" + val;
+    }
+    setHexInput(val);
+    if (isValidHexColor(val)) {
+      setColor(val);
+      setHexError(null);
+    } else if (val.length >= 7) {
+      setHexError("Invalid 6-digit hex format (e.g. #2563eb)");
+    }
+  };
+
+  const handleApply = () => {
+    applyCustomTheme(color, mode);
+    onApply(CUSTOM_COLOR_THEME_ID, "Custom Brand Color (360°)");
+  };
+
+  const handleSaveTheme = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!themeName.trim()) return;
+    setSaving(true);
+    setSaveStatus(null);
+    try {
+      const payload = {
+        name: themeName.trim(),
+        mode,
+        colors: fiveColors,
+        primary_color: fiveColors[0],
+        secondary_color: fiveColors[1],
+        accent_color: fiveColors[2],
+        border_color: fiveColors[3],
+        canvas_color: fiveColors[4],
+      };
+      const created = await post<MerchantCustomTheme>("/custom-themes", payload);
+      const updated = [created, ...merchantThemes.filter((t) => t.id !== created.id)];
+      setMerchantThemes(updated);
+      setCachedMerchantCustomThemes(updated);
+      setSaveStatus(`Theme "${created.name}" saved to organization!`);
+      setSaveModalOpen(false);
+      setThemeName("");
+      setTimeout(() => setSaveStatus(null), 4000);
+    } catch (err: unknown) {
+      setSaveStatus(err instanceof Error ? err.message : "Failed to save theme.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTheme = async (id: string, name: string) => {
+    if (!confirm(`Delete custom theme "${name}"?`)) return;
+    try {
+      await remove(`/custom-themes/${id}`);
+      const updated = merchantThemes.filter((t) => t.id !== id);
+      setMerchantThemes(updated);
+      setCachedMerchantCustomThemes(updated);
+      setSaveStatus(`Theme "${name}" deleted.`);
+      setTimeout(() => setSaveStatus(null), 3000);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to delete theme.");
+    }
+  };
+
+  const isCustomActive = currentTheme === CUSTOM_COLOR_THEME_ID;
+
+  return (
+    <div className="theme-studio-card" id="theme-customization-studio">
+      <div className="theme-studio-header">
+        <div>
+          <h3>
+            <Icon name="palette" size={20} />
+            360° Custom Color & Brand Studio
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "2px 8px",
+                borderRadius: "999px",
+                background: "var(--accent, #2563eb)",
+                color: "#ffffff",
+                marginLeft: "8px",
+              }}
+            >
+              360° Custom
+            </span>
+          </h3>
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: "13px",
+              color: "var(--muted)",
+              maxWidth: "680px",
+            }}
+          >
+            Select any primary brand color or type a hex code. Business Central automatically
+            generates a harmonious 5-color palette (Primary, Secondary, Accent, Border, Canvas)
+            calibrated for optimal readability and contrast.
+          </p>
+        </div>
+        {isCustomActive && <StatusBadge status="ACTIVE" label="Active on Workspace" />}
+      </div>
+
+      {saveStatus && (
+        <div style={{ marginBottom: "16px" }}>
+          <StatusBadge status="ACTIVE" label={saveStatus} />
+        </div>
+      )}
+
+      <div className="theme-studio-layout">
+        {/* Controls Column */}
+        <div className="theme-studio-controls">
+          <div>
+            <label
+              style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}
+            >
+              Primary Brand Color
+            </label>
+            <div className="color-picker-row">
+              <div className="color-picker-wrapper" title="Click to open color wheel">
+                <input
+                  type="color"
+                  value={isValidHexColor(color) ? color : "#2563eb"}
+                  onChange={(e) => handleColorPick(e.target.value)}
+                  aria-label="Color wheel picker"
+                />
+              </div>
+              <input
+                type="text"
+                className="color-hex-input"
+                value={hexInput}
+                onChange={handleHexChange}
+                maxLength={7}
+                placeholder="#2563eb"
+                aria-label="Hex color code"
+              />
+              <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                Pick from wheel or enter Hex
+              </span>
+            </div>
+            {hexError && (
+              <p
+                style={{
+                  margin: "4px 0 0",
+                  fontSize: "11px",
+                  color: "var(--status-danger, #e11d48)",
+                }}
+              >
+                {hexError}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}
+            >
+              360° Hue Spectrum Presets
+            </label>
+            <div className="spectrum-presets-grid">
+              {SPECTRUM_PRESETS.map((preset) => (
+                <button
+                  key={preset.hex}
+                  type="button"
+                  className="spectrum-preset-btn"
+                  onClick={() => handleColorPick(preset.hex)}
+                  title={`${preset.name} (${preset.hue})`}
+                >
+                  <span className="spectrum-preset-dot" style={{ backgroundColor: preset.hex }} />
+                  <span>{preset.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label
+              style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}
+            >
+              Canvas Appearance Mode
+            </label>
+            <div className="mode-toggle-group">
+              <button
+                type="button"
+                className={`mode-toggle-btn ${mode === "light" ? "active" : ""}`}
+                onClick={() => setMode("light")}
+              >
+                <span>☀️</span> Light Canvas
+              </button>
+              <button
+                type="button"
+                className={`mode-toggle-btn ${mode === "dark" ? "active" : ""}`}
+                onClick={() => setMode("dark")}
+              >
+                <span>🌙</span> Dark Canvas
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label
+              style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}
+            >
+              Generated 5-Color Harmonic Palette
+            </label>
+            <div className="harmonic-swatches-grid">
+              <div className="harmonic-swatch-item">
+                <div className="harmonic-swatch-color" style={{ backgroundColor: fiveColors[0] }} />
+                <span className="harmonic-swatch-role">Primary</span>
+                <span className="harmonic-swatch-hex">{fiveColors[0]}</span>
+              </div>
+              <div className="harmonic-swatch-item">
+                <div className="harmonic-swatch-color" style={{ backgroundColor: fiveColors[1] }} />
+                <span className="harmonic-swatch-role">Secondary</span>
+                <span className="harmonic-swatch-hex">{fiveColors[1]}</span>
+              </div>
+              <div className="harmonic-swatch-item">
+                <div className="harmonic-swatch-color" style={{ backgroundColor: fiveColors[2] }} />
+                <span className="harmonic-swatch-role">Accent</span>
+                <span className="harmonic-swatch-hex">{fiveColors[2]}</span>
+              </div>
+              <div className="harmonic-swatch-item">
+                <div className="harmonic-swatch-color" style={{ backgroundColor: fiveColors[3] }} />
+                <span className="harmonic-swatch-role">Border</span>
+                <span className="harmonic-swatch-hex">{fiveColors[3]}</span>
+              </div>
+              <div className="harmonic-swatch-item">
+                <div className="harmonic-swatch-color" style={{ backgroundColor: fiveColors[4] }} />
+                <span className="harmonic-swatch-role">Canvas</span>
+                <span className="harmonic-swatch-hex">{fiveColors[4]}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+            <Button
+              type="button"
+              onClick={handleApply}
+              style={{
+                backgroundColor: fiveColors[0],
+                color: mode === "dark" && fiveColors[0] === "#ffffff" ? "#000000" : "#ffffff",
+                border: "none",
+                fontWeight: 700,
+                padding: "10px 20px",
+                flex: 1,
+              }}
+            >
+              Apply to Workspace
+            </Button>
+            {isMerchant && (
+              <Button type="button" variant="secondary" onClick={() => setSaveModalOpen(true)}>
+                Save for Team
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Live Preview Column */}
+        <div>
+          <label
+            style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}
+          >
+            Live Workspace Preview Mockup
+          </label>
+          <div
+            className="studio-preview-box"
+            style={{
+              backgroundColor: fiveColors[4],
+              borderColor: fiveColors[3],
+              color: mode === "dark" ? "#f8fafc" : "#0f172a",
+            }}
+          >
+            {/* Mock Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingBottom: "12px",
+                borderBottom: `1px solid ${fiveColors[3]}`,
+                marginBottom: "14px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "6px",
+                    backgroundColor: fiveColors[0],
+                    display: "inline-block",
+                  }}
+                />
+                <span style={{ fontWeight: 700, fontSize: "13px" }}>Business Central</span>
+              </div>
+              <span
+                style={{
+                  fontSize: "11px",
+                  padding: "3px 8px",
+                  borderRadius: "999px",
+                  backgroundColor: mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
+                  color: mode === "dark" ? "#94a3b8" : "#64748b",
+                  fontWeight: 600,
+                }}
+              >
+                {mode === "dark" ? "Dark Canvas" : "Light Canvas"}
+              </span>
+            </div>
+
+            {/* Mock Content */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div
+                style={{
+                  padding: "12px",
+                  borderRadius: "8px",
+                  backgroundColor: mode === "dark" ? "#1e293b" : "#ffffff",
+                  border: `1px solid ${fiveColors[3]}`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "12px", fontWeight: 650 }}>Today&apos;s Revenue</span>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: fiveColors[2],
+                    }}
+                  >
+                    +18.4%
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: mode === "dark" ? "#ffffff" : "#0f172a",
+                  }}
+                >
+                  $4,892.50
+                </div>
+              </div>
+
+              {/* Mock Buttons */}
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    backgroundColor: fiveColors[0],
+                    color: "#ffffff",
+                    border: "none",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                    cursor: "default",
+                  }}
+                >
+                  Primary Action
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    backgroundColor: mode === "dark" ? "#334155" : "#f1f5f9",
+                    color: mode === "dark" ? "#f1f5f9" : "#334155",
+                    border: `1px solid ${fiveColors[3]}`,
+                    fontWeight: 600,
+                    fontSize: "12px",
+                    cursor: "default",
+                  }}
+                >
+                  Secondary
+                </button>
+              </div>
+
+              {/* Mock Input */}
+              <input
+                type="text"
+                readOnly
+                value="Search catalog or barcode..."
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  border: `1px solid ${fiveColors[3]}`,
+                  backgroundColor: mode === "dark" ? "#0f172a" : "#ffffff",
+                  color: mode === "dark" ? "#94a3b8" : "#64748b",
+                  fontSize: "11px",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Saved Organization Themes List */}
+          {merchantThemes.length > 0 && (
+            <div style={{ marginTop: "20px" }}>
+              <h4 style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: 700 }}>
+                Saved Organization Themes ({merchantThemes.length})
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {merchantThemes.map((mt) => {
+                  const isActive = currentTheme === mt.id;
+                  const themeColors =
+                    mt.colors && mt.colors.length === 5
+                      ? mt.colors
+                      : [
+                          mt.primary_color,
+                          mt.secondary_color || mt.primary_color,
+                          mt.accent_color || mt.primary_color,
+                          mt.border_color || "#e2e8f0",
+                          mt.canvas_color || "#ffffff",
+                        ];
+                  return (
+                    <div
+                      key={mt.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        border: isActive
+                          ? "2px solid var(--accent, #2563eb)"
+                          : "1px solid var(--line)",
+                        background: "var(--paper, #ffffff)",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          {themeColors.map((c, idx) => (
+                            <span
+                              key={idx}
+                              style={{
+                                width: "14px",
+                                height: "14px",
+                                borderRadius: "50%",
+                                backgroundColor: c,
+                                border: "1px solid rgba(0,0,0,0.1)",
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <div>
+                          <strong style={{ fontSize: "13px" }}>{mt.name}</strong>
+                          <span
+                            style={{ fontSize: "10px", color: "var(--muted)", marginLeft: "6px" }}
+                          >
+                            ({mt.mode || "light"})
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        {isActive ? (
+                          <StatusBadge status="ACTIVE" label="Active" />
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            className="mini-button"
+                            onClick={() => {
+                              applyMerchantCustomTheme(mt);
+                              onApply(mt.id, mt.name);
+                            }}
+                          >
+                            Apply
+                          </Button>
+                        )}
+                        {isMerchant && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTheme(mt.id, mt.name)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "var(--muted)",
+                              cursor: "pointer",
+                              padding: "4px",
+                            }}
+                            title="Delete custom theme"
+                          >
+                            <Icon name="trash" size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Save Modal */}
+      {saveModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => setSaveModalOpen(false)}
+        >
+          <div
+            className="card"
+            style={{ width: "90%", maxWidth: "420px", padding: "20px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 8px", fontSize: "16px", fontWeight: 700 }}>
+              Save Organization Custom Theme
+            </h3>
+            <p style={{ margin: "0 0 16px", fontSize: "12px", color: "var(--muted)" }}>
+              This 5-color theme will be stored in your merchant account and synchronized to all
+              staff and manager terminals.
+            </p>
+            <form onSubmit={handleSaveTheme}>
+              <Field label="Theme Name">
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Acme Corporate Navy"
+                  value={themeName}
+                  onChange={(e) => setThemeName(e.target.value)}
+                  autoFocus
+                />
+              </Field>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  justifyContent: "flex-end",
+                  marginTop: "16px",
+                }}
+              >
+                <Button variant="secondary" type="button" onClick={() => setSaveModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving || !themeName.trim()}>
+                  {saving ? "Saving..." : "Save Theme"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ThemeSettingsPage() {
+  const { isMerchant } = useAuth();
+  const [currentTheme, setCurrentTheme] = useState<string>(getStoredTheme);
+  const [currentLayout, setCurrentLayout] = useState<string>(getStoredLayout);
+  const [activeCategory, setActiveCategory] = useState<"theme" | "layout" | "studio">("theme");
+  const [appliedNotice, setAppliedNotice] = useState<string | null>(null);
+
+  const customConfig = getCustomThemeConfig();
+  const customPreviewColors = useMemo(() => {
+    try {
+      return generateHarmonious5ColorSetup(
+        customConfig.color || "#2563eb",
+        customConfig.mode === "dark",
+      );
+    } catch {
+      return ["#2563eb", "#1d4ed8", "#60a5fa", "#93c5fd", "#ffffff"];
+    }
+  }, [customConfig.color, customConfig.mode]);
+
+  useEffect(() => {
+    void resolveInitialTheme().then(setCurrentTheme);
+    void resolveInitialLayout().then(setCurrentLayout);
+  }, []);
+
+  const handleSelectTheme = (themeId: string, labelOverride?: string) => {
+    applyTheme(themeId);
+    setCurrentTheme(themeId);
+    const themeObj = AVAILABLE_THEMES.find((t) => t.id === themeId);
+    setAppliedNotice(`Applied theme: ${labelOverride ?? themeObj?.name ?? themeId}`);
+    setTimeout(() => setAppliedNotice(null), 3000);
+  };
+
+  const handleSelectLayout = (layoutId: string) => {
+    applyLayout(layoutId);
+    setCurrentLayout(layoutId);
+    const layoutObj = AVAILABLE_LAYOUTS.find((l) => l.id === layoutId);
+    setAppliedNotice(`Applied layout: ${layoutObj?.name ?? layoutId}`);
+    setTimeout(() => setAppliedNotice(null), 3000);
+  };
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Settings"
+        title="Theme & Layout"
+        description="Customize your workspace appearance. Theme controls colors, while Layout controls workspace structure and density. Both operate independently."
+        action={
+          <Link href="/settings" className="btn btn-secondary">
+            Back to settings
+          </Link>
+        }
+      />
+
+      {appliedNotice && (
+        <div style={{ marginBottom: "16px" }}>
+          <StatusBadge status="ACTIVE" label={appliedNotice} />
+        </div>
+      )}
+
+      {/* Category Navigation Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          marginBottom: "20px",
+          borderBottom: "1px solid var(--line)",
+          paddingBottom: "12px",
+        }}
+      >
+        <button
+          type="button"
+          className="button"
+          style={{
+            background: activeCategory === "theme" ? "var(--accent, #2563eb)" : "transparent",
+            color: activeCategory === "theme" ? "#ffffff" : "var(--muted)",
+            border: activeCategory === "theme" ? "none" : "1px solid var(--line)",
+            padding: "8px 18px",
+            fontWeight: 700,
+            fontSize: "13px",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+          onClick={() => setActiveCategory("theme")}
+        >
+          Theme
+        </button>
+        <button
+          type="button"
+          className="button"
+          style={{
+            background: activeCategory === "layout" ? "var(--accent, #2563eb)" : "transparent",
+            color: activeCategory === "layout" ? "#ffffff" : "var(--muted)",
+            border: activeCategory === "layout" ? "none" : "1px solid var(--line)",
+            padding: "8px 18px",
+            fontWeight: 700,
+            fontSize: "13px",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+          onClick={() => setActiveCategory("layout")}
+        >
+          Layout
+        </button>
+        <button
+          type="button"
+          className="button"
+          style={{
+            background: activeCategory === "studio" ? "var(--accent, #2563eb)" : "transparent",
+            color: activeCategory === "studio" ? "#ffffff" : "var(--muted)",
+            border: activeCategory === "studio" ? "none" : "1px solid var(--line)",
+            padding: "8px 18px",
+            fontWeight: 700,
+            fontSize: "13px",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+          onClick={() => setActiveCategory("studio")}
+        >
+          360 Theme Studio
+        </button>
+      </div>
+
+      {activeCategory === "studio" ? (
+        <ThemeCustomizationStudio
+          onApply={handleSelectTheme}
+          currentTheme={currentTheme}
+          isMerchant={isMerchant}
+        />
+      ) : activeCategory === "theme" ? (
+        <>
+          <div style={{ marginBottom: "14px" }}>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>Color Theme</h3>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--muted)" }}>
+              Choose your visual color palette. Changing theme does not affect workspace layout.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            }}
+          >
+            {AVAILABLE_THEMES.map((theme) => {
+              const isActive = currentTheme === theme.id;
+              const isCustomTheme = theme.id === CUSTOM_COLOR_THEME_ID;
+              const previewColors = isCustomTheme ? customPreviewColors : theme.previewColors;
+
+              return (
+                <div
+                  key={theme.id}
+                  className="card"
+                  style={{
+                    cursor: "pointer",
+                    position: "relative",
+                    border: isActive ? "2px solid var(--accent, #2563eb)" : "1px solid var(--line)",
+                    transition: "all 0.18s ease",
+                  }}
+                  onClick={() => {
+                    if (isCustomTheme) {
+                      setActiveCategory("studio");
+                    } else {
+                      handleSelectTheme(theme.id);
+                    }
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 650 }}>{theme.name}</h3>
+                      {theme.badge && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            padding: "2px 7px",
+                            borderRadius: "999px",
+                            background: isCustomTheme
+                              ? "var(--accent, #2563eb)"
+                              : "var(--green-soft)",
+                            color: isCustomTheme ? "#ffffff" : "var(--green)",
+                            marginTop: "4px",
+                            display: "inline-block",
+                          }}
+                        >
+                          {theme.badge}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {isCustomTheme && (
+                        <Button
+                          variant="secondary"
+                          className="mini-button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveCategory("studio");
+                          }}
+                        >
+                          Customize
+                        </Button>
+                      )}
+                      {isActive ? (
+                        <StatusBadge status="ACTIVE" label="Active" />
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          className="mini-button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectTheme(theme.id);
+                          }}
+                        >
+                          Select
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--muted)",
+                      lineHeight: 1.5,
+                      margin: "0 0 16px",
+                    }}
+                  >
+                    {theme.description}
+                  </p>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      paddingTop: "12px",
+                      borderTop: "1px solid var(--line)",
+                    }}
+                  >
+                    <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>
+                      {isCustomTheme ? "5-Color Setup:" : "Palette:"}
+                    </span>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {previewColors.map((color, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            width: "18px",
+                            height: "18px",
+                            borderRadius: "50%",
+                            backgroundColor: color,
+                            border: "1px solid rgba(0,0,0,0.12)",
+                            display: "inline-block",
+                          }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ marginBottom: "14px" }}>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>Workspace Layout</h3>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--muted)" }}>
+              Choose your navigation structure and density. Changing layout does not affect active
+              colors.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            }}
+          >
+            {AVAILABLE_LAYOUTS.map((layout) => {
+              const isActive = currentLayout === layout.id;
+              return (
+                <div
+                  key={layout.id}
+                  className="card"
+                  style={{
+                    cursor: "pointer",
+                    position: "relative",
+                    border: isActive ? "2px solid var(--accent, #2563eb)" : "1px solid var(--line)",
+                    transition: "all 0.18s ease",
+                  }}
+                  onClick={() => handleSelectLayout(layout.id)}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 650 }}>
+                        {layout.name}
+                      </h3>
+                      {layout.badge && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            padding: "2px 7px",
+                            borderRadius: "999px",
+                            background: "var(--green-soft)",
+                            color: "var(--green)",
+                            marginTop: "4px",
+                            display: "inline-block",
+                          }}
+                        >
+                          {layout.badge}
+                        </span>
+                      )}
+                    </div>
+                    {isActive ? (
+                      <StatusBadge status="ACTIVE" label="Active" />
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        className="mini-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectLayout(layout.id);
+                        }}
+                      >
+                        Select
+                      </Button>
+                    )}
+                  </div>
+
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--muted)",
+                      lineHeight: 1.5,
+                      margin: "0 0 16px",
+                    }}
+                  >
+                    {layout.description}
+                  </p>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      paddingTop: "12px",
+                      borderTop: "1px solid var(--line)",
+                      fontSize: "12px",
+                      color: "var(--muted)",
+                    }}
+                  >
+                    <Icon
+                      name={
+                        layout.id === "compact-layout"
+                          ? "box"
+                          : layout.id === "modern-executive-layout"
+                            ? "palette"
+                            : "home"
+                      }
+                      size={16}
+                    />
+                    <span>
+                      {layout.id === "compact-layout"
+                        ? "72px icon rail navigation · Dense POS grid"
+                        : layout.id === "modern-executive-layout"
+                          ? "Floating island deck · Glassmorphic spatial register"
+                          : "250px full sidebar · Balanced spacious grid"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      <div
+        className="card"
+        style={{ marginTop: "24px", background: "var(--surface-muted, #f8fafc)" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <Icon name="settings" size={18} />
+          <div>
+            <h4 style={{ margin: 0, fontSize: "13px", fontWeight: 600 }}>
+              Independent device-local persistence
+            </h4>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--muted)" }}>
+              Theme and layout selections operate independently. Changing one never alters the
+              other. Preferences are stored locally on this workstation and in mobile SQLite when
+              using the mobile application.
+            </p>
+          </div>
+        </div>
+      </div>
     </>
   );
 }

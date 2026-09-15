@@ -8,6 +8,7 @@ import { useShop } from "@/lib/shop";
 import { formatMoney } from "@/lib/currency";
 import { useAuth } from "@/lib/auth";
 import { cachedApi } from "@/lib/offline-resource";
+import { useTranslation } from "@/lib/i18n";
 
 type Summary = {
   order_count: number;
@@ -230,6 +231,7 @@ function PeriodSummary({
 }
 
 export function ReportsPage() {
+  const { t } = useTranslation();
   const { currentShop, loading: shopsLoading } = useShop();
   const { merchant, user } = useAuth();
   const [range, setRange] = useState("7");
@@ -309,9 +311,9 @@ export function ReportsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Insights · Financial reports"
-        title="Financial Reports"
-        description="Financial performance across every module and transaction channel for your selected shop."
+        eyebrow={t("reports.eyebrow")}
+        title={t("reports.financial_reports")}
+        description={t("reports.financial_reports_desc")}
         action={
           <div className="report-actions">
             <select
@@ -320,14 +322,14 @@ export function ReportsPage() {
               onChange={(event) => setRange(event.target.value)}
               aria-label="Report date range"
             >
-              <option value="1">Today</option>
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="90">Last 90 days</option>
+              <option value="1">{t("reports.today")}</option>
+              <option value="7">{t("reports.last_7_days")}</option>
+              <option value="30">{t("reports.last_30_days")}</option>
+              <option value="90">{t("reports.last_90_days")}</option>
             </select>
             <Link className="button button-secondary" href="/transaction-history">
               <Icon name="history" size={17} />
-              Transaction history
+              {t("reports.transaction_history")}
             </Link>
           </div>
         }
@@ -342,7 +344,13 @@ export function ReportsPage() {
             aria-selected={tab === item.id}
           >
             <Icon name={item.icon} size={17} />
-            {item.label}
+            {item.id === "overview"
+              ? t("reports.overview")
+              : item.id === "day"
+                ? t("reports.per_day")
+                : item.id === "week"
+                  ? t("reports.per_week")
+                  : t("reports.per_month")}
           </button>
         ))}
       </div>
@@ -369,29 +377,29 @@ export function ReportsPage() {
         <>
           <section className="stats-grid">
             <StatCard
-              label="Gross revenue"
+              label={t("reports.gross_sales")}
               value={money(summary?.gross_sales)}
               note="Total sales income"
               icon="chart"
             />
             <StatCard
-              label="Net profit"
+              label={t("reports.net_profit")}
               value={money(summary?.gross_profit)}
               note={`${summary?.gross_margin_percent ?? 0}% gross margin`}
               icon="tag"
               tone="amber"
             />
             <StatCard
-              label="Cost of goods"
+              label={t("reports.cost_of_goods_sold")}
               value={money(summary?.cost_of_goods_sold)}
               note="FIFO inventory cost"
               icon="box"
               tone="blue"
             />
             <StatCard
-              label="Orders in period"
+              label={t("reports.orders_count")}
               value={String(summary?.order_count ?? 0)}
-              note={`${summary?.item_quantity ?? 0} items across all modules`}
+              note={`${summary?.item_quantity ?? 0} items`}
               icon="receipt"
               tone="purple"
             />

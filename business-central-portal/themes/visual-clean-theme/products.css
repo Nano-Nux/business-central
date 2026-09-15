@@ -1,0 +1,113 @@
+/*
+ * Visual Clean - Products, Catalog & Tables
+ * -----------------------------------------
+ * Filter tabs, brand/category tags, barcode pills,
+ * data tables, history tables, and charts.
+ */
+
+/* Filter Tabs & Category Navigation */
+[data-theme="visual-clean-theme"] .filter-tab {
+  border-radius: 9999px;
+  font-weight: 600;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="visual-clean-theme"] .filter-tab:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+[data-theme="visual-clean-theme"] .filter-tab.active {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border-color: #1e40af;
+  box-shadow: 0 2px 10px rgb(37 99 235 / 32%);
+}
+
+/* Brand & Category Chips */
+[data-theme="visual-clean-theme"] .product-brand-tag {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+[data-theme="visual-clean-theme"] .product-category-tag {
+  background: #faf5ff;
+  color: #7c3aed;
+  border: 1px dashed #d8b4fe;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* Barcode SKU Pills */
+[data-theme="visual-clean-theme"] .product-barcode-pill {
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font-weight: 600;
+}
+
+/* Variant Button */
+[data-theme="visual-clean-theme"] .variant-pill-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 7px;
+  transition: all 0.15s ease;
+}
+
+[data-theme="visual-clean-theme"] .variant-pill-btn:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+/* Charts & Visual Reports */
+[data-theme="visual-clean-theme"] .chart-col i {
+  background: #cbd5e1;
+  border-radius: 6px 6px 2px 2px;
+  transition:
+    height 0.3s ease,
+    background 0.2s ease;
+}
+
+[data-theme="visual-clean-theme"] .chart-col.active i,
+[data-theme="visual-clean-theme"] .chart-col:hover i {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 4px 12px rgb(37 99 235 / 35%);
+}
+
+/* Data Tables & History Lists */
+[data-theme="visual-clean-theme"] .data-table th,
+[data-theme="visual-clean-theme"] .history-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+[data-theme="visual-clean-theme"] .data-table tr:hover td,
+[data-theme="visual-clean-theme"] .history-table tr:hover td {
+  background: #f8fbff;
+}
+
+/* Mobile Product Cards */
+[data-theme="visual-clean-theme"] .product-mobile-card {
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 6px rgb(15 23 42 / 4%);
+}
+
+[data-theme="visual-clean-theme"] .product-mobile-card:hover {
+  border-color: #93c5fd;
+}

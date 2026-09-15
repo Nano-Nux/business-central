@@ -1,0 +1,139 @@
+/*
+ * Midnight Obsidian Tech Theme Controls
+ * --------------------------------------
+ * A sleek, high-tech dark workspace aesthetic featuring obsidian slate canvas,
+ * elevated dark glass cards, electric cyan primary brand highlights, luminous mint revenue,
+ * and high-contrast night-shift readability.
+ */
+:root[data-theme="midnight-dark-theme"],
+[data-theme="midnight-dark-theme"] {
+  /* In dark themes, --theme-white is mapped to elevated container/card surface */
+  --theme-black: #f8fafc;
+  --theme-gray-950: #ffffff;
+  --theme-gray-900: #f1f5f9;
+  --theme-gray-800: #e2e8f0;
+  --theme-gray-700: #cbd5e1;
+  --theme-gray-600: #94a3b8;
+  --theme-gray-500: #64748b;
+  --theme-gray-400: #475569;
+  --theme-gray-300: #334155;
+  --theme-gray-200: #232f48;
+  --theme-gray-100: #1a2234;
+  --theme-gray-50: #0f1420;
+  --theme-white: #131926;
+
+  --theme-black-rgb: 248 250 252;
+  --theme-white-rgb: 19 25 38;
+  --theme-brand-filter: none;
+
+  /* Status tokens with vibrant luminous night tones */
+  --status-success: #34d399;
+  --status-success-soft: #064e3b;
+  --status-success-border: #059669;
+  --status-warning: #fbbf24;
+  --status-warning-soft: #451a03;
+  --status-warning-border: #b45309;
+  --status-danger: #fb7185;
+  --status-danger-soft: #4c0519;
+  --status-danger-border: #be123c;
+  --status-info: #38bdf8;
+  --status-info-soft: #082f49;
+  --status-info-border: #0284c7;
+  --status-neutral: #94a3b8;
+  --status-neutral-soft: #1e293b;
+  --status-neutral-border: #334155;
+  --status-conflict: #c084fc;
+  --status-conflict-soft: #3b0764;
+  --status-conflict-border: #9333ea;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 0 0 0;
+
+  --ink: #f8fafc;
+  --muted: #94a3b8;
+  --line: #232f48;
+  --paper: #131926;
+  --canvas: #090d16;
+  --green: #38bdf8;
+  --green-dark: #0284c7;
+  --green-soft: #082f49;
+  --amber: #fbbf24;
+  --red: #fb7185;
+  --blue: #38bdf8;
+  --shadow: 0 4px 20px -2px rgb(0 0 0 / 45%), 0 2px 6px -1px rgb(0 0 0 / 30%);
+  --border: #232f48;
+  --card: #131926;
+  --mint: #082f49;
+  --text: #f8fafc;
+  --surface: #131926;
+  --surface-muted: #0f1420;
+  --accent: #38bdf8;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #38bdf8;
+  --color-brand-hover: #0ea5e9;
+  --color-brand-soft: #082f49;
+  --color-brand-border: #0284c7;
+  --color-emerald: #34d399;
+  --color-emerald-soft: #064e3b;
+  --color-emerald-border: #059669;
+  --color-amber: #fbbf24;
+  --color-amber-soft: #451a03;
+  --color-amber-border: #b45309;
+  --color-rose: #fb7185;
+  --color-rose-soft: #4c0519;
+  --color-rose-border: #be123c;
+  --color-purple: #c084fc;
+  --color-purple-soft: #3b0764;
+  --color-purple-border: #9333ea;
+  --color-teal: #2dd4bf;
+  --color-teal-soft: #134e4a;
+  --color-teal-border: #0f766e;
+}
+
+[data-theme="midnight-dark-theme"] .button-primary {
+  background: #38bdf8;
+  color: #090d16;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgb(56 189 248 / 30%);
+}
+
+[data-theme="midnight-dark-theme"] .button-primary:hover {
+  background: #7dd3fc;
+}
+
+[data-theme="midnight-dark-theme"] .topbar {
+  background: rgb(9 13 22 / 92%);
+  border-bottom-color: #232f48;
+}
+
+[data-theme="midnight-dark-theme"] input,
+[data-theme="midnight-dark-theme"] select,
+[data-theme="midnight-dark-theme"] textarea {
+  background: #1a2234;
+  color: #f8fafc;
+  border-color: #2b3a58;
+}
+
+[data-theme="midnight-dark-theme"] input:focus,
+[data-theme="midnight-dark-theme"] select:focus,
+[data-theme="midnight-dark-theme"] textarea:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgb(56 189 248 / 25%);
+}
+
+[data-theme="midnight-dark-theme"] table th {
+  background: #0f1420;
+  color: #94a3b8;
+  border-bottom-color: #232f48;
+}
+
+[data-theme="midnight-dark-theme"] table td {
+  border-bottom-color: #1e293b;
+}
+
+[data-theme="midnight-dark-theme"] tbody tr:hover {
+  background: rgb(26 34 52 / 60%);
+}

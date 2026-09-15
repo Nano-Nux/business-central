@@ -1,0 +1,100 @@
+/*
+ * Visual Clean - Invoices, Receipts & Settings
+ * --------------------------------------------
+ * Clean document prints, colored invoice status banners,
+ * settings category highlights, and device connection indicators.
+ */
+
+/* Invoice Print & Receipt Surface */
+[data-theme="visual-clean-theme"] .invoice-print {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow:
+    0 4px 20px -2px rgb(15 23 42 / 6%),
+    0 2px 6px -1px rgb(15 23 42 / 4%);
+}
+
+[data-theme="visual-clean-theme"] .invoice-print header {
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+[data-theme="visual-clean-theme"] .invoice-meta strong {
+  color: #0f172a;
+}
+
+[data-theme="visual-clean-theme"] .invoice-total strong {
+  color: #059669;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* Invoice Status Badges on Invoices List */
+[data-theme="visual-clean-theme"] .invoice-status-paid {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 3px 10px;
+}
+
+[data-theme="visual-clean-theme"] .invoice-status-unpaid {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 3px 10px;
+}
+
+[data-theme="visual-clean-theme"] .invoice-status-partial {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 3px 10px;
+}
+
+/* Settings Category Cards */
+[data-theme="visual-clean-theme"] .settings-card {
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="visual-clean-theme"] .settings-card:hover {
+  border-color: #93c5fd;
+  box-shadow:
+    0 12px 28px -4px rgb(37 99 235 / 12%),
+    0 4px 8px -2px rgb(37 99 235 / 6%);
+  transform: translateY(-2px);
+}
+
+[data-theme="visual-clean-theme"] .settings-card .card-icon {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  transition: transform 0.15s ease;
+}
+
+[data-theme="visual-clean-theme"] .settings-card:hover .card-icon {
+  transform: scale(1.08);
+}
+
+/* Printer & Hardware Connection Card */
+[data-theme="visual-clean-theme"] .printer-card.connected {
+  border-color: #a7f3d0;
+  background: #f0fdf7;
+}
+
+[data-theme="visual-clean-theme"] .printer-card.connected .device-status-dot {
+  background: #10b981;
+  box-shadow: 0 0 8px #34d399;
+}

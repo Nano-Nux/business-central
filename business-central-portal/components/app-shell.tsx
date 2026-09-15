@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { PendingOfflineChangesError, useAuth } from "@/lib/auth";
-import { Icon, type IconName } from "./icons";
+import { Icon } from "./icons";
 import { BrandIcon } from "./brand-icon";
 import { Loading } from "./ui";
 import { useShop } from "@/lib/shop";
@@ -13,155 +13,23 @@ import { SyncStatusPanel } from "./sync-status-panel";
 import { formatShopAddress } from "@/lib/shop-address";
 import { resolveMediaURL } from "@/lib/media-url";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: IconName;
-  permission?: string;
-  merchantOnly?: boolean;
-};
-type NavGroup = { label: string; items: NavItem[] };
-
-const navigation: NavGroup[] = [
-  {
-    label: "Overview",
-    items: [
-      { href: "/dashboard", label: "Today", icon: "home" },
-      {
-        href: "/pos",
-        label: "Point of sale",
-        icon: "cart",
-        permission: "tenant.write",
-      },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      {
-        href: "/catalog",
-        label: "Catalog",
-        icon: "catalog",
-        permission: "tenant.read",
-        merchantOnly: true,
-      },
-      {
-        href: "/catalog/attributes",
-        label: "Variant attributes",
-        icon: "tag",
-        permission: "tenant.write",
-        merchantOnly: true,
-      },
-      {
-        href: "/storage",
-        label: "Storage",
-        icon: "package",
-        permission: "tenant.read",
-      },
-      {
-        href: "/stock-in",
-        label: "Stock in",
-        icon: "package",
-        permission: "stock_in",
-      },
-      {
-        href: "/stock-assets",
-        label: "Stock barcodes",
-        icon: "box",
-        permission: "tenant.write",
-      },
-      {
-        href: "/stock-movements",
-        label: "Stock history",
-        icon: "history",
-        permission: "tenant.read",
-      },
-      {
-        href: "/transaction-history",
-        label: "Transaction history",
-        icon: "receipt",
-        permission: "tenant.read",
-      },
-      { href: "/customers", label: "Customers", icon: "users", permission: "tenant.read" },
-      { href: "/deliveries", label: "Deliveries", icon: "package", permission: "tenant.write" },
-      {
-        href: "/repairs",
-        label: "Repairs",
-        icon: "repair",
-        permission: "tenant.write",
-      },
-      {
-        href: "/repairs/catalog",
-        label: "Repair catalog",
-        icon: "catalog",
-        permission: "tenant.write",
-      },
-      {
-        href: "/repairs/issue-presets",
-        label: "Issue presets",
-        icon: "tag",
-        permission: "tenant.write",
-        merchantOnly: true,
-      },
-      {
-        href: "/repairs/condition-presets",
-        label: "Condition presets",
-        icon: "tag",
-        permission: "tenant.write",
-        merchantOnly: true,
-      },
-    ],
-  },
-  {
-    label: "Insights",
-    items: [
-      {
-        href: "/invoices",
-        label: "Invoices",
-        icon: "receipt",
-        permission: "tenant.read",
-      },
-      {
-        href: "/reports",
-        label: "Reports",
-        icon: "chart",
-        permission: "tenant.read",
-        merchantOnly: true,
-      },
-      {
-        href: "/promotions",
-        label: "Promotions",
-        icon: "tag",
-        permission: "tenant.write",
-        merchantOnly: true,
-      },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
-      {
-        href: "/accounts",
-        label: "Staff accounts",
-        icon: "users",
-        permission: "membership.manage",
-        merchantOnly: true,
-      },
-      {
-        href: "/settings",
-        label: "Settings",
-        icon: "settings",
-      },
-    ],
-  },
-];
+import {
+  getFilteredNavigationGroups,
+  getLocalizedNavLabel,
+  getLocalizedGroupLabel,
+} from "@/lib/navigation";
+import { useTranslation } from "@/lib/i18n";
+import { QuickGuideModal } from "./quick-guide-modal";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const isPos = pathname === "/pos" || pathname.startsWith("/pos/");
   const { user, merchant, merchantReady, ready, isMerchant, can, logout } = useAuth();
+  const { t, language } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const {
     shops,
     currentShop,
@@ -228,30 +96,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const groups = useMemo(
     () =>
-      navigation
-        .map((group) => ({
-          ...group,
-          items: group.items
-            .filter(
-              (item) =>
-                (!item.merchantOnly || isMerchant) &&
-                (!item.permission || can(item.permission)) &&
-                (item.href !== "/catalog/attributes" ||
-                  merchant?.pos_complexity_level === "COMPLEX") &&
-                (!item.href.startsWith("/repairs") ||
-                  currentShop?.module_codes?.includes("repair")),
-            )
-            .map((item) => {
-              return item.href === "/dashboard"
-                ? {
-                    ...item,
-                    href: isMerchant ? "/merchant/dashboard" : "/staff/dashboard",
-                  }
-                : item;
-            }),
-        }))
-        .filter((group) => group.items.length),
-    [can, isMerchant, currentShop, merchant?.pos_complexity_level],
+      getFilteredNavigationGroups({
+        posComplexityLevel: merchant?.pos_complexity_level,
+        isMerchant,
+        can,
+        moduleCodes: currentShop?.module_codes,
+        mapDashboardForRole: true,
+      }),
+    [can, isMerchant, currentShop?.module_codes, merchant?.pos_complexity_level],
   );
   if (!ready || !user || !merchantReady)
     return (
@@ -277,7 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-  const role = isMerchant ? "Merchant" : "Staff";
+  const role = isMerchant ? t("nav.merchant_role", "Merchant") : t("nav.staff_role", "Staff");
   const shopInitials =
     currentShop?.name
       .split(/\s+/)
@@ -304,7 +156,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <button
         type="button"
-        aria-label="Close navigation"
+        aria-label={t("nav.close_menu", "Close navigation")}
         className={`mobile-scrim ${mobileOpen ? "show" : ""}`}
         onClick={() => setMobileOpen(false)}
       />
@@ -312,7 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <button
           type="button"
           className="icon-button sidebar-close"
-          aria-label="Close menu"
+          aria-label={t("nav.close_menu", "Close menu")}
           onClick={() => setMobileOpen(false)}
         >
           <Icon name="close" />
@@ -322,10 +174,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <BrandIcon />
           </span>
           <span>
-            Business Central<small>Merchant workspace</small>
+            {t("nav.brand_title", "Business Central")}
+            <small>{t("nav.brand_subtitle", "Merchant workspace")}</small>
           </span>
         </Link>
-        <div className="shop-switcher" aria-label="Selected shop">
+        <div className="shop-switcher" aria-label={t("nav.selected_shop", "Selected shop")}>
           {shopLogoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img className="shop-avatar shop-avatar-image" src={shopLogoUrl} alt="" />
@@ -333,14 +186,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="shop-avatar">{shopInitials}</span>
           )}
           <div className="shop-switcher-info">
-            <small>{isMerchant ? "Selected shop" : "Assigned shop"}</small>
+            <small>
+              {isMerchant
+                ? t("nav.selected_shop", "Selected shop")
+                : t("nav.assigned_shop", "Assigned shop")}
+            </small>
             <strong>
               {currentShop?.name ??
                 (shopsLoading
-                  ? "Loading..."
+                  ? t("nav.loading_shop", "Loading...")
                   : shopsError
-                    ? "Shop unavailable"
-                    : "No shop selected")}
+                    ? t("nav.shop_unavailable", "Shop unavailable")
+                    : t("nav.no_shop_selected", "No shop selected"))}
             </strong>
             {currentShop && (
               <span className="shop-switcher-detail">
@@ -357,7 +214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav>
           {groups.map((group) => (
             <div className="nav-group" key={group.label}>
-              <p>{group.label}</p>
+              <p>{getLocalizedGroupLabel(group.label, t)}</p>
               {group.items.map((item) => {
                 const matches =
                   pathname === item.href ||
@@ -371,6 +228,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       (pathname === candidate.href || pathname.startsWith(`${candidate.href}/`)),
                   );
                 const active = matches && !moreSpecificMatch;
+                const localizedLabel = getLocalizedNavLabel(item.href, item.label, t);
                 return (
                   <Link
                     href={item.href}
@@ -379,7 +237,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     key={item.href}
                   >
                     <Icon name={item.icon} />
-                    <span>{item.label}</span>
+                    <span>{localizedLabel}</span>
                     {active && <i />}
                   </Link>
                 );
@@ -387,21 +245,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <div className="sidebar-help">
+        <Link href="/guide" className="sidebar-help" onClick={() => setMobileOpen(false)}>
           <span>?</span>
           <div>
-            <strong>Need a hand?</strong>
-            <small>View the quick guide</small>
+            <strong>{t("nav.need_help", "Need a hand?")}</strong>
+            <small>{t("nav.view_quick_guide", "View the quick guide")}</small>
           </div>
           <Icon name="arrow" size={16} />
-        </div>
+        </Link>
       </aside>
-      <section className="main-area">
+      <QuickGuideModal isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
+      <section className={`main-area ${isPos ? "main-area-pos" : ""}`}>
         <header className="topbar">
           <button
             className="icon-button menu-button"
             onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
+            aria-label={t("nav.open_menu", "Open menu")}
           >
             <Icon name="menu" />
           </button>
@@ -409,23 +268,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className={`live-dot connectivity-${offline.status}`} />
             <span>
               {offline.status === "offline"
-                ? "Offline"
+                ? t("nav.offline", "Offline")
                 : offline.status === "syncing"
-                  ? "Syncing"
+                  ? t("nav.syncing", "Syncing")
                   : offline.status === "reconnecting"
-                    ? "Reconnecting"
+                    ? t("nav.reconnecting", "Reconnecting")
                     : offline.status === "error"
-                      ? "Sync needs attention"
-                      : "Online"}
+                      ? t("nav.sync_needs_attention", "Sync needs attention")
+                      : t("nav.online", "Online")}
             </span>
             {(offline.pending > 0 || offline.conflicts > 0 || offline.rejected > 0) && (
               <small>
-                {offline.pending > 0 ? `${offline.pending} pending` : ""}
+                {offline.pending > 0 ? t("nav.pending_count", { count: offline.pending }) : ""}
                 {offline.conflicts > 0
-                  ? `${offline.pending > 0 ? " · " : ""}${offline.conflicts} conflicts`
+                  ? `${offline.pending > 0 ? " · " : ""}${t("nav.conflicts_count", { count: offline.conflicts })}`
                   : ""}
                 {offline.rejected > 0
-                  ? `${offline.pending > 0 || offline.conflicts > 0 ? " · " : ""}${offline.rejected} rejected`
+                  ? `${offline.pending > 0 || offline.conflicts > 0 ? " · " : ""}${t("nav.rejected_count", { count: offline.rejected })}`
                   : ""}
               </small>
             )}
@@ -435,20 +294,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               offline.rejected === 0 &&
               (offline.lastSyncAt || shopsCachedAt) && (
                 <small>
-                  Saved{" "}
-                  {new Intl.DateTimeFormat("en", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  }).format(new Date(offline.lastSyncAt ?? shopsCachedAt!))}
+                  {t("nav.saved_at", {
+                    time: new Intl.DateTimeFormat(
+                      language === "en" ? "en" : language === "th" ? "th" : "my",
+                      {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      },
+                    ).format(new Date(offline.lastSyncAt ?? shopsCachedAt!)),
+                  })}
                 </small>
               )}
             {offline.staleResources.length > 0 && (
               <small>
-                Showing saved data from{" "}
-                {new Intl.DateTimeFormat("en", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                }).format(
+                {new Intl.DateTimeFormat(
+                  language === "en" ? "en" : language === "th" ? "th" : "my",
+                  {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  },
+                ).format(
                   new Date(offline.staleResources.map((resource) => resource.cachedAt).sort()[0]),
                 )}
               </small>
@@ -460,11 +325,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onClick={() => void offline.syncNow()}
                   disabled={offline.status === "syncing"}
                 >
-                  Sync now
+                  {t("nav.sync_now", "Sync now")}
                 </button>
               )}
           </div>
           <SyncStatusPanel />
+          <Link
+            href="/settings/language"
+            className="topbar-lang-button"
+            title={t("settings.language.title", "Language setting")}
+            aria-label={t("settings.language.title", "Language setting")}
+          >
+            <Icon name="globe" size={14} />
+            <span>{language === "my" ? "MM" : language.toUpperCase()}</span>
+          </Link>
           <div className="profile-wrap">
             <button className="profile-button" onClick={() => setProfileOpen((value) => !value)}>
               <span className="avatar">{initials}</span>
@@ -482,17 +356,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
                 <Link href="/profile" onClick={() => setProfileOpen(false)}>
                   <Icon name="user" size={17} />
-                  User profile
+                  {t("nav.user_profile", "User profile")}
+                </Link>
+                <Link href="/settings/language" onClick={() => setProfileOpen(false)}>
+                  <Icon name="globe" size={17} />
+                  {t("settings.language.title", "Language setting")}
                 </Link>
                 <button onClick={() => void signOut()}>
                   <Icon name="logout" size={17} />
-                  Sign out
+                  {t("nav.sign_out", "Sign out")}
                 </button>
               </div>
             )}
           </div>
         </header>
-        <main className="content">{children}</main>
+        <main className={`content ${isPos ? "content-pos" : ""}`}>{children}</main>
       </section>
     </div>
   );

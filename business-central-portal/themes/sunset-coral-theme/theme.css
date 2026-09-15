@@ -1,0 +1,106 @@
+/*
+ * Sunset Coral & Peach Theme Controls
+ * -----------------------------------
+ * An energizing, vibrant palette with warm sunset coral actions,
+ * golden honey highlights, soft peach surfaces, and warm copper typography.
+ */
+:root[data-theme="sunset-coral-theme"],
+[data-theme="sunset-coral-theme"] {
+  --theme-black: #2d1810;
+  --theme-gray-950: #2d1810;
+  --theme-gray-900: #422014;
+  --theme-gray-800: #5c2b18;
+  --theme-gray-700: #7c3a1d;
+  --theme-gray-600: #9a4d29;
+  --theme-gray-500: #ba6b44;
+  --theme-gray-400: #d88e6a;
+  --theme-gray-300: #ebb79d;
+  --theme-gray-200: #f7d5c4;
+  --theme-gray-100: #fcece3;
+  --theme-gray-50: #fff9f5;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 45 24 16;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens with warm sunset hues */
+  --status-success: #16a34a;
+  --status-success-soft: #f0fdf4;
+  --status-success-border: #bbf7d0;
+  --status-warning: #ea580c;
+  --status-warning-soft: #fff7ed;
+  --status-warning-border: #fed7aa;
+  --status-danger: #e11d48;
+  --status-danger-soft: #fff1f2;
+  --status-danger-border: #fecdd3;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #7c3a1d;
+  --status-neutral-soft: #fcece3;
+  --status-neutral-border: #f7d5c4;
+  --status-conflict: #9333ea;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 45 24 16;
+
+  --ink: #2d1810;
+  --muted: #8c5338;
+  --line: #fed7aa;
+  --paper: #ffffff;
+  --canvas: #fff9f5;
+  --green: #ea580c;
+  --green-dark: #c2410c;
+  --green-soft: #ffedd5;
+  --amber: #f59e0b;
+  --red: #e11d48;
+  --blue: #6366f1;
+  --shadow: 0 4px 20px -2px rgb(234 88 12 / 8%), 0 2px 6px -1px rgb(234 88 12 / 4%);
+  --border: #fed7aa;
+  --card: #ffffff;
+  --mint: #ffedd5;
+  --text: #2d1810;
+  --surface: #ffffff;
+  --surface-muted: #fff1e8;
+  --accent: #ea580c;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #ea580c;
+  --color-brand-hover: #c2410c;
+  --color-brand-soft: #ffedd5;
+  --color-brand-border: #fed7aa;
+  --color-emerald: #16a34a;
+  --color-emerald-soft: #f0fdf4;
+  --color-emerald-border: #bbf7d0;
+  --color-amber: #f59e0b;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #e11d48;
+  --color-rose-soft: #fff1f2;
+  --color-rose-border: #fecdd3;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="sunset-coral-theme"] .button-primary {
+  background: #ea580c;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(234 88 12 / 28%);
+}
+
+[data-theme="sunset-coral-theme"] .button-primary:hover {
+  background: #c2410c;
+}
+
+[data-theme="sunset-coral-theme"] .topbar {
+  background: rgb(255 249 245 / 92%);
+}

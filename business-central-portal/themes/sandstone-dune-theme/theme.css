@@ -1,0 +1,106 @@
+/*
+ * Sandstone Dune Theme Controls
+ * -----------------------------
+ * A warm Saharan desert aesthetic featuring camel and khaki sandstone brand actions,
+ * sun-bleached dune linen canvas, and rich brass hardware accents.
+ */
+:root[data-theme="sandstone-dune-theme"],
+[data-theme="sandstone-dune-theme"] {
+  --theme-black: #422006;
+  --theme-gray-950: #422006;
+  --theme-gray-900: #713f12;
+  --theme-gray-800: #854d0e;
+  --theme-gray-700: #a16207;
+  --theme-gray-600: #ca8a04;
+  --theme-gray-500: #eab308;
+  --theme-gray-400: #facc15;
+  --theme-gray-300: #fde047;
+  --theme-gray-200: #fef08a;
+  --theme-gray-100: #fef9c3;
+  --theme-gray-50: #fefce8;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 66 32 6;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #15803d;
+  --status-success-soft: #f0fdf4;
+  --status-success-border: #bbf7d0;
+  --status-warning: #854d0e;
+  --status-warning-soft: #fefce8;
+  --status-warning-border: #fef08a;
+  --status-danger: #dc2626;
+  --status-danger-soft: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #713f12;
+  --status-neutral-soft: #fefce8;
+  --status-neutral-border: #fef08a;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 66 32 6;
+
+  --ink: #422006;
+  --muted: #713f12;
+  --line: #fef08a;
+  --paper: #ffffff;
+  --canvas: #fefce8;
+  --green: #854d0e;
+  --green-dark: #713f12;
+  --green-soft: #fefce8;
+  --amber: #ca8a04;
+  --red: #dc2626;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(133 77 14 / 8%), 0 2px 6px -1px rgb(133 77 14 / 4%);
+  --border: #fef08a;
+  --card: #ffffff;
+  --mint: #fefce8;
+  --text: #422006;
+  --surface: #ffffff;
+  --surface-muted: #fef9c3;
+  --accent: #854d0e;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #854d0e;
+  --color-brand-hover: #713f12;
+  --color-brand-soft: #fefce8;
+  --color-brand-border: #fef08a;
+  --color-emerald: #15803d;
+  --color-emerald-soft: #f0fdf4;
+  --color-emerald-border: #bbf7d0;
+  --color-amber: #ca8a04;
+  --color-amber-soft: #fefce8;
+  --color-amber-border: #fef08a;
+  --color-rose: #dc2626;
+  --color-rose-soft: #fef2f2;
+  --color-rose-border: #fecaca;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="sandstone-dune-theme"] .button-primary {
+  background: #854d0e;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(133 77 14 / 25%);
+}
+
+[data-theme="sandstone-dune-theme"] .button-primary:hover {
+  background: #713f12;
+}
+
+[data-theme="sandstone-dune-theme"] .topbar {
+  background: rgb(254 252 232 / 92%);
+}

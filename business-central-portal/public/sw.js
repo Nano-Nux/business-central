@@ -27,6 +27,7 @@ const SHELL_PAGES = [
   "/settings/printer",
   "/settings/repair-specs",
   "/settings/tax-notes",
+  "/settings/theme",
 ];
 const SHELL_ASSETS = [
   "/app-icon.svg",

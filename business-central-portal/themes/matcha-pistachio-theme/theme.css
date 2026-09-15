@@ -1,0 +1,106 @@
+/*
+ * Matcha Pistachio Theme Controls
+ * -------------------------------
+ * A calming Japanese ceremonial matcha and creamy pistachio milk aesthetic
+ * featuring deep tea-green actions, soft pistachio cards, and peaceful organic surfaces.
+ */
+:root[data-theme="matcha-pistachio-theme"],
+[data-theme="matcha-pistachio-theme"] {
+  --theme-black: #1a2e05;
+  --theme-gray-950: #1a2e05;
+  --theme-gray-900: #365314;
+  --theme-gray-800: #3f6212;
+  --theme-gray-700: #4d7c0f;
+  --theme-gray-600: #65a30d;
+  --theme-gray-500: #84cc16;
+  --theme-gray-400: #a3e635;
+  --theme-gray-300: #bef264;
+  --theme-gray-200: #d9f99d;
+  --theme-gray-100: #ecfccb;
+  --theme-gray-50: #f7fee7;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 26 46 5;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #3f6212;
+  --status-success-soft: #f7fee7;
+  --status-success-border: #d9f99d;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #dc2626;
+  --status-danger-soft: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #4d7c0f;
+  --status-neutral-soft: #f7fee7;
+  --status-neutral-border: #d9f99d;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 26 46 5;
+
+  --ink: #1a2e05;
+  --muted: #4d7c0f;
+  --line: #d9f99d;
+  --paper: #ffffff;
+  --canvas: #fbfef5;
+  --green: #3f6212;
+  --green-dark: #365314;
+  --green-soft: #f7fee7;
+  --amber: #d97706;
+  --red: #dc2626;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(63 98 18 / 8%), 0 2px 6px -1px rgb(63 98 18 / 4%);
+  --border: #d9f99d;
+  --card: #ffffff;
+  --mint: #f7fee7;
+  --text: #1a2e05;
+  --surface: #ffffff;
+  --surface-muted: #f4fce3;
+  --accent: #3f6212;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #3f6212;
+  --color-brand-hover: #365314;
+  --color-brand-soft: #f7fee7;
+  --color-brand-border: #d9f99d;
+  --color-emerald: #15803d;
+  --color-emerald-soft: #f0fdf4;
+  --color-emerald-border: #bbf7d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #dc2626;
+  --color-rose-soft: #fef2f2;
+  --color-rose-border: #fecaca;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="matcha-pistachio-theme"] .button-primary {
+  background: #3f6212;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(63 98 18 / 25%);
+}
+
+[data-theme="matcha-pistachio-theme"] .button-primary:hover {
+  background: #365314;
+}
+
+[data-theme="matcha-pistachio-theme"] .topbar {
+  background: rgb(251 254 245 / 92%);
+}

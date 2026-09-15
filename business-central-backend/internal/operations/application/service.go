@@ -104,3 +104,65 @@ func (s *Service) StockOut(ctx context.Context, claims *authdto.Claims, request 
 func (s *Service) ListTransactionHistory(ctx context.Context, claims *authdto.Claims, query app.ListQuery) ([]operationsdto.TransactionHistoryEntry, int, error) {
 	return s.Repository.ListTransactionHistory(ctx, claims, query)
 }
+
+func extractAndValidateColors(request *operationsdto.CustomThemeRequest) error {
+	if len(request.Colors) == 5 {
+		request.PrimaryColor = request.Colors[0]
+		request.SecondaryColor = request.Colors[1]
+		request.AccentColor = request.Colors[2]
+		request.BorderColor = request.Colors[3]
+		request.CanvasColor = request.Colors[4]
+	} else if request.PrimaryColor != "" && request.SecondaryColor != "" && request.AccentColor != "" && request.BorderColor != "" && request.CanvasColor != "" {
+		request.Colors = []string{request.PrimaryColor, request.SecondaryColor, request.AccentColor, request.BorderColor, request.CanvasColor}
+	}
+	if request.Mode == "" {
+		request.Mode = "light"
+	}
+	if err := domainops.ValidateCustomTheme(request.Name, request.Mode, request.Colors); err != nil {
+		return invalid(err.Error())
+	}
+	for i := range request.Colors {
+		request.Colors[i] = domainops.NormalizeHexColor(request.Colors[i])
+	}
+	request.PrimaryColor = request.Colors[0]
+	request.SecondaryColor = request.Colors[1]
+	request.AccentColor = request.Colors[2]
+	request.BorderColor = request.Colors[3]
+	request.CanvasColor = request.Colors[4]
+	return nil
+}
+
+func (s *Service) ListCustomThemes(ctx context.Context, claims *authdto.Claims) ([]operationsdto.CustomTheme, error) {
+	return s.Repository.ListCustomThemes(ctx, claims)
+}
+
+func (s *Service) GetCustomTheme(ctx context.Context, claims *authdto.Claims, id string) (operationsdto.CustomTheme, error) {
+	if id == "" {
+		return operationsdto.CustomTheme{}, invalid("theme id is required")
+	}
+	return s.Repository.GetCustomTheme(ctx, claims, id)
+}
+
+func (s *Service) CreateCustomTheme(ctx context.Context, claims *authdto.Claims, request operationsdto.CustomThemeRequest) (operationsdto.CustomTheme, error) {
+	if err := extractAndValidateColors(&request); err != nil {
+		return operationsdto.CustomTheme{}, err
+	}
+	return s.Repository.CreateCustomTheme(ctx, claims, request)
+}
+
+func (s *Service) UpdateCustomTheme(ctx context.Context, claims *authdto.Claims, id string, request operationsdto.CustomThemeRequest) (operationsdto.CustomTheme, error) {
+	if id == "" {
+		return operationsdto.CustomTheme{}, invalid("theme id is required")
+	}
+	if err := extractAndValidateColors(&request); err != nil {
+		return operationsdto.CustomTheme{}, err
+	}
+	return s.Repository.UpdateCustomTheme(ctx, claims, id, request)
+}
+
+func (s *Service) DeleteCustomTheme(ctx context.Context, claims *authdto.Claims, id string) error {
+	if id == "" {
+		return invalid("theme id is required")
+	}
+	return s.Repository.DeleteCustomTheme(ctx, claims, id)
+}

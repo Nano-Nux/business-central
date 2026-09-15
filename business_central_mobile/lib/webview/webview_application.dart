@@ -7,6 +7,7 @@ import 'native_file_selector_bridge.dart';
 import 'native_printer_bridge.dart';
 import 'native_refresh_bridge.dart';
 import 'native_scanner_bridge.dart';
+import 'native_storage_bridge.dart';
 
 /// Limits automatic recovery to the short window where a WebView may report a
 /// transient main-frame failure before its persisted service worker is ready.
@@ -116,6 +117,38 @@ class _PortalWebViewState extends State<_PortalWebView> {
 })();
 ''';
 
+  static const _storageBridgeScript = r'''
+(function () {
+  if (window.BusinessCentralNativeStorage) return;
+  const pending = new Map();
+  let nextId = 1;
+  window.__businessCentralNativeStorageResolve = function (id, result, error) {
+    const request = pending.get(id);
+    if (!request) return;
+    pending.delete(id);
+    if (error) request.reject(new Error(error));
+    else request.resolve(result);
+  };
+  function request(method, payload) {
+    return new Promise(function (resolve, reject) {
+      const id = String(nextId++);
+      pending.set(id, { resolve: resolve, reject: reject });
+      BusinessCentralStorageChannel.postMessage(JSON.stringify({
+        id: id,
+        method: method,
+        payload: payload || {}
+      }));
+    });
+  }
+  window.BusinessCentralNativeStorage = {
+    get: function (key) { return request('get', { key: key }); },
+    set: function (key, value) { return request('set', { key: key, value: value }); },
+    remove: function (key) { return request('remove', { key: key }); }
+  };
+  window.dispatchEvent(new Event('business-central-native-storage-ready'));
+})();
+''';
+
   /*
   static const _pullToRefreshScript = r'''
 (function () {
@@ -208,6 +241,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
   final NativePrinterBridge _printerBridge = NativePrinterBridge();
   final NativeRefreshBridge _refreshBridge = NativeRefreshBridge();
   final NativeScannerBridge _scannerBridge = NativeScannerBridge();
+  final NativeStorageBridge _storageBridge = NativeStorageBridge();
   final NativeFileSelectorBridge _fileSelectorBridge =
       NativeFileSelectorBridge();
   late final WebViewController _controller;
@@ -263,6 +297,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
                 _refreshBridge.completeRefresh();
                 await _controller.runJavaScript(_bridgeScript);
                 await _controller.runJavaScript(_scannerBridgeScript);
+                await _controller.runJavaScript(_storageBridgeScript);
                 // await _controller.runJavaScript(_pullToRefreshScript);
               },
               onWebResourceError: (error) {
@@ -283,6 +318,10 @@ class _PortalWebViewState extends State<_PortalWebView> {
                 _scannerBridge.handleMessage(context, message),
           )
           ..addJavaScriptChannel(
+            NativeStorageBridge.channelName,
+            onMessageReceived: _storageBridge.handleMessage,
+          )
+          ..addJavaScriptChannel(
             NativeRefreshBridge.channelName,
             onMessageReceived: _refreshBridge.handleMessage,
           )
@@ -290,6 +329,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
     _printerBridge.attach(_controller);
     _refreshBridge.attach(_controller);
     _scannerBridge.attach(_controller);
+    _storageBridge.attach(_controller);
     _fileSelectorBridge.attach(_controller);
   }
 

@@ -1,0 +1,106 @@
+/*
+ * Clay Terracotta Theme Controls
+ * ------------------------------
+ * A warm Mediterranean aesthetic featuring sun-baked Tuscan earthenware brick,
+ * sun-bleached adobe canvas, and rich terracotta pottery highlights.
+ */
+:root[data-theme="clay-terracotta-theme"],
+[data-theme="clay-terracotta-theme"] {
+  --theme-black: #431407;
+  --theme-gray-950: #431407;
+  --theme-gray-900: #7c2d12;
+  --theme-gray-800: #9a3412;
+  --theme-gray-700: #c2410c;
+  --theme-gray-600: #ea580c;
+  --theme-gray-500: #f97316;
+  --theme-gray-400: #fb923c;
+  --theme-gray-300: #fdba74;
+  --theme-gray-200: #fed7aa;
+  --theme-gray-100: #ffedd5;
+  --theme-gray-50: #fffbf5;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 67 20 7;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #15803d;
+  --status-success-soft: #f0fdf4;
+  --status-success-border: #bbf7d0;
+  --status-warning: #9a3412;
+  --status-warning-soft: #fff7ed;
+  --status-warning-border: #ffedd5;
+  --status-danger: #b91c1c;
+  --status-danger-soft: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #7c2d12;
+  --status-neutral-soft: #fff7ed;
+  --status-neutral-border: #fed7aa;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 67 20 7;
+
+  --ink: #431407;
+  --muted: #7c2d12;
+  --line: #fed7aa;
+  --paper: #ffffff;
+  --canvas: #fffbf5;
+  --green: #9a3412;
+  --green-dark: #7c2d12;
+  --green-soft: #ffedd5;
+  --amber: #ea580c;
+  --red: #b91c1c;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(154 52 18 / 9%), 0 2px 6px -1px rgb(154 52 18 / 5%);
+  --border: #fed7aa;
+  --card: #ffffff;
+  --mint: #ffedd5;
+  --text: #431407;
+  --surface: #ffffff;
+  --surface-muted: #fff7ed;
+  --accent: #9a3412;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #9a3412;
+  --color-brand-hover: #7c2d12;
+  --color-brand-soft: #ffedd5;
+  --color-brand-border: #fed7aa;
+  --color-emerald: #15803d;
+  --color-emerald-soft: #f0fdf4;
+  --color-emerald-border: #bbf7d0;
+  --color-amber: #ea580c;
+  --color-amber-soft: #fff7ed;
+  --color-amber-border: #ffedd5;
+  --color-rose: #b91c1c;
+  --color-rose-soft: #fef2f2;
+  --color-rose-border: #fecaca;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="clay-terracotta-theme"] .button-primary {
+  background: #9a3412;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(154 52 18 / 25%);
+}
+
+[data-theme="clay-terracotta-theme"] .button-primary:hover {
+  background: #7c2d12;
+}
+
+[data-theme="clay-terracotta-theme"] .topbar {
+  background: rgb(255 251 245 / 92%);
+}

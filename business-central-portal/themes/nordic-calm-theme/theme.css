@@ -1,0 +1,105 @@
+/*
+ * Nordic Sage & Linen Theme Controls
+ * -----------------------------------
+ * An earthy, organic, anti-fatigue palette featuring a soft warm linen canvas,
+ * calming forest sage green actions, warm terracotta alerts, and stone borders.
+ */
+:root[data-theme="nordic-calm-theme"],
+[data-theme="nordic-calm-theme"] {
+  --theme-black: #1c1917;
+  --theme-gray-950: #1c1917;
+  --theme-gray-900: #292524;
+  --theme-gray-800: #44403c;
+  --theme-gray-700: #57534e;
+  --theme-gray-600: #78716c;
+  --theme-gray-500: #a8a29e;
+  --theme-gray-400: #d6d3d1;
+  --theme-gray-300: #e7e5e4;
+  --theme-gray-200: #e7e5e4;
+  --theme-gray-100: #f5f5f4;
+  --theme-gray-50: #fbf9f5;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 28 25 23;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens with natural, organic earth tones */
+  --status-success: #2d6a4f;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #c2410c;
+  --status-warning-soft: #fff7ed;
+  --status-warning-border: #ffedd5;
+  --status-danger: #be123c;
+  --status-danger-soft: #fff1f2;
+  --status-danger-border: #fecdd3;
+  --status-info: #0369a1;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #57534e;
+  --status-neutral-soft: #f5f5f4;
+  --status-neutral-border: #d6d3d1;
+  --status-conflict: #7c2d12;
+  --status-conflict-soft: #ffedd5;
+  --status-conflict-border: #fed7aa;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 28 25 23;
+
+  --ink: #1c1917;
+  --muted: #78716c;
+  --line: #e7e5e4;
+  --paper: #ffffff;
+  --canvas: #fbf9f5;
+  --green: #2d6a4f;
+  --green-dark: #1b4332;
+  --green-soft: #e8f5ec;
+  --amber: #c2410c;
+  --red: #be123c;
+  --blue: #0369a1;
+  --shadow: 0 4px 20px -2px rgb(28 25 23 / 5%), 0 2px 6px -1px rgb(28 25 23 / 3%);
+  --border: #e7e5e4;
+  --card: #ffffff;
+  --mint: #e8f5ec;
+  --text: #1c1917;
+  --surface: #ffffff;
+  --surface-muted: #f5f2eb;
+  --accent: #2d6a4f;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #2d6a4f;
+  --color-brand-hover: #1b4332;
+  --color-brand-soft: #e8f5ec;
+  --color-brand-border: #b7e4c7;
+  --color-emerald: #2d6a4f;
+  --color-emerald-soft: #e8f5ec;
+  --color-emerald-border: #b7e4c7;
+  --color-amber: #c2410c;
+  --color-amber-soft: #fff7ed;
+  --color-amber-border: #fed7aa;
+  --color-rose: #be123c;
+  --color-rose-soft: #fff1f2;
+  --color-rose-border: #fecdd3;
+  --color-purple: #78350f;
+  --color-purple-soft: #fef3c7;
+  --color-purple-border: #fde68a;
+  --color-teal: #0f766e;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="nordic-calm-theme"] .button-primary {
+  background: #2d6a4f;
+  color: #ffffff;
+}
+
+[data-theme="nordic-calm-theme"] .button-primary:hover {
+  background: #1b4332;
+}
+
+[data-theme="nordic-calm-theme"] .topbar {
+  background: rgb(251 249 245 / 92%);
+}

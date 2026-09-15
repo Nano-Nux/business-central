@@ -18,6 +18,7 @@ import {
   StatusBadge,
   useListPagination,
 } from "./ui";
+import { useTranslation } from "@/lib/i18n";
 import { patch, post, remove } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import { useAuth } from "@/lib/auth";
@@ -53,6 +54,7 @@ type StockItem = {
 };
 
 export function StockAssetsPage() {
+  const { t } = useTranslation();
   const assets = useResource<StockAsset>("/inventory/assets?page_index=0&page_size=500");
   const [query, setQuery] = useState("");
   const [assetFilter, setAssetFilter] = useState("ALL");
@@ -102,7 +104,7 @@ export function StockAssetsPage() {
         is_primary: true,
       });
       setBarcode("");
-      setMessage("Stock barcode assigned.");
+      setMessage(t("inventory.barcode_assigned"));
       await assets.reload();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to assign barcode.");
@@ -117,7 +119,7 @@ export function StockAssetsPage() {
     setError("");
     try {
       await remove(`/catalog/barcodes/${selected.barcode_id}`);
-      setMessage("Stock barcode removed.");
+      setMessage(t("inventory.barcode_removed"));
       await assets.reload();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to remove barcode.");
@@ -129,9 +131,9 @@ export function StockAssetsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Inventory"
-        title="Stock barcodes"
-        description="Assign a unique barcode to each serialized stock asset. Scanned stock assets can go directly into the POS cart."
+        eyebrow={t("nav.inventory")}
+        title={t("inventory.stock_assets_title")}
+        description={t("inventory.stock_assets_desc")}
       />
       {message && <div className="success-message">{message}</div>}
       {error && <div className="form-error">{error}</div>}
@@ -143,8 +145,8 @@ export function StockAssetsPage() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search product, SKU, asset tag, or barcode"
-                aria-label="Search stock assets"
+                placeholder={t("inventory.search_assets_placeholder")}
+                aria-label={t("inventory.stock_assets_title")}
               />
             </div>
             <select
@@ -153,9 +155,9 @@ export function StockAssetsPage() {
               onChange={(event) => setAssetFilter(event.target.value)}
               aria-label="Filter stock assets"
             >
-              <option value="ALL">All assets</option>
-              <option value="WITH_BARCODE">With barcode</option>
-              <option value="WITHOUT_BARCODE">Missing barcode</option>
+              <option value="ALL">{t("inventory.all_assets")}</option>
+              <option value="WITH_BARCODE">{t("inventory.with_barcode")}</option>
+              <option value="WITHOUT_BARCODE">{t("inventory.missing_barcode")}</option>
             </select>
             <select
               className="filter-select"
@@ -163,10 +165,10 @@ export function StockAssetsPage() {
               onChange={(event) => setAssetSort(event.target.value)}
               aria-label="Sort stock assets"
             >
-              <option value="PRODUCT_ASC">Product A–Z</option>
-              <option value="PRODUCT_DESC">Product Z–A</option>
-              <option value="ASSET_TAG">Asset tag</option>
-              <option value="STATUS">Status</option>
+              <option value="PRODUCT_ASC">{t("catalog.product_name")} A–Z</option>
+              <option value="PRODUCT_DESC">{t("catalog.product_name")} Z–A</option>
+              <option value="ASSET_TAG">{t("catalog.sku")}</option>
+              <option value="STATUS">{t("common.status")}</option>
             </select>
           </div>
           {assets.loading ? (
@@ -175,8 +177,8 @@ export function StockAssetsPage() {
             <EmptyState title="Stock assets could not load" message={assets.error} />
           ) : visible.length === 0 ? (
             <EmptyState
-              title="No stock assets found"
-              message="Serialized stock assets appear here when they are registered in inventory."
+              title={t("inventory.no_assets_found")}
+              message={t("inventory.no_assets_desc")}
             />
           ) : (
             <div className="stock-asset-list">
@@ -197,7 +199,7 @@ export function StockAssetsPage() {
                     </small>
                   </span>
                   <span className="stock-product-balance">
-                    <small>{asset.barcode ? "Barcode" : "No barcode"}</small>
+                    <small>{asset.barcode ? t("catalog.barcode") : t("inventory.missing_barcode")}</small>
                     {asset.barcode ? (
                       <strong>{asset.barcode}</strong>
                     ) : (
@@ -214,35 +216,35 @@ export function StockAssetsPage() {
             pageSize={assetPagination.pageSize}
             totalItems={assetPagination.totalItems}
             totalPages={assetPagination.totalPages}
-            itemLabel="stock assets"
+            itemLabel={t("inventory.stock_assets_title")}
             onPageChange={assetPagination.setPageIndex}
           />
         </section>
         <section className="card stock-asset-editor">
           <div className="card-head">
             <div>
-              <h2>Assign stock barcode</h2>
-              <p>Use manual text, Camera image capture, or the live barcode scanner.</p>
+              <h2>{t("inventory.assign_stock_barcode")}</h2>
+              <p>{t("inventory.assign_barcode_desc")}</p>
             </div>
           </div>
           {!selected ? (
             <EmptyState
-              title="Select a stock asset"
-              message="Choose an asset from the list to manage its barcode."
+              title={t("inventory.select_asset_prompt")}
+              message={t("inventory.select_asset_desc")}
             />
           ) : (
             <>
               <div className="receipt-selection">
                 <div>
-                  <small>Product</small>
+                  <small>{t("catalog.product_name")}</small>
                   <strong>{selected.product_name}</strong>
                 </div>
                 <div>
-                  <small>Asset tag</small>
+                  <small>{t("catalog.sku")}</small>
                   <strong>{selected.asset_tag}</strong>
                 </div>
                 <div>
-                  <small>Status</small>
+                  <small>{t("common.status")}</small>
                   <StatusBadge status={selected.status} />
                 </div>
               </div>
@@ -253,7 +255,7 @@ export function StockAssetsPage() {
                   setBarcode(value);
                   void assign(value);
                 }}
-                placeholder="Enter stock barcode"
+                placeholder={t("inventory.search_assets_placeholder")}
               />
               <div className="modal-actions">
                 <Button
@@ -261,7 +263,7 @@ export function StockAssetsPage() {
                   onClick={() => void assign()}
                   disabled={busy || !barcode.trim()}
                 >
-                  {busy ? "Saving…" : "Assign barcode"}
+                  {busy ? t("common.loading") : t("inventory.assign_barcode_button")}
                 </Button>
                 {selected.barcode_id && (
                   <Button
@@ -270,7 +272,7 @@ export function StockAssetsPage() {
                     onClick={() => void clearBarcode()}
                     disabled={busy}
                   >
-                    Remove barcode
+                    {t("inventory.remove_barcode")}
                   </Button>
                 )}
               </div>
@@ -365,9 +367,11 @@ function CurrentPriceLists({
 }
 
 export function StockInPage() {
+  const { t } = useTranslation();
   const { merchant, isMerchant, can } = useAuth();
   const router = useRouter();
-  const simple = merchant?.pos_complexity_level === "SIMPLE";
+  const mini = merchant?.pos_complexity_level === "MINI";
+  const simple = merchant?.pos_complexity_level === "SIMPLE" || mini;
   const { currentShop } = useShop();
   const offline = useOffline();
 
@@ -376,16 +380,6 @@ export function StockInPage() {
       router.replace(isMerchant ? "/merchant/dashboard" : "/staff/dashboard");
     }
   }, [can, isMerchant, router]);
-
-  if (!can("stock_in")) {
-    return (
-      <EmptyState
-        icon="lock"
-        title="Access restricted"
-        message="Your account does not have permission to perform stock-in operations."
-      />
-    );
-  }
 
   const [pageIndex, setPageIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
@@ -477,7 +471,7 @@ export function StockInPage() {
         quantity: rawQuantity,
         event_key: `direct-stock-in:${crypto.randomUUID()}`,
       };
-      const unitCost = String(form.get("unit_cost") ?? "").trim();
+      const unitCost = !mini ? String(form.get("unit_cost") ?? "").trim() : "";
       if (unitCost) payload.unit_cost = unitCost;
       if (
         offline.status === "offline" &&
@@ -514,16 +508,22 @@ export function StockInPage() {
     }
   }
 
+  if (!can("stock_in")) {
+    return (
+      <EmptyState
+        icon="lock"
+        title="Access restricted"
+        message="Your account does not have permission to perform stock-in operations."
+      />
+    );
+  }
+
   return (
     <>
       <PageHeader
-        eyebrow="Inventory"
-        title="Stock in"
-        description={
-          isMerchant
-            ? "Choose a product and enter the received quantity. The original purchase cost is optional when this product has been stocked before."
-            : "Choose a product and enter the received quantity. The latest recorded original price is reused automatically."
-        }
+        eyebrow={t("nav.inventory")}
+        title={t("inventory.stock_in_title")}
+        description={t("inventory.stock_in_desc")}
       />
 
       {/* Mobile Step Navigator: only visible on mobile screens <= 800px */}
@@ -534,7 +534,7 @@ export function StockInPage() {
             className={mobileStep === "select" ? "active" : ""}
             onClick={() => setMobileStep("select")}
           >
-            1. Select product{selectedProduct ? " (1 selected)" : ""}
+            {t("inventory.stock_in_step_select")}{selectedProduct ? " (1 selected)" : ""}
           </button>
           <button
             type="button"
@@ -542,7 +542,7 @@ export function StockInPage() {
             onClick={() => setMobileStep("form")}
             disabled={!selectedProduct}
           >
-            2. Receive stock
+            {t("inventory.stock_in_step_receive")}
           </button>
         </div>
       </div>
@@ -553,19 +553,12 @@ export function StockInPage() {
           className={`card stock-catalog-card stock-catalog-pane ${
             mobileStep !== "select" ? "mobile-hidden" : ""
           }`}
-          aria-label="Products available for stock-in"
+          aria-label={t("inventory.select_product_prompt")}
         >
           <div className="card-head">
             <div>
-              <h2>Select a product</h2>
-              <p>
-                {simple
-                  ? "Only products with inventory tracking enabled are shown."
-                  : "Only variants with Track inventory enabled are shown."}{" "}
-                {isMerchant
-                  ? " The cost entered here is used later to calculate profit."
-                  : " The latest recorded cost is reused later to calculate profit."}
-              </p>
+              <h2>{t("inventory.select_product_prompt")}</h2>
+              <p>{t("inventory.select_product_desc")}</p>
             </div>
           </div>
 
@@ -575,10 +568,8 @@ export function StockInPage() {
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={
-                simple ? "Search products by name…" : "Search by product, variant, SKU, or barcode…"
-              }
-              aria-label="Search products"
+              placeholder={t("pos.search_placeholder")}
+              aria-label={t("common.search")}
             />
             {searchTerm && (
               <button
@@ -603,12 +594,8 @@ export function StockInPage() {
           ) : items.data.length === 0 && !debouncedQuery ? (
             <EmptyState
               icon="package"
-              title="No tracked products"
-              message={
-                simple
-                  ? "Create a product before recording stock-in."
-                  : "Create a product variant and enable Track inventory before recording stock-in."
-              }
+              title={t("catalog.no_products")}
+              message={t("catalog.no_products_desc")}
             />
           ) : items.data.length === 0 && debouncedQuery ? (
             <div className="stock-no-match">
@@ -622,7 +609,7 @@ export function StockInPage() {
                   setPageIndex(0);
                 }}
               >
-                Clear search
+                {t("common.clear")}
               </Button>
             </div>
           ) : (
@@ -657,7 +644,7 @@ export function StockInPage() {
                             className={`stock-qty-badge ${qtyOnHand > 0 ? "in-stock" : "out-of-stock"}`}
                           >
                             <strong>{formatQuantity(item.quantity_on_hand)}</strong>
-                            {itemUnitLabel ? ` ${itemUnitLabel}` : ""} in stock
+                            {itemUnitLabel ? ` ${itemUnitLabel}` : ""}
                           </span>
                         </div>
                         {!simple && (
@@ -683,7 +670,7 @@ export function StockInPage() {
                 pageSize={pageSize}
                 totalItems={items.meta?.total ?? items.data.length}
                 totalPages={items.meta?.total_pages ?? 1}
-                itemLabel="products"
+                itemLabel={t("common.products")}
                 onPageChange={setPageIndex}
               />
             </>
@@ -695,15 +682,15 @@ export function StockInPage() {
           className={`card stock-receipt-card stock-receipt-pane ${
             mobileStep !== "form" ? "mobile-hidden" : ""
           }`}
-          aria-label="Stock receipt form"
+          aria-label={t("inventory.receive_stock_prompt")}
         >
           <div className="card-head">
             <div>
-              <h2>Receive stock</h2>
+              <h2>{t("inventory.receive_stock_prompt")}</h2>
               <p>
                 {selectedProduct
                   ? `Entering received inventory for ${selectedProduct.product_name}.`
-                  : "Choose a product from the catalog to receive stock."}
+                  : t("inventory.choose_product_prompt")}
               </p>
             </div>
             {selectedProduct && (
@@ -714,10 +701,10 @@ export function StockInPage() {
                   setSelectedProduct(null);
                   setMobileStep("select");
                 }}
-                aria-label="Choose different product"
+                aria-label={t("inventory.change_product")}
               >
                 <Icon name="close" size={14} />
-                <span>Change product</span>
+                <span>{t("inventory.change_product")}</span>
               </button>
             )}
           </div>
@@ -741,28 +728,18 @@ export function StockInPage() {
               <span className="stock-prompt-icon">
                 <Icon name="package" size={28} />
               </span>
-              <h3>No product selected</h3>
-              <p>
-                Select a product from the list on the left to record incoming stock, choose a
-                location, and specify purchase costs.
-              </p>
+              <h3>{t("inventory.no_product_selected")}</h3>
+              <p>{t("inventory.no_product_selected_desc")}</p>
               <aside className="stock-tip-embedded">
                 <h4>
                   <Icon name="package" size={15} />
-                  How original price works
+                  {t("inventory.original_price_info_title")}
                 </h4>
-                <p>
-                  Each stock-in creates an immutable receipt and a FIFO cost layer. When this item
-                  is sold, that cost is used to calculate gross profit.
-                </p>
+                <p>{t("inventory.original_price_info_desc")}</p>
                 <ul>
-                  <li>Selling price stays in the RETAIL price list.</li>
-                  <li>
-                    {isMerchant
-                      ? "Original price is the amount you paid per unit."
-                      : "The latest original price is reused automatically."}
-                  </li>
-                  <li>Stock quantity updates immediately upon receipt.</li>
+                  <li>{t("inventory.original_price_bullet_1")}</li>
+                  <li>{t("inventory.original_price_bullet_2")}</li>
+                  <li>{t("inventory.original_price_bullet_3")}</li>
                 </ul>
               </aside>
             </div>
@@ -775,12 +752,12 @@ export function StockInPage() {
                     <Icon name="package" size={20} />
                   </span>
                   <div className="spotlight-title">
-                    <small>Selected product</small>
+                    <small>{t("catalog.product_name")}</small>
                     <strong>{selectedProduct.product_name}</strong>
                     {!simple && <span className="spotlight-variant">{selectedProduct.name}</span>}
                   </div>
                   <div className="spotlight-stock">
-                    <small>Current stock</small>
+                    <small>{t("catalog.stock_quantity")}</small>
                     <strong>
                       {formatQuantity(selectedProduct.quantity_on_hand)}
                       {selectedUnitLabel ? ` ${selectedUnitLabel}` : ""}
@@ -800,14 +777,14 @@ export function StockInPage() {
               </div>
 
               <div className="form-grid">
-                <Field label="Stock location">
+                <Field label={t("inventory.stock_location")}>
                   <select
                     name="destination_location_id"
                     defaultValue={shopLocations.length === 1 ? shopLocations[0].id : ""}
                     required
                     disabled={shopLocations.length === 0}
                   >
-                    <option value="">Select a location</option>
+                    <option value="">{t("inventory.select_location")}</option>
                     {shopLocations.map((location) => (
                       <option key={location.id} value={location.id}>
                         {location.name}
@@ -819,8 +796,8 @@ export function StockInPage() {
                 <Field
                   label={
                     selectedUnitLabel
-                      ? `Quantity received (${selectedUnitLabel})`
-                      : "Quantity received"
+                      ? `${t("inventory.quantity_received")} (${selectedUnitLabel})`
+                      : t("inventory.quantity_received")
                   }
                   hint={
                     selectedUnit && !allowsDecimal
@@ -841,9 +818,9 @@ export function StockInPage() {
                   />
                 </Field>
 
-                {isMerchant && (
+                {isMerchant && !mini && (
                   <Field
-                    label="Original price per unit"
+                    label={t("inventory.original_price_per_unit")}
                     hint="Optional after the first stock-in; leave blank to reuse the latest cost."
                   >
                     <div className="money-field">
@@ -854,7 +831,7 @@ export function StockInPage() {
                         step="0.01"
                         min="0"
                         key={selectedProduct.id}
-                        placeholder="Use latest cost"
+                        placeholder={t("inventory.use_latest_cost")}
                       />
                     </div>
                     <CurrentPriceLists
@@ -885,7 +862,7 @@ export function StockInPage() {
                     setMobileStep("select");
                   }}
                 >
-                  Clear
+                  {t("common.clear")}
                 </Button>
                 <Button
                   type="submit"
@@ -896,27 +873,20 @@ export function StockInPage() {
                     (offline.status === "offline" && !offline.storageAvailable)
                   }
                 >
-                  {busy ? "Adding stock…" : "Add to stock"}
+                  {busy ? t("inventory.adding_stock") : t("inventory.add_to_stock")}
                 </Button>
               </div>
 
               <aside className="stock-tip-embedded mt-12">
                 <h4>
                   <Icon name="package" size={15} />
-                  How original price works
+                  {t("inventory.original_price_info_title")}
                 </h4>
-                <p>
-                  Each stock-in creates an immutable receipt and a FIFO cost layer. When this item
-                  is sold, that cost is used to calculate gross profit.
-                </p>
+                <p>{t("inventory.original_price_info_desc")}</p>
                 <ul>
-                  <li>Selling price stays in the RETAIL price list.</li>
-                  <li>
-                    {isMerchant
-                      ? "Original price is the amount you paid per unit."
-                      : "The latest original price is reused automatically."}
-                  </li>
-                  <li>Stock quantity updates immediately.</li>
+                  <li>{t("inventory.original_price_bullet_1")}</li>
+                  <li>{t("inventory.original_price_bullet_2")}</li>
+                  <li>{t("inventory.original_price_bullet_3")}</li>
                 </ul>
               </aside>
             </Form>
@@ -928,6 +898,7 @@ export function StockInPage() {
 }
 
 export function MovementsPage() {
+  const { t } = useTranslation();
   const { merchant, isMerchant } = useAuth();
   const { currentShop } = useShop();
   const { data, loading, error } = useResource<Movement>(
@@ -942,7 +913,7 @@ export function MovementsPage() {
     () => new Map(variants.data.map((item) => [item.id, item.name])),
     [variants.data],
   );
-  const variantName = (id: string) => variantNames.get(id) ?? id.slice(0, 8);
+  const variantName = (id?: string) => (id ? (variantNames.get(id) ?? id.slice(0, 8)) : "—");
   const locationName = (id?: string) =>
     id ? (locations.data.find((item) => item.id === id)?.name ?? id.slice(0, 8)) : "—";
   const visible = useMemo(
@@ -951,7 +922,7 @@ export function MovementsPage() {
         .filter(
           (item) =>
             (!type || item.movement_type === type) &&
-            `${variantNames.get(item.variant_id) ?? item.variant_id} ${item.event_key}`
+            `${variantNames.get(item.variant_id) ?? item.variant_id ?? ""} ${item.event_key ?? ""}`
               .toLowerCase()
               .includes(query.toLowerCase()),
         )
@@ -959,8 +930,8 @@ export function MovementsPage() {
           movementSort === "OLDEST"
             ? new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime()
             : movementSort === "PRODUCT"
-              ? (variantNames.get(a.variant_id) ?? a.variant_id).localeCompare(
-                  variantNames.get(b.variant_id) ?? b.variant_id,
+              ? (variantNames.get(a.variant_id) ?? a.variant_id ?? "").localeCompare(
+                  variantNames.get(b.variant_id) ?? b.variant_id ?? "",
                 )
               : movementSort === "QUANTITY_DESC"
                 ? Number(b.quantity) - Number(a.quantity)
@@ -972,12 +943,12 @@ export function MovementsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Inventory"
-        title="Stock movement history"
-        description="A permanent audit trail of every item entering or leaving stock."
+        eyebrow={t("nav.inventory")}
+        title={t("inventory.stock_history_title")}
+        description={t("inventory.stock_history_desc")}
         action={
           <Button variant="secondary" onClick={() => window.print()}>
-            Print view
+            {t("common.print")}
           </Button>
         }
       />
@@ -987,7 +958,7 @@ export function MovementsPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search product or event…"
+            placeholder={t("common.search_placeholder")}
           />
         </div>
         <select
@@ -995,7 +966,7 @@ export function MovementsPage() {
           value={type}
           onChange={(event) => setType(event.target.value)}
         >
-          <option value="">All movements</option>
+          <option value="">{t("inventory.all_movements")}</option>
           <option>RECEIPT</option>
           <option>SALE</option>
           <option>TRANSFER</option>
@@ -1023,20 +994,20 @@ export function MovementsPage() {
         ) : visible.length === 0 ? (
           <EmptyState
             icon="history"
-            title="No stock movements"
-            message="Receipts, sales, and adjustments will appear here."
+            title={t("inventory.no_movements_found")}
+            message={t("inventory.no_movements_desc")}
           />
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Product</th>
-                <th>From / to</th>
-                <th>Quantity</th>
-                {isMerchant && <th>Unit cost</th>}
-                <th>Event</th>
+                <th>{t("common.date")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("catalog.product_name")}</th>
+                <th>{t("inventory.location")}</th>
+                <th>{t("common.quantity")}</th>
+                {isMerchant && <th>{t("inventory.unit_cost")}</th>}
+                <th>{t("common.details")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1079,7 +1050,7 @@ export function MovementsPage() {
                   <td>
                     <code>{item.event_key}</code>
                     <Link className="text-link" href={`/stock-movements/${item.id}`}>
-                      View detail
+                      {t("common.details")}
                     </Link>
                   </td>
                 </tr>
@@ -1093,7 +1064,7 @@ export function MovementsPage() {
         pageSize={pagination.pageSize}
         totalItems={pagination.totalItems}
         totalPages={pagination.totalPages}
-        itemLabel="movements"
+        itemLabel={t("inventory.stock_history_title")}
         onPageChange={pagination.setPageIndex}
       />
     </>
@@ -1101,6 +1072,7 @@ export function MovementsPage() {
 }
 
 export function AccountsPage() {
+  const { t } = useTranslation();
   const { isMerchant } = useAuth();
   const offline = useOffline();
   const users = useResource<User>("/users?page=1&page_size=100");
@@ -1255,12 +1227,12 @@ export function AccountsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Team"
-        title="Staff accounts"
-        description="Give each staff member access to exactly one shop."
+        eyebrow={t("accounts.eyebrow")}
+        title={t("accounts.title")}
+        description={t("accounts.description")}
         action={
           <Button icon="plus" disabled={offline.status === "offline"} onClick={() => setOpen(true)}>
-            Add staff
+            {t("accounts.add_staff")}
           </Button>
         }
       />
@@ -1290,22 +1262,22 @@ export function AccountsPage() {
                 checked={isStockInAllowed}
                 disabled={!isMerchant || offline.status === "offline" || permissionBusy || roles.loading}
                 onChange={(event) => handleToggleStockIn(event.target.checked)}
-                aria-label="Staff Stock-In Permission"
+                aria-label={t("accounts.staff_stock_in_permission")}
               />
               <span>
-                <strong style={{ fontSize: 13, fontWeight: 600 }}>Staff Stock-In Permission</strong>
+                <strong style={{ fontSize: 13, fontWeight: 600 }}>{t("accounts.staff_stock_in_permission")}</strong>
                 <small style={{ fontSize: 11, color: "var(--muted)" }}>
-                  Allow staff accounts to access stock-in and receive inventory. Only the merchant user role can control this switch (off by default).
+                  {t("accounts.staff_stock_in_desc")}
                 </small>
               </span>
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Badge tone={isStockInAllowed ? "success" : "neutral"}>
                 {permissionBusy
-                  ? "Updating…"
+                  ? t("common.loading")
                   : isStockInAllowed
-                    ? "Stock-in Enabled"
-                    : "Stock-in Disabled"}
+                    ? t("accounts.stock_in_enabled")
+                    : t("accounts.stock_in_disabled")}
               </Badge>
             </div>
           </div>
@@ -1319,22 +1291,22 @@ export function AccountsPage() {
       <ListControls
         search={userQuery}
         onSearchChange={setUserQuery}
-        searchPlaceholder="Search staff, email or role"
+        searchPlaceholder={t("common.search_placeholder")}
         filter={userFilter}
         onFilterChange={setUserFilter}
-        filterLabel="Filter staff"
+        filterLabel={t("common.filter")}
         filterOptions={[
-          { value: "ALL", label: "All staff" },
-          { value: "ACTIVE", label: "Active" },
-          { value: "INACTIVE", label: "Inactive" },
+          { value: "ALL", label: t("common.all") },
+          { value: "ACTIVE", label: t("common.active") },
+          { value: "INACTIVE", label: t("common.inactive") },
         ]}
         sort={userSort}
         onSortChange={setUserSort}
-        sortLabel="Sort staff"
+        sortLabel={t("common.actions")}
         sortOptions={[
-          { value: "NAME_ASC", label: "Name A–Z" },
-          { value: "NAME_DESC", label: "Name Z–A" },
-          { value: "EMAIL", label: "Email A–Z" },
+          { value: "NAME_ASC", label: `${t("common.name")} A–Z` },
+          { value: "NAME_DESC", label: `${t("common.name")} Z–A` },
+          { value: "EMAIL", label: `${t("common.email")} A–Z` },
         ]}
       />
       <div className="table-card">
@@ -1345,17 +1317,17 @@ export function AccountsPage() {
         ) : visibleUsers.length === 0 ? (
           <EmptyState
             icon="users"
-            title="No staff accounts"
-            message="Create an account for a cashier or repair technician."
+            title={t("accounts.no_staff_accounts")}
+            message={t("accounts.no_staff_desc")}
           />
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Team member</th>
-                <th>Role</th>
-                <th>Assigned shop</th>
-                <th>Status</th>
+                <th>{t("accounts.team_member")}</th>
+                <th>{t("accounts.role")}</th>
+                <th>{t("accounts.assigned_shop")}</th>
+                <th>{t("common.status")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -1387,7 +1359,7 @@ export function AccountsPage() {
                         aria-label={`Shop for ${user.display_name}`}
                       >
                         <option value="" disabled>
-                          Assign shop
+                          {t("accounts.assign_shop")}
                         </option>
                         {shops.data.map((shop) => (
                           <option key={shop.id} value={shop.id}>
@@ -1396,18 +1368,18 @@ export function AccountsPage() {
                         ))}
                       </select>
                     ) : (
-                      (shops.data.find((shop) => shop.id === user.shop_id)?.name ?? "All shops")
+                      (shops.data.find((shop) => shop.id === user.shop_id)?.name ?? t("accounts.all_shops"))
                     )}
                   </td>
                   <td>
                     <Badge tone={user.is_active ? "success" : "neutral"}>
-                      {user.is_active ? "Active" : "Inactive"}
+                      {user.is_active ? t("common.active") : t("common.inactive")}
                     </Badge>
                   </td>
                   <td>
                     <div className="row-actions">
                       <button
-                        title="Change staff password"
+                        title={t("accounts.change_password")}
                         disabled={offline.status === "offline"}
                         onClick={() => {
                           setPasswordUser(user);
@@ -1438,34 +1410,34 @@ export function AccountsPage() {
         pageSize={userPagination.pageSize}
         totalItems={userPagination.totalItems}
         totalPages={userPagination.totalPages}
-        itemLabel="staff accounts"
+        itemLabel={t("accounts.title")}
         onPageChange={userPagination.setPageIndex}
       />
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Add staff member"
-        description="This account will be restricted to one shop."
+        title={t("accounts.add_staff_modal_title")}
+        description={t("accounts.add_staff_modal_desc")}
       >
         <Form onSubmit={save}>
           <div className="form-grid">
-            <Field label="Full name">
+            <Field label={t("accounts.full_name")}>
               <input name="name" required />
             </Field>
-            <Field label="Phone">
+            <Field label={t("common.phone")}>
               <input name="phone" type="tel" />
             </Field>
             <div className="wide">
-              <Field label="Email">
+              <Field label={t("common.email")}>
                 <input name="email" type="email" required />
               </Field>
             </div>
-            <Field label="Temporary password">
+            <Field label={t("accounts.temporary_password")}>
               <input name="password" type="password" minLength={8} required />
             </Field>
-            <Field label="Assigned shop">
+            <Field label={t("accounts.assigned_shop")}>
               <select name="shop_id" required>
-                <option value="">Select one shop</option>
+                <option value="">{t("accounts.assign_shop")}</option>
                 {shops.data.map((shop) => (
                   <option value={shop.id} key={shop.id}>
                     {shop.name}
@@ -1477,10 +1449,10 @@ export function AccountsPage() {
           {formError && <div className="form-error">{formError}</div>}
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={offline.status === "offline"}>
-              Create staff
+              {t("accounts.create_staff")}
             </Button>
           </div>
         </Form>
@@ -1488,7 +1460,7 @@ export function AccountsPage() {
       <Modal
         open={Boolean(passwordUser)}
         onClose={() => setPasswordUser(null)}
-        title={`Change password: ${passwordUser?.display_name ?? ""}`}
+        title={`${t("accounts.change_password")}: ${passwordUser?.display_name ?? ""}`}
         description={`Set a new sign-in password for ${passwordUser?.email ?? "this staff member"}.`}
       >
         <Form onSubmit={submitStaffPassword}>
@@ -1507,33 +1479,33 @@ export function AccountsPage() {
                 {passwordModalError}
               </div>
             )}
-            <Field label="New password" hint="Minimum 8 characters">
+            <Field label={t("accounts.new_password")} hint="Minimum 8 characters">
               <input
                 type="password"
                 required
                 minLength={8}
                 value={staffPassword}
                 onChange={(e) => setStaffPassword(e.target.value)}
-                placeholder="Enter new password"
+                placeholder={t("accounts.new_password")}
               />
             </Field>
-            <Field label="Confirm password" hint="Retype to confirm">
+            <Field label={t("accounts.confirm_password")} hint="Retype to confirm">
               <input
                 type="password"
                 required
                 minLength={8}
                 value={staffConfirmPassword}
                 onChange={(e) => setStaffConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
+                placeholder={t("accounts.confirm_password")}
               />
             </Field>
           </div>
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setPasswordUser(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" icon="lock" disabled={passwordBusy || !staffPassword}>
-              {passwordBusy ? "Updating..." : "Update password"}
+              {passwordBusy ? t("common.loading") : t("accounts.update_password")}
             </Button>
           </div>
         </Form>

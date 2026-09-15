@@ -1,0 +1,138 @@
+/*
+ * Aurora Borealis Theme Controls
+ * ------------------------------
+ * An ethereal dark polar night aesthetic inspired by the northern lights:
+ * deep Arctic obsidian, luminous aurora emerald, radiant celestial cyan,
+ * and glowing polar frost accents.
+ */
+:root[data-theme="aurora-borealis-theme"],
+[data-theme="aurora-borealis-theme"] {
+  --theme-black: #e6fffa;
+  --theme-gray-950: #ffffff;
+  --theme-gray-900: #ccfbf1;
+  --theme-gray-800: #99f6e4;
+  --theme-gray-700: #5eead4;
+  --theme-gray-600: #2dd4bf;
+  --theme-gray-500: #14b8a6;
+  --theme-gray-400: #0d9488;
+  --theme-gray-300: #0f766e;
+  --theme-gray-200: #115e59;
+  --theme-gray-100: #134e4a;
+  --theme-gray-50: #082329;
+  --theme-white: #082329;
+
+  --theme-black-rgb: 230 255 250;
+  --theme-white-rgb: 8 35 41;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #10b981;
+  --status-success-soft: #042f2e;
+  --status-success-border: #059669;
+  --status-warning: #f59e0b;
+  --status-warning-soft: #451a03;
+  --status-warning-border: #b45309;
+  --status-danger: #f43f5e;
+  --status-danger-soft: #4c0519;
+  --status-danger-border: #be123c;
+  --status-info: #06b6d4;
+  --status-info-soft: #083344;
+  --status-info-border: #0891b2;
+  --status-neutral: #5eead4;
+  --status-neutral-soft: #0f3d32;
+  --status-neutral-border: #134e4a;
+  --status-conflict: #a855f7;
+  --status-conflict-soft: #3b0764;
+  --status-conflict-border: #7e22ce;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 0 0 0;
+
+  --ink: #e6fffa;
+  --muted: #5eead4;
+  --line: #0e373f;
+  --paper: #082329;
+  --canvas: #031417;
+  --green: #10b981;
+  --green-dark: #059669;
+  --green-soft: #0f3d32;
+  --amber: #f59e0b;
+  --red: #f43f5e;
+  --blue: #06b6d4;
+  --shadow: 0 4px 24px -2px rgb(16 185 129 / 18%), 0 2px 6px -1px rgb(0 0 0 / 40%);
+  --border: #0e373f;
+  --card: #082329;
+  --mint: #0a2d34;
+  --text: #e6fffa;
+  --surface: #082329;
+  --surface-muted: #05191d;
+  --accent: #06b6d4;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #10b981;
+  --color-brand-hover: #34d399;
+  --color-brand-soft: #064e3b;
+  --color-brand-border: #059669;
+  --color-emerald: #10b981;
+  --color-emerald-soft: #042f2e;
+  --color-emerald-border: #059669;
+  --color-amber: #f59e0b;
+  --color-amber-soft: #451a03;
+  --color-amber-border: #b45309;
+  --color-rose: #f43f5e;
+  --color-rose-soft: #4c0519;
+  --color-rose-border: #be123c;
+  --color-purple: #a855f7;
+  --color-purple-soft: #3b0764;
+  --color-purple-border: #7e22ce;
+  --color-teal: #06b6d4;
+  --color-teal-soft: #083344;
+  --color-teal-border: #0891b2;
+}
+
+[data-theme="aurora-borealis-theme"] .button-primary {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  color: #031417;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgb(16 185 129 / 35%);
+}
+
+[data-theme="aurora-borealis-theme"] .button-primary:hover {
+  background: linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
+}
+
+[data-theme="aurora-borealis-theme"] .topbar {
+  background: rgb(3 20 23 / 92%);
+  border-bottom-color: #0e373f;
+}
+
+[data-theme="aurora-borealis-theme"] input,
+[data-theme="aurora-borealis-theme"] select,
+[data-theme="aurora-borealis-theme"] textarea {
+  background: #0b2f38;
+  color: #e6fffa;
+  border-color: #164e59;
+}
+
+[data-theme="aurora-borealis-theme"] input:focus,
+[data-theme="aurora-borealis-theme"] select:focus,
+[data-theme="aurora-borealis-theme"] textarea:focus {
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 3px rgb(6 182 212 / 30%);
+}
+
+[data-theme="aurora-borealis-theme"] table th {
+  background: #05191d;
+  color: #5eead4;
+  border-bottom-color: #0e373f;
+}
+
+[data-theme="aurora-borealis-theme"] table td {
+  border-bottom-color: #0c2930;
+}
+
+[data-theme="aurora-borealis-theme"] tbody tr:hover {
+  background: rgb(16 185 129 / 12%);
+}

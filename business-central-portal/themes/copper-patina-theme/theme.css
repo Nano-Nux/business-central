@@ -1,0 +1,106 @@
+/*
+ * Copper Patina Theme Controls
+ * ----------------------------
+ * A distinctive artisanal aesthetic pairing burnished copper metallic actions
+ * with oxidized verdigris seafoam highlights and weathered stone surfaces.
+ */
+:root[data-theme="copper-patina-theme"],
+[data-theme="copper-patina-theme"] {
+  --theme-black: #451a03;
+  --theme-gray-950: #451a03;
+  --theme-gray-900: #78350f;
+  --theme-gray-800: #9a3412;
+  --theme-gray-700: #c2410c;
+  --theme-gray-600: #0f766e;
+  --theme-gray-500: #14b8a6;
+  --theme-gray-400: #5eead4;
+  --theme-gray-300: #99f6e4;
+  --theme-gray-200: #ccfbf1;
+  --theme-gray-100: #f0fdfa;
+  --theme-gray-50: #f8faf7;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 69 26 3;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #0f766e;
+  --status-success-soft: #f0fdfa;
+  --status-success-border: #99f6e4;
+  --status-warning: #c2410c;
+  --status-warning-soft: #fff7ed;
+  --status-warning-border: #ffedd5;
+  --status-danger: #b91c1c;
+  --status-danger-soft: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #0f766e;
+  --status-neutral-soft: #f0fdfa;
+  --status-neutral-border: #ccfbf1;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 69 26 3;
+
+  --ink: #451a03;
+  --muted: #0f766e;
+  --line: #ccfbf1;
+  --paper: #ffffff;
+  --canvas: #f8faf7;
+  --green: #c2410c;
+  --green-dark: #9a3412;
+  --green-soft: #fff7ed;
+  --amber: #c2410c;
+  --red: #b91c1c;
+  --blue: #14b8a6;
+  --shadow: 0 4px 20px -2px rgb(194 65 12 / 8%), 0 2px 6px -1px rgb(194 65 12 / 4%);
+  --border: #ccfbf1;
+  --card: #ffffff;
+  --mint: #f0fdfa;
+  --text: #451a03;
+  --surface: #ffffff;
+  --surface-muted: #f0fdfa;
+  --accent: #14b8a6;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #c2410c;
+  --color-brand-hover: #9a3412;
+  --color-brand-soft: #fff7ed;
+  --color-brand-border: #fed7aa;
+  --color-emerald: #0f766e;
+  --color-emerald-soft: #f0fdfa;
+  --color-emerald-border: #99f6e4;
+  --color-amber: #c2410c;
+  --color-amber-soft: #fff7ed;
+  --color-amber-border: #ffedd5;
+  --color-rose: #b91c1c;
+  --color-rose-soft: #fef2f2;
+  --color-rose-border: #fecaca;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #14b8a6;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="copper-patina-theme"] .button-primary {
+  background: #c2410c;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(194 65 12 / 25%);
+}
+
+[data-theme="copper-patina-theme"] .button-primary:hover {
+  background: #9a3412;
+}
+
+[data-theme="copper-patina-theme"] .topbar {
+  background: rgb(248 250 247 / 92%);
+}

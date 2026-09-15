@@ -15,6 +15,7 @@ import {
 } from "react";
 import { Icon, type IconName } from "./icons";
 import { getPaginationPages, paginateItems } from "@/lib/list-pagination";
+import { useTranslation } from "@/lib/i18n";
 
 export function PageHeader({
   eyebrow,
@@ -269,12 +270,14 @@ const statusToneMap: Record<string, StatusTone> = {
   TAP_TO_CONNECT: "info",
 };
 
-export function statusTone(status: string): StatusTone {
+export function statusTone(status?: string): StatusTone {
+  if (!status) return "neutral";
   return statusToneMap[status.trim().replaceAll(" ", "_").toUpperCase()] ?? "neutral";
 }
 
-export function StatusBadge({ status, label }: { status: string; label?: string }) {
-  return <Badge tone={statusTone(status)}>{label ?? status.replaceAll("_", " ")}</Badge>;
+export function StatusBadge({ status, label }: { status?: string; label?: string }) {
+  const text = label ?? (status ? status.replaceAll("_", " ") : "Unknown");
+  return <Badge tone={statusTone(status)}>{text}</Badge>;
 }
 
 export function Modal({
@@ -298,6 +301,7 @@ export function Modal({
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [open, onClose]);
+  const { t } = useTranslation();
   if (!open) return null;
   return (
     <div
@@ -316,7 +320,7 @@ export function Modal({
             <h2>{title}</h2>
             {description && <p>{description}</p>}
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close">
+          <button className="icon-button" onClick={onClose} aria-label={t("common.close", "Close")}>
             <Icon name="close" />
           </button>
         </div>
@@ -356,12 +360,13 @@ export function Field({
 }
 
 export function Loading() {
+  const { t } = useTranslation();
   return (
     <div className="loading">
       <i />
       <i />
       <i />
-      <span>Loading workspace…</span>
+      <span>{t("common.loading", "Loading workspace…")}</span>
     </div>
   );
 }
@@ -381,6 +386,7 @@ export function Pagination({
   itemLabel?: string;
   onPageChange: (pageIndex: number) => void;
 }) {
+  const { t } = useTranslation();
   const pages = getPaginationPages(pageIndex, totalPages);
   const firstItem = totalItems === 0 ? 0 : pageIndex * pageSize + 1;
   const lastItem = Math.min(totalItems, (pageIndex + 1) * pageSize);
@@ -402,9 +408,9 @@ export function Pagination({
           className="pagination-step"
           disabled={pageIndex === 0}
           onClick={() => onPageChange(pageIndex - 1)}
-          aria-label="Go to previous page"
+          aria-label={t("common.previous", "Previous")}
         >
-          Previous
+          {t("common.previous", "Previous")}
         </button>
         <div className="pagination-pages">
           {pages.map((page, index) => (
@@ -431,9 +437,9 @@ export function Pagination({
           className="pagination-step"
           disabled={pageIndex + 1 >= totalPages}
           onClick={() => onPageChange(pageIndex + 1)}
-          aria-label="Go to next page"
+          aria-label={t("common.next", "Next")}
         >
-          Next
+          {t("common.next", "Next")}
         </button>
       </div>
     </nav>

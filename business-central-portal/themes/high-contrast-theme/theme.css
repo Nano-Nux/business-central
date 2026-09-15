@@ -1,0 +1,149 @@
+/*
+ * High Contrast WCAG AAA Theme Controls
+ * --------------------------------------
+ * Ultra-accessible, maximum-contrast theme meeting WCAG 2.1 AAA standards.
+ * Features stark 2px solid jet-black borders, deep 100% black ink, high-visibility
+ * gold focus rings, high-contrast semantic badges, and crisp zero-blur surfaces.
+ */
+:root[data-theme="high-contrast-theme"],
+[data-theme="high-contrast-theme"] {
+  --theme-black: #000000;
+  --theme-gray-950: #000000;
+  --theme-gray-900: #111111;
+  --theme-gray-800: #222222;
+  --theme-gray-700: #333333;
+  --theme-gray-600: #444444;
+  --theme-gray-500: #555555;
+  --theme-gray-400: #777777;
+  --theme-gray-300: #999999;
+  --theme-gray-200: #000000;
+  --theme-gray-100: #f0f0f0;
+  --theme-gray-50: #ffffff;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 0 0 0;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: contrast(2);
+
+  /* Status tokens with maximum contrast against white */
+  --status-success: #006622;
+  --status-success-soft: #e6f7ec;
+  --status-success-border: #006622;
+  --status-warning: #8a4500;
+  --status-warning-soft: #fff3e0;
+  --status-warning-border: #8a4500;
+  --status-danger: #990000;
+  --status-danger-soft: #ffebeb;
+  --status-danger-border: #990000;
+  --status-info: #004499;
+  --status-info-soft: #e6f0ff;
+  --status-info-border: #004499;
+  --status-neutral: #000000;
+  --status-neutral-soft: #f4f4f4;
+  --status-neutral-border: #000000;
+  --status-conflict: #660099;
+  --status-conflict-soft: #f5e6ff;
+  --status-conflict-border: #660099;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 0 0 0;
+
+  --ink: #000000;
+  --muted: #222222;
+  --line: #000000;
+  --paper: #ffffff;
+  --canvas: #ffffff;
+  --green: #000000;
+  --green-dark: #000000;
+  --green-soft: #f0f0f0;
+  --amber: #8a4500;
+  --red: #990000;
+  --blue: #004499;
+  --shadow: none;
+  --border: #000000;
+  --card: #ffffff;
+  --mint: #e6f7ec;
+  --text: #000000;
+  --surface: #ffffff;
+  --surface-muted: #f4f4f4;
+  --accent: #000000;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #000000;
+  --color-brand-hover: #222222;
+  --color-brand-soft: #f0f0f0;
+  --color-brand-border: #000000;
+  --color-emerald: #006622;
+  --color-emerald-soft: #e6f7ec;
+  --color-emerald-border: #006622;
+  --color-amber: #8a4500;
+  --color-amber-soft: #fff3e0;
+  --color-amber-border: #8a4500;
+  --color-rose: #990000;
+  --color-rose-soft: #ffebeb;
+  --color-rose-border: #990000;
+  --color-purple: #660099;
+  --color-purple-soft: #f5e6ff;
+  --color-purple-border: #660099;
+  --color-teal: #006666;
+  --color-teal-soft: #e6ffff;
+  --color-teal-border: #006666;
+}
+
+[data-theme="high-contrast-theme"] .card,
+[data-theme="high-contrast-theme"] .stat-card,
+[data-theme="high-contrast-theme"] .panel,
+[data-theme="high-contrast-theme"] .sidebar,
+[data-theme="high-contrast-theme"] .topbar {
+  border-width: 2px;
+  border-color: #000000 !important;
+  box-shadow: none !important;
+}
+
+[data-theme="high-contrast-theme"] .button-primary {
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #000000;
+  font-weight: 700;
+}
+
+[data-theme="high-contrast-theme"] .button-primary:hover {
+  background: #222222;
+}
+
+[data-theme="high-contrast-theme"] .button-secondary,
+[data-theme="high-contrast-theme"] .button-ghost {
+  border: 2px solid #000000;
+  color: #000000;
+  font-weight: 700;
+}
+
+[data-theme="high-contrast-theme"] button:focus-visible,
+[data-theme="high-contrast-theme"] a:focus-visible,
+[data-theme="high-contrast-theme"] input:focus-visible,
+[data-theme="high-contrast-theme"] select:focus-visible,
+[data-theme="high-contrast-theme"] textarea:focus-visible {
+  outline: 3px solid #facc15 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 5px #000000 !important;
+}
+
+[data-theme="high-contrast-theme"] input,
+[data-theme="high-contrast-theme"] select,
+[data-theme="high-contrast-theme"] textarea {
+  border: 2px solid #000000;
+  color: #000000;
+  font-weight: 600;
+}
+
+[data-theme="high-contrast-theme"] table th {
+  border-bottom: 2px solid #000000;
+  color: #000000;
+  font-weight: 700;
+}
+
+[data-theme="high-contrast-theme"] table td {
+  border-bottom: 1px solid #000000;
+}

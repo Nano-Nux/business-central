@@ -1,0 +1,439 @@
+/*
+ * Modern Executive Layout - Million Dollar Floating Island Shell
+ * ---------------------------------------------------------------
+ * Ultra-premium floating glassmorphic architecture with spatial depth,
+ * elevated navigation capsules, tactile shop identity, and seamless
+ * responsive scaling across Desktop, Tablet, and Mobile.
+ *
+ * Designed to adapt automatically to all 29 color themes via semantic tokens.
+ */
+
+:root[data-layout="modern-executive-layout"],
+[data-layout="modern-executive-layout"] {
+  --sidebar-width: 270px;
+}
+
+/* ==========================================================================
+   1. Desktop Viewport (>= 1025px) - Floating Island Architecture
+   ========================================================================== */
+@media (min-width: 1025px) {
+  [data-layout="modern-executive-layout"] .sidebar {
+    position: fixed;
+    top: 16px;
+    bottom: 16px;
+    left: 18px;
+    width: 260px;
+    height: calc(100vh - 32px);
+    border-radius: 20px;
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--line);
+    box-shadow:
+      0 12px 36px -4px rgb(var(--theme-black-rgb, 0 0 0) / 0.08),
+      0 0 0 1px rgb(var(--theme-black-rgb, 0 0 0) / 0.03);
+    padding: 24px 16px 18px;
+    display: flex;
+    flex-direction: column;
+    z-index: 40;
+    transform: none;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+
+  [data-layout="modern-executive-layout"] .main-area {
+    margin-left: 294px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: margin 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  [data-layout="modern-executive-layout"] .topbar {
+    margin: 16px 28px 0;
+    height: 66px;
+    border-radius: 18px;
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--line);
+    box-shadow:
+      0 8px 24px -4px rgb(var(--theme-black-rgb, 0 0 0) / 0.05),
+      0 1px 2px rgb(var(--theme-black-rgb, 0 0 0) / 0.02);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: sticky;
+    top: 16px;
+    z-index: 30;
+  }
+
+  [data-layout="modern-executive-layout"] .content {
+    padding: 24px clamp(24px, 3vw, 42px) 48px;
+    max-width: 1560px;
+    margin: 0 auto;
+    width: 100%;
+    flex: 1;
+    box-sizing: border-box;
+  }
+
+  [data-layout="modern-executive-layout"] .brand {
+    padding: 2px 8px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+  }
+
+  [data-layout="modern-executive-layout"] .brand .brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: var(--surface-muted);
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 2px 8px rgb(var(--theme-black-rgb, 0 0 0) / 0.04);
+  }
+
+  [data-layout="modern-executive-layout"] .shop-switcher {
+    border-radius: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: var(--surface-muted);
+    box-shadow: 0 2px 6px rgb(var(--theme-black-rgb, 0 0 0) / 0.03);
+    margin-bottom: 18px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  [data-layout="modern-executive-layout"] .shop-switcher:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -2px rgb(var(--theme-black-rgb, 0 0 0) / 0.08);
+  }
+
+  [data-layout="modern-executive-layout"] .nav-group {
+    margin-bottom: 20px;
+  }
+
+  [data-layout="modern-executive-layout"] .nav-group > p {
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 12px 7px;
+    opacity: 0.85;
+  }
+
+  [data-layout="modern-executive-layout"] .nav-group a {
+    height: 38px;
+    border-radius: 11px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 590;
+    position: relative;
+    text-decoration: none;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid transparent;
+  }
+
+  [data-layout="modern-executive-layout"] .nav-group a:hover {
+    color: var(--text);
+    background: var(--surface-muted);
+    transform: translateX(3px);
+  }
+
+  [data-layout="modern-executive-layout"] .nav-group a.active {
+    color: var(--accent);
+    background: var(--surface);
+    border-color: var(--line);
+    box-shadow:
+      0 4px 14px -2px rgb(var(--theme-black-rgb, 0 0 0) / 0.07),
+      0 1px 2px rgb(var(--theme-black-rgb, 0 0 0) / 0.03);
+    font-weight: 700;
+  }
+
+  [data-layout="modern-executive-layout"] .nav-group a.active i {
+    position: absolute;
+    right: 10px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  [data-layout="modern-executive-layout"] .sidebar-help {
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--surface-muted);
+    padding: 12px 14px;
+    margin-top: auto;
+    transition: all 0.18s ease;
+  }
+
+  [data-layout="modern-executive-layout"] .sidebar-help:hover {
+    border-color: var(--accent);
+  }
+}
+
+/* ==========================================================================
+   2. Tablet Viewport (641px - 1024px) - Floating Drawer & Island Topbar
+   ========================================================================== */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [data-layout="modern-executive-layout"] .sidebar {
+    position: fixed;
+    top: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: 270px;
+    height: calc(100vh - 24px);
+    border-radius: 18px;
+    background: var(--surface);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--line);
+    box-shadow: 0 20px 48px -4px rgb(var(--theme-black-rgb, 0 0 0) / 0.22);
+    transform: translateX(-110%);
+    transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 50;
+    padding: 22px 16px 18px;
+  }
+
+  [data-layout="modern-executive-layout"] .sidebar.open {
+    transform: translateX(0);
+  }
+
+  [data-layout="modern-executive-layout"] .sidebar .sidebar-close {
+    position: absolute;
+    top: 14px;
+    right: 12px;
+    display: grid;
+    z-index: 10;
+  }
+
+  [data-layout="modern-executive-layout"] .sidebar > .brand {
+    padding-right: 42px;
+    margin-bottom: 18px;
+  }
+
+  [data-layout="modern-executive-layout"] .mobile-scrim.show {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgb(var(--theme-black-rgb, 0 0 0) / 0.38);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 45;
+  }
+
+  [data-layout="modern-executive-layout"] .main-area {
+    margin-left: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  [data-layout="modern-executive-layout"] .menu-button,
+  [data-layout="modern-executive-layout"] .icon-button.menu-button {
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    width: 38px;
+    height: 38px;
+  }
+
+  [data-layout="modern-executive-layout"] .topbar {
+    margin: 12px 16px 0;
+    height: 62px;
+    border-radius: 16px;
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--line);
+    box-shadow: 0 6px 20px -3px rgb(var(--theme-black-rgb, 0 0 0) / 0.06);
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky;
+    top: 12px;
+    z-index: 30;
+  }
+
+  [data-layout="modern-executive-layout"] .content {
+    padding: 20px 20px 40px;
+    max-width: 100%;
+    box-sizing: border-box;
+    flex: 1;
+  }
+}
+
+/* ==========================================================================
+   3. Mobile Viewport (<= 640px) - Ergonomic Touch Floating Island
+   ========================================================================== */
+@media (max-width: 640px) {
+  [data-layout="modern-executive-layout"] .sidebar {
+    position: fixed;
+    top: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: calc(100vw - 44px);
+    max-width: 310px;
+    height: calc(100vh - 16px);
+    border-radius: 16px;
+    background: var(--surface);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--line);
+    box-shadow: 0 24px 60px rgb(var(--theme-black-rgb, 0 0 0) / 0.28);
+    transform: translateX(-110%);
+    transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 50;
+    padding: 18px 14px 16px;
+  }
+
+  [data-layout="modern-executive-layout"] .sidebar.open {
+    transform: translateX(0);
+  }
+
+  [data-layout="modern-executive-layout"] .sidebar .sidebar-close {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    display: grid;
+    z-index: 10;
+  }
+
+  [data-layout="modern-executive-layout"] .sidebar > .brand {
+    padding-right: 40px;
+    margin-bottom: 16px;
+  }
+
+  [data-layout="modern-executive-layout"] .mobile-scrim.show {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgb(var(--theme-black-rgb, 0 0 0) / 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 45;
+  }
+
+  [data-layout="modern-executive-layout"] .main-area {
+    margin-left: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  [data-layout="modern-executive-layout"] .menu-button,
+  [data-layout="modern-executive-layout"] .icon-button.menu-button {
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    width: 36px;
+    height: 36px;
+  }
+
+  [data-layout="modern-executive-layout"] .topbar {
+    margin: 8px 10px 0;
+    height: 56px;
+    border-radius: 14px;
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 16px -2px rgb(var(--theme-black-rgb, 0 0 0) / 0.05);
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 8px;
+    z-index: 30;
+    box-sizing: border-box;
+  }
+
+  [data-layout="modern-executive-layout"] .content {
+    padding: 14px 10px 36px;
+    max-width: 100%;
+    box-sizing: border-box;
+    flex: 1;
+  }
+
+  [data-layout="modern-executive-layout"] .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  [data-layout="modern-executive-layout"] .page-header h1 {
+    font-size: 22px;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ==========================================================================
+   4. Universal Shell Details (Connectivity Badge, Profile Menu)
+   ========================================================================== */
+[data-layout="modern-executive-layout"] .connectivity-context {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgb(var(--theme-black-rgb, 0 0 0) / 0.03);
+}
+
+[data-layout="modern-executive-layout"] .profile-button {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 4px 12px 4px 5px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-shadow: 0 2px 6px rgb(var(--theme-black-rgb, 0 0 0) / 0.03);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-layout="modern-executive-layout"] .profile-button:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px -2px rgb(var(--theme-black-rgb, 0 0 0) / 0.08);
+}
+
+[data-layout="modern-executive-layout"] .profile-menu {
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 16px 40px -4px rgb(var(--theme-black-rgb, 0 0 0) / 0.15),
+    0 0 0 1px rgb(var(--theme-black-rgb, 0 0 0) / 0.04);
+  padding: 10px;
+}
+
+[data-layout="modern-executive-layout"] .profile-menu a,
+[data-layout="modern-executive-layout"] .profile-menu button {
+  border-radius: 10px;
+  transition: all 0.15s ease;
+}
+
+[data-layout="modern-executive-layout"] .profile-menu a:hover,
+[data-layout="modern-executive-layout"] .profile-menu button:hover {
+  background: var(--surface-muted);
+}

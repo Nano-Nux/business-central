@@ -591,8 +591,8 @@ func (s *Service) GetMerchant(ctx context.Context, claims *Claims) (Merchant, er
 }
 
 func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID string, request UpdateMerchantRequest) (Merchant, error) {
-	if request.POSComplexityLevel != nil && *request.POSComplexityLevel != "SIMPLE" && *request.POSComplexityLevel != "COMPLEX" {
-		return Merchant{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE or COMPLEX.", 400)
+	if request.POSComplexityLevel != nil && *request.POSComplexityLevel != "SIMPLE" && *request.POSComplexityLevel != "COMPLEX" && *request.POSComplexityLevel != "MINI" {
+		return Merchant{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
 	}
 	if request.DefaultCurrencyCode != nil {
 		currency := strings.ToUpper(strings.TrimSpace(*request.DefaultCurrencyCode))
@@ -657,6 +657,11 @@ func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID
 	err = tx.QueryRow(ctx, `UPDATE merchants SET name = COALESCE($2, name), legal_name = COALESCE($3, legal_name), country_code = COALESCE($4, country_code), pos_complexity_level = COALESCE($5, pos_complexity_level), is_active = COALESCE($6, is_active), default_currency_code = COALESCE($7, default_currency_code), updated_at = now() WHERE id = $1 RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, is_active, created_at, updated_at`, merchantID, request.Name, request.LegalName, request.CountryCode, request.POSComplexityLevel, request.IsActive, request.DefaultCurrencyCode).Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
 	if err != nil {
 		return Merchant{}, err
+	}
+	if merchant.POSComplexityLevel == "MINI" {
+		if err = ensureMerchantMiniSetup(ctx, tx, merchant.ID, merchant.DefaultCurrencyCode); err != nil {
+			return Merchant{}, err
+		}
 	}
 	var actor any
 	if claims.MembershipID != "" {
@@ -1042,8 +1047,8 @@ func (s *Service) CreateMerchantAccount(ctx context.Context, claims *Claims, req
 	if request.POSComplexityLevel == "" {
 		request.POSComplexityLevel = "SIMPLE"
 	}
-	if request.POSComplexityLevel != "SIMPLE" && request.POSComplexityLevel != "COMPLEX" {
-		return MerchantProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE or COMPLEX.", 400)
+	if request.POSComplexityLevel != "SIMPLE" && request.POSComplexityLevel != "COMPLEX" && request.POSComplexityLevel != "MINI" {
+		return MerchantProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1092,6 +1097,11 @@ func (s *Service) CreateMerchantAccount(ctx context.Context, claims *Claims, req
 	if _, err := tx.Exec(ctx, `INSERT INTO audit_events(merchant_id, actor_membership_id, action, entity_type, entity_id, after_data) VALUES ($1, NULL, 'CREATE', 'merchant', $2, jsonb_build_object('name', $3::text, 'slug', $4::text, 'roles', jsonb_build_array('manager', 'staff')))`, merchant.ID, merchant.ID, name, slug); err != nil {
 		return MerchantProvisioning{}, err
 	}
+	if merchant.POSComplexityLevel == "MINI" {
+		if err = ensureMerchantMiniSetup(ctx, tx, merchant.ID, merchant.DefaultCurrencyCode); err != nil {
+			return MerchantProvisioning{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return MerchantProvisioning{}, err
 	}
@@ -1106,8 +1116,8 @@ func (s *Service) CreateMerchantUser(ctx context.Context, claims *Claims, reques
 	if request.POSComplexityLevel == "" {
 		request.POSComplexityLevel = "SIMPLE"
 	}
-	if request.POSComplexityLevel != "SIMPLE" && request.POSComplexityLevel != "COMPLEX" {
-		return MerchantUserProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE or COMPLEX.", 400)
+	if request.POSComplexityLevel != "SIMPLE" && request.POSComplexityLevel != "COMPLEX" && request.POSComplexityLevel != "MINI" {
+		return MerchantUserProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
 	}
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(request.Password), s.bcryptCost)
 	if err != nil {
@@ -1167,6 +1177,11 @@ func (s *Service) CreateMerchantUser(ctx context.Context, claims *Claims, reques
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO audit_events(merchant_id, actor_membership_id, action, entity_type, entity_id, after_data) VALUES ($1, NULL, 'CREATE', 'merchant', $2, jsonb_build_object('name', $3::text, 'slug', $4::text, 'owner_membership_id', $5::uuid))`, merchant.ID, merchant.ID, merchant.Name, merchant.Slug, membershipID); err != nil {
 		return MerchantUserProvisioning{}, err
+	}
+	if merchant.POSComplexityLevel == "MINI" {
+		if err = ensureMerchantMiniSetup(ctx, tx, merchant.ID, merchant.DefaultCurrencyCode); err != nil {
+			return MerchantUserProvisioning{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return MerchantUserProvisioning{}, err
@@ -1515,6 +1530,33 @@ func newRefreshToken() (string, string, error) {
 func hashToken(raw string) string {
 	digest := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(digest[:])
+}
+
+func ensureMerchantMiniSetup(ctx context.Context, tx pgx.Tx, merchantID, currencyCode string) error {
+	var unitCount int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM unit_definitions WHERE merchant_id = $1::uuid`, merchantID).Scan(&unitCount); err != nil {
+		return err
+	}
+	if unitCount == 0 {
+		if _, err := tx.Exec(ctx, `INSERT INTO unit_definitions(merchant_id, code, name, symbol, dimension_code, allows_decimal, is_active)
+			VALUES ($1::uuid, 'PCS', 'Piece', 'Pcs', 'COUNT', false, true)
+			ON CONFLICT (merchant_id, code) DO NOTHING`, merchantID); err != nil {
+			return err
+		}
+	}
+
+	var priceListCount int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM price_lists WHERE merchant_id = $1::uuid AND (code = 'RETAIL' OR is_default)`, merchantID).Scan(&priceListCount); err != nil {
+		return err
+	}
+	if priceListCount == 0 {
+		if _, err := tx.Exec(ctx, `INSERT INTO price_lists(merchant_id, code, currency_code, is_default)
+			VALUES ($1::uuid, 'RETAIL', $2::char(3), true)
+			ON CONFLICT (merchant_id, code) DO NOTHING`, merchantID, currencyCode); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Repository adapts PostgreSQL persistence to the bounded context's outbound port.

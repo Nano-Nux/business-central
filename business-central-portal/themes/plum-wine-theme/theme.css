@@ -1,0 +1,106 @@
+/*
+ * Plum Wine Theme Controls
+ * ------------------------
+ * A rich aristocratic Bordeaux wine, dark cassis plum, and velvet mulberry aesthetic
+ * with deep berry brand actions, blush accents, and luxurious dark wine text.
+ */
+:root[data-theme="plum-wine-theme"],
+[data-theme="plum-wine-theme"] {
+  --theme-black: #500724;
+  --theme-gray-950: #500724;
+  --theme-gray-900: #700a31;
+  --theme-gray-800: #831843;
+  --theme-gray-700: #9d174d;
+  --theme-gray-600: #be185d;
+  --theme-gray-500: #db2777;
+  --theme-gray-400: #ec4899;
+  --theme-gray-300: #f472b6;
+  --theme-gray-200: #fbcfe8;
+  --theme-gray-100: #fdf2f8;
+  --theme-gray-50: #fff5f7;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 80 7 36;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #059669;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #831843;
+  --status-danger-soft: #fdf2f8;
+  --status-danger-border: #fbcfe8;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #9d174d;
+  --status-neutral-soft: #fdf2f8;
+  --status-neutral-border: #fbcfe8;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 80 7 36;
+
+  --ink: #500724;
+  --muted: #9d174d;
+  --line: #fbcfe8;
+  --paper: #ffffff;
+  --canvas: #fff5f7;
+  --green: #831843;
+  --green-dark: #700a31;
+  --green-soft: #fdf2f8;
+  --amber: #d97706;
+  --red: #831843;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(131 24 67 / 9%), 0 2px 6px -1px rgb(131 24 67 / 5%);
+  --border: #fbcfe8;
+  --card: #ffffff;
+  --mint: #fdf2f8;
+  --text: #500724;
+  --surface: #ffffff;
+  --surface-muted: #fef0f4;
+  --accent: #831843;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #831843;
+  --color-brand-hover: #700a31;
+  --color-brand-soft: #fdf2f8;
+  --color-brand-border: #fbcfe8;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #831843;
+  --color-rose-soft: #fdf2f8;
+  --color-rose-border: #fbcfe8;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="plum-wine-theme"] .button-primary {
+  background: #831843;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(131 24 67 / 25%);
+}
+
+[data-theme="plum-wine-theme"] .button-primary:hover {
+  background: #700a31;
+}
+
+[data-theme="plum-wine-theme"] .topbar {
+  background: rgb(255 245 247 / 92%);
+}

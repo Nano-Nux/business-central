@@ -1,0 +1,214 @@
+/*
+ * Compact Layout - High-Density Streamlined Workspace
+ * ---------------------------------------------------
+ * Maximizes data density and screen canvas across Desktop, Tablet, and Mobile.
+ */
+
+:root[data-layout="compact-layout"],
+[data-layout="compact-layout"] {
+  --sidebar-width: 72px;
+}
+
+/* ==========================================================================
+   1. Desktop Viewport (>= 1025px) - 72px Icon-Rail Navigation
+   ========================================================================== */
+@media (min-width: 1025px) {
+  [data-layout="compact-layout"] .sidebar {
+    width: 72px;
+    padding: 16px 8px;
+    align-items: center;
+    transform: none;
+  }
+
+  [data-layout="compact-layout"] .main-area {
+    margin-left: 72px;
+  }
+
+  [data-layout="compact-layout"] .content {
+    padding: 18px 24px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  [data-layout="compact-layout"] .brand {
+    justify-content: center;
+    padding: 0;
+  }
+
+  [data-layout="compact-layout"] .brand > span:last-child {
+    display: none;
+  }
+
+  [data-layout="compact-layout"] .shop-switcher {
+    padding: 6px;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  [data-layout="compact-layout"] .shop-switcher-info {
+    display: none;
+  }
+
+  [data-layout="compact-layout"] .nav-group > p {
+    text-align: center;
+    font-size: 8px;
+    margin: 8px 0 4px;
+  }
+
+  [data-layout="compact-layout"] .nav-group a {
+    justify-content: center;
+    padding: 9px;
+    position: relative;
+    height: 36px;
+  }
+
+  [data-layout="compact-layout"] .nav-group a span {
+    display: none;
+  }
+
+  [data-layout="compact-layout"] .nav-group a i {
+    right: 4px;
+  }
+
+  [data-layout="compact-layout"] .sidebar-help {
+    display: none;
+  }
+
+  [data-layout="compact-layout"] .topbar {
+    height: 56px;
+    padding: 0 24px;
+  }
+
+  [data-layout="compact-layout"] .page-header {
+    margin-bottom: 18px;
+  }
+}
+
+/* ==========================================================================
+   2. Tablet Viewport (641px - 1024px) - Compact Tablet Workspace
+   ========================================================================== */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [data-layout="compact-layout"] .sidebar {
+    width: 240px;
+    transform: translateX(-105%);
+    transition: transform 0.24s ease;
+    box-shadow: 10px 0 40px rgb(var(--theme-black-rgb, 0 0 0) / 0.15);
+  }
+
+  [data-layout="compact-layout"] .sidebar.open {
+    transform: translateX(0);
+  }
+
+  [data-layout="compact-layout"] .sidebar .sidebar-close {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    display: grid;
+    z-index: 10;
+  }
+
+  [data-layout="compact-layout"] .sidebar > .brand {
+    padding-right: 40px;
+  }
+
+  [data-layout="compact-layout"] .mobile-scrim.show {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgb(var(--theme-black-rgb, 0 0 0) / 0.15);
+    z-index: 39;
+  }
+
+  [data-layout="compact-layout"] .main-area {
+    margin-left: 0;
+  }
+
+  [data-layout="compact-layout"] .menu-button,
+  [data-layout="compact-layout"] .icon-button.menu-button {
+    display: grid;
+  }
+
+  [data-layout="compact-layout"] .content {
+    padding: 16px 18px;
+    max-width: 100%;
+  }
+
+  [data-layout="compact-layout"] .topbar {
+    height: 56px;
+    padding: 0 18px;
+    gap: 12px;
+  }
+
+  [data-layout="compact-layout"] .page-header {
+    margin-bottom: 16px;
+  }
+}
+
+/* ==========================================================================
+   3. Mobile Viewport (<= 640px) - High-Density Mobile Workspace
+   ========================================================================== */
+@media (max-width: 640px) {
+  [data-layout="compact-layout"] .sidebar {
+    width: 80vw;
+    max-width: 280px;
+    transform: translateX(-105%);
+    transition: transform 0.24s ease;
+    box-shadow: 10px 0 40px rgb(var(--theme-black-rgb, 0 0 0) / 0.18);
+  }
+
+  [data-layout="compact-layout"] .sidebar.open {
+    transform: translateX(0);
+  }
+
+  [data-layout="compact-layout"] .sidebar .sidebar-close {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    display: grid;
+    z-index: 10;
+  }
+
+  [data-layout="compact-layout"] .sidebar > .brand {
+    padding-right: 40px;
+  }
+
+  [data-layout="compact-layout"] .mobile-scrim.show {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgb(var(--theme-black-rgb, 0 0 0) / 0.18);
+    z-index: 39;
+  }
+
+  [data-layout="compact-layout"] .main-area {
+    margin-left: 0;
+  }
+
+  [data-layout="compact-layout"] .menu-button,
+  [data-layout="compact-layout"] .icon-button.menu-button {
+    display: grid;
+  }
+
+  [data-layout="compact-layout"] .content {
+    padding: 12px 10px;
+    max-width: 100%;
+  }
+
+  [data-layout="compact-layout"] .topbar {
+    height: 50px;
+    padding: 0 12px;
+    gap: 10px;
+  }
+
+  [data-layout="compact-layout"] .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  [data-layout="compact-layout"] .page-header h1 {
+    font-size: 21px;
+  }
+}

@@ -1,0 +1,106 @@
+/*
+ * Fuchsia Rose Theme Controls
+ * ----------------------------
+ * A vibrant, sophisticated fuchsia rose and magenta blossom aesthetic featuring
+ * radiant pink actions, stylish boutique highlights, and soft blush surfaces.
+ */
+:root[data-theme="fuchsia-rose-theme"],
+[data-theme="fuchsia-rose-theme"] {
+  --theme-black: #701a75;
+  --theme-gray-950: #701a75;
+  --theme-gray-900: #86198f;
+  --theme-gray-800: #a21caf;
+  --theme-gray-700: #c026d3;
+  --theme-gray-600: #db2777;
+  --theme-gray-500: #ec4899;
+  --theme-gray-400: #f472b6;
+  --theme-gray-300: #fbcfe8;
+  --theme-gray-200: #fce7f3;
+  --theme-gray-100: #fdf2f8;
+  --theme-gray-50: #fff5f9;
+  --theme-white: #ffffff;
+
+  --theme-black-rgb: 112 26 117;
+  --theme-white-rgb: 255 255 255;
+  --theme-brand-filter: none;
+
+  /* Status tokens */
+  --status-success: #059669;
+  --status-success-soft: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-danger: #e11d48;
+  --status-danger-soft: #fff1f2;
+  --status-danger-border: #fecdd3;
+  --status-info: #0284c7;
+  --status-info-soft: #f0f9ff;
+  --status-info-border: #bae6fd;
+  --status-neutral: #86198f;
+  --status-neutral-soft: #fdf2f8;
+  --status-neutral-border: #fce7f3;
+  --status-conflict: #7c3aed;
+  --status-conflict-soft: #faf5ff;
+  --status-conflict-border: #e9d5ff;
+  --status-online: var(--status-success);
+  --status-offline: var(--status-danger);
+  --status-reconnecting: var(--status-warning);
+  --status-syncing: var(--status-info);
+  --status-shadow-rgb: 112 26 117;
+
+  --ink: #701a75;
+  --muted: #a21caf;
+  --line: #fbcfe8;
+  --paper: #ffffff;
+  --canvas: #fff5f9;
+  --green: #db2777;
+  --green-dark: #be185d;
+  --green-soft: #fdf2f8;
+  --amber: #d97706;
+  --red: #e11d48;
+  --blue: #0284c7;
+  --shadow: 0 4px 20px -2px rgb(219 39 119 / 9%), 0 2px 6px -1px rgb(219 39 119 / 5%);
+  --border: #fbcfe8;
+  --card: #ffffff;
+  --mint: #fdf2f8;
+  --text: #701a75;
+  --surface: #ffffff;
+  --surface-muted: #fef0f7;
+  --accent: #db2777;
+
+  /* Extended semantic palette tokens */
+  --color-brand: #db2777;
+  --color-brand-hover: #be185d;
+  --color-brand-soft: #fdf2f8;
+  --color-brand-border: #fbcfe8;
+  --color-emerald: #059669;
+  --color-emerald-soft: #ecfdf5;
+  --color-emerald-border: #a7f3d0;
+  --color-amber: #d97706;
+  --color-amber-soft: #fffbeb;
+  --color-amber-border: #fde68a;
+  --color-rose: #db2777;
+  --color-rose-soft: #fdf2f8;
+  --color-rose-border: #fbcfe8;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #faf5ff;
+  --color-purple-border: #e9d5ff;
+  --color-teal: #0d9488;
+  --color-teal-soft: #f0fdfa;
+  --color-teal-border: #99f6e4;
+}
+
+[data-theme="fuchsia-rose-theme"] .button-primary {
+  background: #db2777;
+  color: #ffffff;
+  box-shadow: 0 4px 13px rgb(219 39 119 / 25%);
+}
+
+[data-theme="fuchsia-rose-theme"] .button-primary:hover {
+  background: #be185d;
+}
+
+[data-theme="fuchsia-rose-theme"] .topbar {
+  background: rgb(255 245 249 / 92%);
+}

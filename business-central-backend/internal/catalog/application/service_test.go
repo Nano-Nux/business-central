@@ -21,3 +21,19 @@ func TestValidateProductDates(t *testing.T) {
 		t.Fatal("blank optional product date was not normalized to nil")
 	}
 }
+
+func TestProductRequestWithMiniPricing(t *testing.T) {
+	origPrice := "15.50"
+	sellPrice := "29.99"
+	req := catalogdto.ProductRequest{
+		Name:          "Widget",
+		OriginalPrice: &origPrice,
+		SellPrice:     &sellPrice,
+	}
+	if req.OriginalPrice == nil || *req.OriginalPrice != "15.50" {
+		t.Fatalf("expected OriginalPrice 15.50, got %v", req.OriginalPrice)
+	}
+	if req.SellPrice == nil || *req.SellPrice != "29.99" {
+		t.Fatalf("expected SellPrice 29.99, got %v", req.SellPrice)
+	}
+}

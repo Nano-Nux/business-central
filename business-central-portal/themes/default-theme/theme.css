@@ -68,4 +68,9 @@
   --surface: var(--paper);
   --surface-muted: var(--theme-gray-50);
   --accent: var(--green);
+  --color-brand: var(--accent);
+  --color-brand-hover: var(--green-dark);
+  --color-brand-soft: var(--green-soft);
+  --color-brand-border: var(--line);
+  --color-brand-rgb: 0 0 0;
 }

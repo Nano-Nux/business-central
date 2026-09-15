@@ -5,7 +5,7 @@
 | Next.js application shell | Implemented | Business Central admin shell with backend-backed dashboard |
 | Progressive web application | Planned | PWA behavior and installability are not implemented yet |
 | Administrator authentication | Implemented | Backend JWT login and platform-admin claim required |
-| Merchant management | Implemented | No standalone merchant page; Add User with the default Merchant role atomically creates a merchant and its owner user, with POS SIMPLE (default) or COMPLEX workflow selection |
+| Merchant management | Implemented | No standalone merchant page; Add User with the default Merchant role atomically creates a merchant and its owner user, with POS SIMPLE (default), COMPLEX, or MINI workflow selection |
 | Merchant module enablement | Planned | Enable or disable modules such as repair |
 | Merchant settings | Planned | Configure module-specific settings |
 | User administration | Implemented | Merchant-scoped user create, list, edit, deactivate/reactivate, password update, and multi-role dropdown assignment through backend APIs |

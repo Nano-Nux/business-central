@@ -15,6 +15,7 @@ type Category = catalogdto.Category
 type Image = catalogdto.Image
 type InventoryPolicy = catalogdto.InventoryPolicy
 type ProductRequest = catalogdto.ProductRequest
+type StandardVariantRequest = catalogdto.StandardVariantRequest
 type Barcode = catalogdto.Barcode
 type BarcodeRequest = catalogdto.BarcodeRequest
 type VariantRequest = catalogdto.VariantRequest
