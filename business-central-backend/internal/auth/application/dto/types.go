@@ -123,47 +123,51 @@ type UpdateUserRequest struct {
 }
 
 type Merchant struct {
-	ID                  string    `json:"id"`
-	Name                string    `json:"name"`
-	Slug                string    `json:"slug"`
-	LegalName           *string   `json:"legal_name,omitempty"`
-	DefaultCurrencyCode string    `json:"default_currency_code"`
-	CountryCode         *string   `json:"country_code,omitempty"`
-	POSComplexityLevel  string    `json:"pos_complexity_level"`
-	IsActive            bool      `json:"is_active"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID                         string    `json:"id"`
+	Name                       string    `json:"name"`
+	Slug                       string    `json:"slug"`
+	LegalName                  *string   `json:"legal_name,omitempty"`
+	DefaultCurrencyCode        string    `json:"default_currency_code"`
+	CountryCode                *string   `json:"country_code,omitempty"`
+	POSComplexityLevel         string    `json:"pos_complexity_level"`
+	BusinessCentralPricingModel string   `json:"business_central_pricing_model"`
+	IsActive                   bool      `json:"is_active"`
+	CreatedAt                  time.Time `json:"created_at"`
+	UpdatedAt                  time.Time `json:"updated_at"`
 }
 
 type CreateMerchantAccountRequest struct {
-	Name                string  `json:"name"`
-	Slug                string  `json:"slug"`
-	LegalName           *string `json:"legal_name,omitempty"`
-	DefaultCurrencyCode string  `json:"default_currency_code"`
-	CountryCode         *string `json:"country_code,omitempty"`
-	POSComplexityLevel  string  `json:"pos_complexity_level,omitempty"`
+	Name                       string  `json:"name"`
+	Slug                       string  `json:"slug"`
+	LegalName                  *string `json:"legal_name,omitempty"`
+	DefaultCurrencyCode        string  `json:"default_currency_code"`
+	CountryCode                *string `json:"country_code,omitempty"`
+	POSComplexityLevel         string  `json:"pos_complexity_level,omitempty"`
+	BusinessCentralPricingModel string `json:"business_central_pricing_model,omitempty"`
 }
 
 type CreateMerchantUserRequest struct {
-	MerchantName        string  `json:"merchant_name"`
-	MerchantSlug        string  `json:"merchant_slug"`
-	MerchantLegalName   *string `json:"merchant_legal_name,omitempty"`
-	DefaultCurrencyCode string  `json:"default_currency_code"`
-	MerchantCountryCode *string `json:"merchant_country_code,omitempty"`
-	POSComplexityLevel  string  `json:"pos_complexity_level,omitempty"`
-	Email               string  `json:"email"`
-	Password            string  `json:"password"`
-	DisplayName         string  `json:"display_name"`
-	Phone               *string `json:"phone,omitempty"`
+	MerchantName               string  `json:"merchant_name"`
+	MerchantSlug               string  `json:"merchant_slug"`
+	MerchantLegalName          *string `json:"merchant_legal_name,omitempty"`
+	DefaultCurrencyCode        string  `json:"default_currency_code"`
+	MerchantCountryCode        *string `json:"merchant_country_code,omitempty"`
+	POSComplexityLevel         string  `json:"pos_complexity_level,omitempty"`
+	BusinessCentralPricingModel string `json:"business_central_pricing_model,omitempty"`
+	Email                      string  `json:"email"`
+	Password                   string  `json:"password"`
+	DisplayName                string  `json:"display_name"`
+	Phone                      *string `json:"phone,omitempty"`
 }
 
 type UpdateMerchantRequest struct {
-	Name                *string `json:"name,omitempty"`
-	LegalName           *string `json:"legal_name,omitempty"`
-	DefaultCurrencyCode *string `json:"default_currency_code,omitempty"`
-	CountryCode         *string `json:"country_code,omitempty"`
-	POSComplexityLevel  *string `json:"pos_complexity_level,omitempty"`
-	IsActive            *bool   `json:"is_active,omitempty"`
+	Name                       *string `json:"name,omitempty"`
+	LegalName                  *string `json:"legal_name,omitempty"`
+	DefaultCurrencyCode        *string `json:"default_currency_code,omitempty"`
+	CountryCode                *string `json:"country_code,omitempty"`
+	POSComplexityLevel         *string `json:"pos_complexity_level,omitempty"`
+	BusinessCentralPricingModel *string `json:"business_central_pricing_model,omitempty"`
+	IsActive                   *bool   `json:"is_active,omitempty"`
 }
 
 type MerchantProvisioning struct {

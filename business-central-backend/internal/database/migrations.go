@@ -1297,6 +1297,20 @@ BEGIN
 END $$;
 `
 
+const businessCentralPricingModel = `
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='merchants' AND column_name='business_central_pricing_model'
+    ) THEN
+        ALTER TABLE merchants ADD COLUMN business_central_pricing_model VARCHAR(32) NOT NULL DEFAULT 'starter';
+        ALTER TABLE merchants ADD CONSTRAINT merchants_business_central_pricing_model_check
+            CHECK (lower(business_central_pricing_model) IN ('starter', 'growth', 'professional', 'enterprise'));
+    END IF;
+END $$;
+`
+
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -1358,6 +1372,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0040_staff_stock_in_permission", sql: staffStockInPermission},
 		{version: "0041_merchant_custom_themes", sql: merchantCustomThemes},
 		{version: "0042_pos_mini_mode", sql: posMiniMode},
+		{version: "0043_business_central_pricing_model", sql: businessCentralPricingModel},
 	}
 	for _, migration := range migrations {
 		var applied bool

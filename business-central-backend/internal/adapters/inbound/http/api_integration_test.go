@@ -264,6 +264,9 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	if onboardBody.Data.Merchant.Slug != ownerMerchantSlug || onboardBody.Data.User.Email != ownerEmail || onboardBody.Data.Role.Code != "merchant" {
 		t.Fatalf("unexpected merchant owner provisioning: %+v", onboardBody.Data)
 	}
+	if onboardBody.Data.Merchant.BusinessCentralPricingModel != "starter" {
+		t.Fatalf("expected default pricing model 'starter', got %q", onboardBody.Data.Merchant.BusinessCentralPricingModel)
+	}
 	currencyCreate := requestJSON(t, app, http.MethodPost, "/api/v1/admin/currencies", map[string]any{
 		"code": currencyCode, "name": "Integration Currency", "symbol": "¤", "decimal_places": 2,
 	}, loginBody.Data.AccessToken)
@@ -282,8 +285,16 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	if currencyDelete.StatusCode != http.StatusNoContent {
 		t.Fatalf("currency delete status = %d, body = %s", currencyDelete.StatusCode, responseBody(currencyDelete))
 	}
+	invalidPricingResponse := requestJSON(t, app, http.MethodPost, "/api/v1/admin/merchants", map[string]any{
+		"name": "Invalid Merchant", "slug": merchantSlug + "-invalid", "default_currency_code": "TST",
+		"business_central_pricing_model": "invalid_tier",
+	}, loginBody.Data.AccessToken)
+	if invalidPricingResponse.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid pricing model, got %d", invalidPricingResponse.StatusCode)
+	}
 	createResponse := requestJSON(t, app, http.MethodPost, "/api/v1/admin/merchants", map[string]any{
 		"name": "Integration Merchant", "slug": merchantSlug, "default_currency_code": "TST", "pos_complexity_level": "COMPLEX",
+		"business_central_pricing_model": "growth",
 	}, loginBody.Data.AccessToken)
 	if createResponse.StatusCode != http.StatusCreated {
 		t.Fatalf("merchant creation status = %d, body = %s", createResponse.StatusCode, responseBody(createResponse))
@@ -292,6 +303,9 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 		Data auth.MerchantProvisioning `json:"data"`
 	}
 	decodeResponse(t, createResponse, &account)
+	if account.Data.Merchant.BusinessCentralPricingModel != "growth" {
+		t.Fatalf("expected pricing model 'growth', got %q", account.Data.Merchant.BusinessCentralPricingModel)
+	}
 	if len(account.Data.Roles) != 2 {
 		t.Fatalf("expected default manager and staff roles, got %+v", account.Data.Roles)
 	}
@@ -305,8 +319,9 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 		t.Fatalf("manager role was not provisioned: %+v", account.Data.Roles)
 	}
 	merchantUpdate := requestJSON(t, app, http.MethodPatch, "/api/v1/admin/merchants/"+account.Data.Merchant.ID, map[string]any{
-		"pos_complexity_level":  "SIMPLE",
-		"default_currency_code": "TST",
+		"pos_complexity_level":           "SIMPLE",
+		"default_currency_code":          "TST",
+		"business_central_pricing_model": "Enterprise",
 	}, loginBody.Data.AccessToken)
 	if merchantUpdate.StatusCode != http.StatusOK {
 		t.Fatalf("merchant update status = %d, body = %s", merchantUpdate.StatusCode, responseBody(merchantUpdate))
@@ -315,8 +330,26 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 		Data auth.Merchant `json:"data"`
 	}
 	decodeResponse(t, merchantUpdate, &updatedMerchant)
-	if updatedMerchant.Data.POSComplexityLevel != "SIMPLE" || updatedMerchant.Data.DefaultCurrencyCode != "TST" {
+	if updatedMerchant.Data.POSComplexityLevel != "SIMPLE" || updatedMerchant.Data.DefaultCurrencyCode != "TST" || updatedMerchant.Data.BusinessCentralPricingModel != "enterprise" {
 		t.Fatalf("unexpected updated merchant: %+v", updatedMerchant.Data)
+	}
+	merchantsList := requestJSON(t, app, http.MethodGet, "/api/v1/admin/merchants", nil, loginBody.Data.AccessToken)
+	if merchantsList.StatusCode != http.StatusOK {
+		t.Fatalf("list merchants status = %d, body = %s", merchantsList.StatusCode, responseBody(merchantsList))
+	}
+	var listBody struct {
+		Data []auth.Merchant `json:"data"`
+	}
+	decodeResponse(t, merchantsList, &listBody)
+	var foundPricingModel string
+	for _, m := range listBody.Data {
+		if m.ID == account.Data.Merchant.ID {
+			foundPricingModel = m.BusinessCentralPricingModel
+			break
+		}
+	}
+	if foundPricingModel != "enterprise" {
+		t.Fatalf("expected listed merchant pricing model 'enterprise', got %q", foundPricingModel)
 	}
 	roleCreate := requestJSON(t, app, http.MethodPost, "/api/v1/admin/merchants/"+account.Data.Merchant.ID+"/roles", map[string]any{
 		"code": "auditor", "name": "Auditor", "permission_codes": []string{"tenant.read"},

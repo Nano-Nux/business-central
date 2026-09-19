@@ -210,6 +210,7 @@ export type Merchant = {
   default_currency_code: string;
   country_code?: string;
   pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
+  business_central_pricing_model?: "starter" | "growth" | "professional" | "enterprise";
   is_active: boolean;
 };
 export type Currency = {

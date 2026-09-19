@@ -84,6 +84,7 @@ class NativePrinterBridge {
     if (!context.mounted) throw StateError('Printer selection was cancelled.');
     final selected = await showDialog<Printer>(
       context: context,
+      barrierDismissible: true,
       builder: (dialogContext) => SimpleDialog(
         title: const Text('Select thermal printer'),
         children: [
@@ -103,7 +104,9 @@ class NativePrinterBridge {
         ],
       ),
     );
-    if (selected == null) throw StateError('Printer selection was cancelled.');
+    if (!context.mounted || selected == null) {
+      throw StateError('Printer selection was cancelled.');
+    }
     final id = selected.bleAddress.isEmpty
         ? selected.name
         : selected.bleAddress;

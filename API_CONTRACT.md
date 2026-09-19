@@ -20,7 +20,8 @@ merchant management, merchant-owner onboarding, user membership, catalog, pricin
 promotion, inventory, transactional POS, invoice, reporting, service, and repair endpoints. Platform administrators
 use `GET /api/v1/admin/merchants` and `PATCH /api/v1/admin/merchants/{id}` to
 inspect and change merchant state (including `default_currency_code`, `pos_complexity_level`,
-`name`, `legal_name`, `country_code`, and `is_active`). Setting `is_active` to `false` is a
+`business_central_pricing_model`, `name`, `legal_name`, `country_code`, and `is_active`).
+The canonical business central pricing model values are `starter`, `growth`, `professional`, and `enterprise` (defaulting to `starter`). Setting `is_active` to `false` is a
 deactivation (not deletion); the backend rejects login, refresh, and existing
 access-token validation for memberships belonging to that merchant.
 Supported currencies are returned by `GET /api/v1/currencies`; merchant

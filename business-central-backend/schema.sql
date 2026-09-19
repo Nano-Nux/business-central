@@ -56,6 +56,7 @@ CREATE TABLE merchants (
     default_currency_code CHAR(3) NOT NULL REFERENCES currencies(code),
     country_code CHAR(2),
     pos_complexity_level VARCHAR(10) NOT NULL DEFAULT 'SIMPLE' CHECK (pos_complexity_level IN ('SIMPLE','COMPLEX','MINI')),
+    business_central_pricing_model VARCHAR(32) NOT NULL DEFAULT 'starter' CHECK (lower(business_central_pricing_model) IN ('starter', 'growth', 'professional', 'enterprise')),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

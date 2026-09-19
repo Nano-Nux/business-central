@@ -558,7 +558,7 @@ func (s *Service) ListMerchants(ctx context.Context, claims *Claims, query app.L
 	}
 	dataArgs := append([]any{}, args...)
 	dataArgs = append(dataArgs, query.PageSize, query.PageIndex*query.PageSize)
-	rows, err := tx.Query(ctx, "SELECT m.id,m.name,m.slug,m.legal_name,m.default_currency_code,m.country_code,m.pos_complexity_level,m.is_active,m.created_at,m.updated_at FROM merchants m WHERE "+where+" ORDER BY m.created_at DESC LIMIT $"+fmt.Sprint(len(args)+1)+" OFFSET $"+fmt.Sprint(len(args)+2), dataArgs...)
+	rows, err := tx.Query(ctx, "SELECT m.id,m.name,m.slug,m.legal_name,m.default_currency_code,m.country_code,m.pos_complexity_level,m.business_central_pricing_model,m.is_active,m.created_at,m.updated_at FROM merchants m WHERE "+where+" ORDER BY m.created_at DESC LIMIT $"+fmt.Sprint(len(args)+1)+" OFFSET $"+fmt.Sprint(len(args)+2), dataArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -566,7 +566,7 @@ func (s *Service) ListMerchants(ctx context.Context, claims *Claims, query app.L
 	merchants := []Merchant{}
 	for rows.Next() {
 		var m Merchant
-		if err := rows.Scan(&m.ID, &m.Name, &m.Slug, &m.LegalName, &m.DefaultCurrencyCode, &m.CountryCode, &m.POSComplexityLevel, &m.IsActive, &m.CreatedAt, &m.UpdatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Slug, &m.LegalName, &m.DefaultCurrencyCode, &m.CountryCode, &m.POSComplexityLevel, &m.BusinessCentralPricingModel, &m.IsActive, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		merchants = append(merchants, m)
@@ -586,13 +586,20 @@ func (s *Service) ListMerchants(ctx context.Context, claims *Claims, query app.L
 
 func (s *Service) GetMerchant(ctx context.Context, claims *Claims) (Merchant, error) {
 	var merchant Merchant
-	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$2::text,true),set_config('app.merchant_id',$1::text,true)) SELECT m.id,m.name,m.slug,m.legal_name,m.default_currency_code,m.country_code,m.pos_complexity_level,m.is_active,m.created_at,m.updated_at FROM merchants m CROSS JOIN x WHERE m.id=$1::uuid`, claims.MerchantID, claims.IdentityID).Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
+	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$2::text,true),set_config('app.merchant_id',$1::text,true)) SELECT m.id,m.name,m.slug,m.legal_name,m.default_currency_code,m.country_code,m.pos_complexity_level,m.business_central_pricing_model,m.is_active,m.created_at,m.updated_at FROM merchants m CROSS JOIN x WHERE m.id=$1::uuid`, claims.MerchantID, claims.IdentityID).Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.BusinessCentralPricingModel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
 	return merchant, err
 }
 
 func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID string, request UpdateMerchantRequest) (Merchant, error) {
 	if request.POSComplexityLevel != nil && *request.POSComplexityLevel != "SIMPLE" && *request.POSComplexityLevel != "COMPLEX" && *request.POSComplexityLevel != "MINI" {
 		return Merchant{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
+	}
+	if request.BusinessCentralPricingModel != nil {
+		normalized, err := normalizePricingModel(*request.BusinessCentralPricingModel)
+		if err != nil {
+			return Merchant{}, err
+		}
+		request.BusinessCentralPricingModel = &normalized
 	}
 	if request.DefaultCurrencyCode != nil {
 		currency := strings.ToUpper(strings.TrimSpace(*request.DefaultCurrencyCode))
@@ -654,7 +661,7 @@ func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID
 		}
 	}
 	var merchant Merchant
-	err = tx.QueryRow(ctx, `UPDATE merchants SET name = COALESCE($2, name), legal_name = COALESCE($3, legal_name), country_code = COALESCE($4, country_code), pos_complexity_level = COALESCE($5, pos_complexity_level), is_active = COALESCE($6, is_active), default_currency_code = COALESCE($7, default_currency_code), updated_at = now() WHERE id = $1 RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, is_active, created_at, updated_at`, merchantID, request.Name, request.LegalName, request.CountryCode, request.POSComplexityLevel, request.IsActive, request.DefaultCurrencyCode).Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
+	err = tx.QueryRow(ctx, `UPDATE merchants SET name = COALESCE($2, name), legal_name = COALESCE($3, legal_name), country_code = COALESCE($4, country_code), pos_complexity_level = COALESCE($5, pos_complexity_level), is_active = COALESCE($6, is_active), default_currency_code = COALESCE($7, default_currency_code), business_central_pricing_model = COALESCE($8, business_central_pricing_model), updated_at = now() WHERE id = $1 RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model, is_active, created_at, updated_at`, merchantID, request.Name, request.LegalName, request.CountryCode, request.POSComplexityLevel, request.IsActive, request.DefaultCurrencyCode, request.BusinessCentralPricingModel).Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.BusinessCentralPricingModel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
 	if err != nil {
 		return Merchant{}, err
 	}
@@ -1033,6 +1040,19 @@ func (s *Service) CreateUser(ctx context.Context, claims *Claims, request Create
 	return s.getUser(ctx, identityID, claims.MerchantID, membershipID)
 }
 
+func normalizePricingModel(raw string) (string, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	if trimmed == "" {
+		return "starter", nil
+	}
+	switch trimmed {
+	case "starter", "growth", "professional", "enterprise":
+		return trimmed, nil
+	default:
+		return "", app.NewError("VALIDATION_ERROR", "business_central_pricing_model must be Starter, Growth, Professional, or Enterprise.", 400)
+	}
+}
+
 func (s *Service) CreateMerchantAccount(ctx context.Context, claims *Claims, request CreateMerchantAccountRequest) (MerchantProvisioning, error) {
 	if !claims.PlatformAdmin {
 		return MerchantProvisioning{}, app.NewError("FORBIDDEN", "Platform administrator access is required.", 403)
@@ -1050,6 +1070,11 @@ func (s *Service) CreateMerchantAccount(ctx context.Context, claims *Claims, req
 	if request.POSComplexityLevel != "SIMPLE" && request.POSComplexityLevel != "COMPLEX" && request.POSComplexityLevel != "MINI" {
 		return MerchantProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
 	}
+	pricingModel, err := normalizePricingModel(request.BusinessCentralPricingModel)
+	if err != nil {
+		return MerchantProvisioning{}, err
+	}
+	request.BusinessCentralPricingModel = pricingModel
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MerchantProvisioning{}, err
@@ -1066,10 +1091,10 @@ func (s *Service) CreateMerchantAccount(ctx context.Context, claims *Claims, req
 		return MerchantProvisioning{}, app.NewError("VALIDATION_ERROR", "default_currency_code must reference a supported currency.", 400)
 	}
 	var merchant Merchant
-	err = tx.QueryRow(ctx, `INSERT INTO merchants(name, slug, legal_name, default_currency_code, country_code, pos_complexity_level)
-        VALUES ($1::varchar, $2::varchar, $3::varchar, $4::char(3), $5::char(2), COALESCE(NULLIF(upper($6),''),'SIMPLE'))
-        RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, is_active, created_at, updated_at`, name, slug, request.LegalName, currency, request.CountryCode, request.POSComplexityLevel).
-		Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
+	err = tx.QueryRow(ctx, `INSERT INTO merchants(name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model)
+        VALUES ($1::varchar, $2::varchar, $3::varchar, $4::char(3), $5::char(2), COALESCE(NULLIF(upper($6),''),'SIMPLE'), COALESCE(NULLIF(lower($7),''),'starter'))
+        RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model, is_active, created_at, updated_at`, name, slug, request.LegalName, currency, request.CountryCode, request.POSComplexityLevel, request.BusinessCentralPricingModel).
+		Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.BusinessCentralPricingModel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
 	if err != nil {
 		return MerchantProvisioning{}, err
 	}
@@ -1119,6 +1144,11 @@ func (s *Service) CreateMerchantUser(ctx context.Context, claims *Claims, reques
 	if request.POSComplexityLevel != "SIMPLE" && request.POSComplexityLevel != "COMPLEX" && request.POSComplexityLevel != "MINI" {
 		return MerchantUserProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
 	}
+	pricingModel, err := normalizePricingModel(request.BusinessCentralPricingModel)
+	if err != nil {
+		return MerchantUserProvisioning{}, err
+	}
+	request.BusinessCentralPricingModel = pricingModel
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(request.Password), s.bcryptCost)
 	if err != nil {
 		return MerchantUserProvisioning{}, err
@@ -1132,10 +1162,10 @@ func (s *Service) CreateMerchantUser(ctx context.Context, claims *Claims, reques
 		return MerchantUserProvisioning{}, err
 	}
 	var merchant Merchant
-	err = tx.QueryRow(ctx, `INSERT INTO merchants(name, slug, legal_name, default_currency_code, country_code, pos_complexity_level)
-        VALUES ($1::varchar, $2::varchar, $3::varchar, $4::char(3), $5::char(2), COALESCE(NULLIF(upper($6),''),'SIMPLE'))
-        RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, is_active, created_at, updated_at`, request.MerchantName, request.MerchantSlug, request.MerchantLegalName, request.DefaultCurrencyCode, request.MerchantCountryCode, request.POSComplexityLevel).
-		Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
+	err = tx.QueryRow(ctx, `INSERT INTO merchants(name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model)
+        VALUES ($1::varchar, $2::varchar, $3::varchar, $4::char(3), $5::char(2), COALESCE(NULLIF(upper($6),''),'SIMPLE'), COALESCE(NULLIF(lower($7),''),'starter'))
+        RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model, is_active, created_at, updated_at`, request.MerchantName, request.MerchantSlug, request.MerchantLegalName, request.DefaultCurrencyCode, request.MerchantCountryCode, request.POSComplexityLevel, request.BusinessCentralPricingModel).
+		Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.BusinessCentralPricingModel, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
 	if err != nil {
 		return MerchantUserProvisioning{}, err
 	}

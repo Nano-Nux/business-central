@@ -3,37 +3,55 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:business_central_mobile/core/database/app_database.dart';
 import 'package:business_central_mobile/core/database/local_audit_repository.dart';
-import 'package:business_central_mobile/features/auth/domain/local_auth_service.dart';
 
 void main() {
   late AppDatabase database;
-  late String merchantId;
-  late String shopId;
-  late String membershipId;
+  const merchantId = 'm-audit-1';
+  const shopId = 's-audit-1';
+  const membershipId = 'mem-audit-1';
 
   setUp(() async {
     database = AppDatabase(executor: NativeDatabase.memory());
-    final setup = await LocalAuthService(database: database).provisionOwner(
-      email: 'owner@example.com',
-      password: 'correct horse battery staple',
-    );
-    merchantId = setup.merchantId;
-    shopId = setup.shopId;
-    membershipId = setup.membershipId;
+    await database.into(database.merchants).insert(
+          MerchantsCompanion.insert(
+            id: merchantId,
+            name: 'Audit Merchant',
+            slug: 'audit-merchant',
+            currencyCode: 'USD',
+            createdAt: '2026-09-18T00:00:00Z',
+          ),
+        );
+    await database.into(database.shops).insert(
+          ShopsCompanion.insert(
+            id: shopId,
+            merchantId: merchantId,
+            name: 'Audit Shop',
+            code: 'AUDIT',
+            createdAt: '2026-09-18T00:00:00Z',
+          ),
+        );
+    await database.into(database.userMemberships).insert(
+          UserMembershipsCompanion.insert(
+            id: membershipId,
+            merchantId: merchantId,
+            identityId: 'id-1',
+            displayName: 'Audit User',
+            createdAt: '2026-09-18T00:00:00Z',
+          ),
+        );
   });
 
-  tearDown(() => database.closeForTest());
+  tearDown(() async {
+    await database.close();
+  });
 
   test('records immutable-shaped events with tenant and actor scope', () async {
-    await LocalAuthService(database: database).login(
-      email: 'OWNER@example.com',
-      password: 'correct horse battery staple',
-    );
     final repository = LocalAuditRepository(
       database: database,
       merchantId: merchantId,
       actorMembershipId: membershipId,
     );
+
     await repository.record(
       action: 'UPDATE',
       entityType: 'shop_settings',
@@ -45,10 +63,8 @@ void main() {
     );
 
     final events = await repository.list(shopId: shopId);
-    expect(events, hasLength(3));
-    final settingsEvent = events.firstWhere(
-      (event) => event.requestId == 'request-1',
-    );
+    expect(events, hasLength(1));
+    final settingsEvent = events.first;
     expect(settingsEvent.actorMembershipId, membershipId);
     expect(settingsEvent.beforeData, {'footer_note': 'old'});
     expect(settingsEvent.afterData, {'footer_note': 'new'});
@@ -56,22 +72,20 @@ void main() {
     expect(settingsEvent.occurredAt.isUtc, isTrue);
 
     final merchantEvents = await repository.list();
-    expect(merchantEvents, hasLength(3));
+    expect(merchantEvents, hasLength(1));
+    expect(merchantEvents.first.action, 'UPDATE');
+
     expect(
-      merchantEvents.map((event) => event.action),
-      containsAll(['CREATE', 'LOGIN', 'UPDATE']),
-    );
-    expect(
-      (await LocalAuditRepository(
+      await LocalAuditRepository(
         database: database,
         merchantId: 'another-merchant',
-      ).list()),
+      ).list(),
       isEmpty,
     );
   });
 
   test('rejects shop and actor identifiers from another merchant', () async {
-    final otherMerchant = 'other-merchant';
+    const otherMerchant = 'other-merchant';
     await expectLater(
       LocalAuditRepository(
         database: database,

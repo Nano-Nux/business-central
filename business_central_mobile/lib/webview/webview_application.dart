@@ -1,8 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../core/database/app_database.dart';
+import '../core/network/network_boundary.dart';
+import '../core/security/silent_license_validator.dart';
+import 'native_database_bridge.dart';
 import 'native_file_selector_bridge.dart';
 import 'native_printer_bridge.dart';
 import 'native_refresh_bridge.dart';
@@ -30,30 +36,113 @@ class WebViewNavigationRetryPolicy {
   void reset() => _attempts = 0;
 }
 
+/// Handles URL navigation decisions, permitting same-origin and data/blob navigation,
+/// and dispatching external links (OAuth, payments, non-HTTP schemes) to the system launcher.
+class WebViewNavigationPolicy {
+  static const customUserAgent = 'business-central-mobile/1.0';
+
+  static bool isSameOrigin(Uri? target, Uri portal) =>
+      target != null &&
+      target.scheme == portal.scheme &&
+      target.host == portal.host &&
+      target.port == portal.port;
+
+  static NavigationDecision decideNavigation({
+    required String url,
+    required Uri portalUri,
+    void Function(Uri uri)? onExternalLaunch,
+  }) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return NavigationDecision.prevent;
+
+    final lower = trimmed.toLowerCase();
+    if (lower.startsWith('blob:') || lower.startsWith('data:')) {
+      return NavigationDecision.navigate;
+    }
+
+    final target = Uri.tryParse(trimmed);
+    if (target == null) return NavigationDecision.prevent;
+
+    if (isSameOrigin(target, portalUri)) {
+      return NavigationDecision.navigate;
+    }
+
+    onExternalLaunch?.call(target);
+    return NavigationDecision.prevent;
+  }
+}
+
 class WebViewApplication extends StatelessWidget {
-  const WebViewApplication({required this.portalUrl, super.key});
+  const WebViewApplication({
+    required this.portalUrl,
+    this.backendUrl,
+    super.key,
+  });
 
   final String portalUrl;
+  final String? backendUrl;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'Business Central',
     theme: ThemeData(colorSchemeSeed: const Color(0xff2563eb)),
-    home: _PortalWebView(portalUrl: portalUrl),
+    home: _PortalWebView(portalUrl: portalUrl, backendUrl: backendUrl),
   );
 }
 
 class _PortalWebView extends StatefulWidget {
-  const _PortalWebView({required this.portalUrl});
+  const _PortalWebView({required this.portalUrl, this.backendUrl});
 
   final String portalUrl;
+  final String? backendUrl;
 
   @override
   State<_PortalWebView> createState() => _PortalWebViewState();
 }
 
 class _PortalWebViewState extends State<_PortalWebView> {
+  static const _databaseBridgeScript = r'''
+(function () {
+  if (window.BusinessCentralNativeDatabase) return;
+  const pending = new Map();
+  let nextId = 1;
+  window.__businessCentralNativeDatabaseResolve = function (id, result, error) {
+    const request = pending.get(id);
+    if (!request) return;
+    pending.delete(id);
+    if (error) request.reject(new Error(error));
+    else request.resolve(result);
+  };
+  function request(method, payload) {
+    return new Promise(function (resolve, reject) {
+      const id = String(nextId++);
+      pending.set(id, { resolve: resolve, reject: reject });
+      BusinessCentralDatabaseChannel.postMessage(JSON.stringify({
+        id: id,
+        method: method,
+        payload: payload || {}
+      }));
+    });
+  }
+  window.BusinessCentralNativeDatabase = {
+    query: function (method, payload) { return request(method, payload); },
+    isAvailable: function () { return true; },
+    getProducts: function (search, categoryId) { return request('getProducts', { search: search, categoryId: categoryId }); },
+    saveProduct: function (product) { return request('saveProduct', { product: product }); },
+    getCustomers: function (search) { return request('getCustomers', { search: search }); },
+    saveCustomer: function (customer) { return request('saveCustomer', { customer: customer }); },
+    checkout: function (orderData) { return request('checkout', { order: orderData }); },
+    getOrders: function (limit, offset) { return request('getOrders', { limit: limit, offset: offset }); },
+    getSetting: function (key) { return request('getSetting', { key: key }); },
+    saveSetting: function (key, value) { return request('saveSetting', { key: key, value: value }); },
+    rawQuery: function (sql, params) { return request('rawQuery', { sql: sql, params: params }); },
+    rawExecute: function (sql, params) { return request('rawExecute', { sql: sql, params: params }); }
+  };
+  window.dispatchEvent(new Event('business-central-native-database-ready'));
+})();
+''';
+
   static const _bridgeScript = r'''
 (function () {
   if (window.BusinessCentralNativePrinter) return;
@@ -242,8 +331,12 @@ class _PortalWebViewState extends State<_PortalWebView> {
   final NativeRefreshBridge _refreshBridge = NativeRefreshBridge();
   final NativeScannerBridge _scannerBridge = NativeScannerBridge();
   final NativeStorageBridge _storageBridge = NativeStorageBridge();
+  final NativeDatabaseBridge _databaseBridge = NativeDatabaseBridge();
   final NativeFileSelectorBridge _fileSelectorBridge =
       NativeFileSelectorBridge();
+  SilentLicenseValidator? _licenseValidator;
+  bool _isLockedDown = false;
+  String? _lockReason;
   late final WebViewController _controller;
   int _progress = 0;
   String? _error;
@@ -277,15 +370,19 @@ class _PortalWebViewState extends State<_PortalWebView> {
               }
             },
           )
+          ..setUserAgent(WebViewNavigationPolicy.customUserAgent)
           ..setJavaScriptMode(JavaScriptMode.unrestricted)
           ..setBackgroundColor(Colors.white)
           ..setNavigationDelegate(
             NavigationDelegate(
               onNavigationRequest: (request) {
-                final target = Uri.tryParse(request.url);
-                return _sameOrigin(target, uri)
-                    ? NavigationDecision.navigate
-                    : NavigationDecision.prevent;
+                return WebViewNavigationPolicy.decideNavigation(
+                  url: request.url,
+                  portalUri: uri,
+                  onExternalLaunch: (externalUri) {
+                    unawaited(_launchExternal(externalUri));
+                  },
+                );
               },
               onProgress: (progress) => setState(() => _progress = progress),
               onPageFinished: (_) async {
@@ -298,6 +395,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
                 await _controller.runJavaScript(_bridgeScript);
                 await _controller.runJavaScript(_scannerBridgeScript);
                 await _controller.runJavaScript(_storageBridgeScript);
+                await _controller.runJavaScript(_databaseBridgeScript);
                 // await _controller.runJavaScript(_pullToRefreshScript);
               },
               onWebResourceError: (error) {
@@ -322,6 +420,10 @@ class _PortalWebViewState extends State<_PortalWebView> {
             onMessageReceived: _storageBridge.handleMessage,
           )
           ..addJavaScriptChannel(
+            NativeDatabaseBridge.channelName,
+            onMessageReceived: _databaseBridge.handleMessage,
+          )
+          ..addJavaScriptChannel(
             NativeRefreshBridge.channelName,
             onMessageReceived: _refreshBridge.handleMessage,
           )
@@ -330,14 +432,34 @@ class _PortalWebViewState extends State<_PortalWebView> {
     _refreshBridge.attach(_controller);
     _scannerBridge.attach(_controller);
     _storageBridge.attach(_controller);
+    _databaseBridge.attach(_controller);
     _fileSelectorBridge.attach(_controller);
+
+    final backendUri = Uri.tryParse(widget.backendUrl ?? '');
+    if (backendUri != null && backendUri.hasScheme && backendUri.hasAuthority) {
+      _licenseValidator = SilentLicenseValidator(
+        networkClient: OnlineNetworkClient(backendUri),
+        database: AppDatabase(),
+        onLockdown: (reason) {
+          if (mounted) {
+            setState(() {
+              _isLockedDown = true;
+              _lockReason = reason;
+            });
+          }
+        },
+      );
+      unawaited(_checkInitialLicense());
+    }
   }
 
-  bool _sameOrigin(Uri? target, Uri portal) =>
-      target != null &&
-      target.scheme == portal.scheme &&
-      target.host == portal.host &&
-      target.port == portal.port;
+  Future<void> _launchExternal(Uri target) async {
+    try {
+      await launchUrl(target, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Ignore failures to launch external URLs gracefully
+    }
+  }
 
   void _scheduleNavigationRetry(String description) {
     if (!mounted || _configurationError || _portalHasLoaded) {
@@ -357,15 +479,74 @@ class _PortalWebViewState extends State<_PortalWebView> {
     });
   }
 
+  Future<void> _checkInitialLicense() async {
+    final validator = _licenseValidator;
+    if (validator == null) return;
+    if (await validator.isLocked()) {
+      final reason = await validator.getLockReason();
+      if (mounted) {
+        setState(() {
+          _isLockedDown = true;
+          _lockReason = reason;
+        });
+      }
+    }
+    await validator.checkLicense();
+    validator.startPeriodicHeartbeat();
+  }
+
   @override
   void dispose() {
     _navigationRetryTimer?.cancel();
+    _licenseValidator?.stopPeriodicHeartbeat();
     if (_portalUri != null) _printerBridge.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLockedDown) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_outline, size: 64, color: Colors.redAccent),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Account Suspended',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _lockReason ?? 'Your merchant account has been suspended by platform administration.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      await _licenseValidator?.checkLicense();
+                      final locked = await _licenseValidator?.isLocked() ?? false;
+                      if (!locked && mounted) {
+                        setState(() => _isLockedDown = false);
+                        _controller.reload();
+                      }
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Check Status'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     if (_error != null) {
       return Scaffold(
         body: SafeArea(
@@ -401,8 +582,11 @@ class _PortalWebViewState extends State<_PortalWebView> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
-        if (!didPop && await _controller.canGoBack()) {
+        if (didPop) return;
+        if (await _controller.canGoBack()) {
           await _controller.goBack();
+        } else {
+          await SystemNavigator.pop();
         }
       },
       child: Scaffold(

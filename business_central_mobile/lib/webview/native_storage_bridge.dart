@@ -53,25 +53,25 @@ class NativeStorageBridge {
   }
 
   String? _companionKey(String key) => switch (key) {
-        'bc.theme' => 'theme',
-        'theme' => 'bc.theme',
-        'bc.layout' => 'layout',
-        'layout' => 'bc.layout',
-        _ => null,
-      };
+    'bc.theme' => 'theme',
+    'theme' => 'bc.theme',
+    'bc.layout' => 'layout',
+    'layout' => 'bc.layout',
+    _ => null,
+  };
 
   Future<String?> _get(String key) async {
     if (key.isEmpty) return null;
-    final row = await (_db.select(_db.appMetadata)
-          ..where((t) => t.key.equals(key)))
-        .getSingleOrNull();
+    final row = await (_db.select(
+      _db.appMetadata,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
     if (row != null) return row.value;
 
     final fallbackKey = _companionKey(key);
     if (fallbackKey != null) {
-      final fallbackRow = await (_db.select(_db.appMetadata)
-            ..where((t) => t.key.equals(fallbackKey)))
-          .getSingleOrNull();
+      final fallbackRow = await (_db.select(
+        _db.appMetadata,
+      )..where((t) => t.key.equals(fallbackKey))).getSingleOrNull();
       return fallbackRow?.value;
     }
 
@@ -81,23 +81,23 @@ class NativeStorageBridge {
   Future<bool> _set(String key, String value) async {
     if (key.isEmpty) return false;
     final now = DateTime.now().toUtc().toIso8601String();
-    await _db.into(_db.appMetadata).insertOnConflictUpdate(
-      AppMetadataCompanion.insert(
-        key: key,
-        value: value,
-        updatedAt: now,
-      ),
-    );
+    await _db
+        .into(_db.appMetadata)
+        .insertOnConflictUpdate(
+          AppMetadataCompanion.insert(key: key, value: value, updatedAt: now),
+        );
 
     final companion = _companionKey(key);
     if (companion != null) {
-      await _db.into(_db.appMetadata).insertOnConflictUpdate(
-        AppMetadataCompanion.insert(
-          key: companion,
-          value: value,
-          updatedAt: now,
-        ),
-      );
+      await _db
+          .into(_db.appMetadata)
+          .insertOnConflictUpdate(
+            AppMetadataCompanion.insert(
+              key: companion,
+              value: value,
+              updatedAt: now,
+            ),
+          );
     }
     return true;
   }
@@ -108,7 +108,9 @@ class NativeStorageBridge {
 
     final companion = _companionKey(key);
     if (companion != null) {
-      await (_db.delete(_db.appMetadata)..where((t) => t.key.equals(companion))).go();
+      await (_db.delete(
+        _db.appMetadata,
+      )..where((t) => t.key.equals(companion))).go();
     }
     return true;
   }

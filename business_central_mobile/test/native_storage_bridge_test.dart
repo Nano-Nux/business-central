@@ -42,9 +42,9 @@ void main() {
     expect(executedScripts.first, contains('true'));
 
     // Verify row was stored in AppMetadata SQLite table
-    final row = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals('bc.theme')))
-        .getSingleOrNull();
+    final row = await (database.select(
+      database.appMetadata,
+    )..where((t) => t.key.equals('bc.theme'))).getSingleOrNull();
     expect(row?.value, 'visual-clean-theme');
 
     // Get theme key
@@ -93,155 +93,165 @@ void main() {
     expect(executedScripts.first, contains('true'));
 
     // Check it is gone
-    final row = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals('bc.theme')))
-        .getSingleOrNull();
+    final row = await (database.select(
+      database.appMetadata,
+    )..where((t) => t.key.equals('bc.theme'))).getSingleOrNull();
     expect(row, isNull);
   });
 
-  test('stores and gets both bc.theme and bc.layout independently in SQLite', () async {
-    // 1. Set bc.theme
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-theme',
-          'method': 'set',
-          'payload': {'key': 'bc.theme', 'value': 'visual-clean-theme'},
-        }),
-      ),
-    );
+  test(
+    'stores and gets both bc.theme and bc.layout independently in SQLite',
+    () async {
+      // 1. Set bc.theme
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-theme',
+            'method': 'set',
+            'payload': {'key': 'bc.theme', 'value': 'visual-clean-theme'},
+          }),
+        ),
+      );
 
-    // 2. Set bc.layout
-    executedScripts.clear();
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-layout',
-          'method': 'set',
-          'payload': {'key': 'bc.layout', 'value': 'compact-layout'},
-        }),
-      ),
-    );
+      // 2. Set bc.layout
+      executedScripts.clear();
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-layout',
+            'method': 'set',
+            'payload': {'key': 'bc.layout', 'value': 'compact-layout'},
+          }),
+        ),
+      );
 
-    // 3. Verify both exist independently in SQLite
-    final themeRow = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals('bc.theme')))
-        .getSingleOrNull();
-    final layoutRow = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals('bc.layout')))
-        .getSingleOrNull();
+      // 3. Verify both exist independently in SQLite
+      final themeRow = await (database.select(
+        database.appMetadata,
+      )..where((t) => t.key.equals('bc.theme'))).getSingleOrNull();
+      final layoutRow = await (database.select(
+        database.appMetadata,
+      )..where((t) => t.key.equals('bc.layout'))).getSingleOrNull();
 
-    expect(themeRow?.value, 'visual-clean-theme');
-    expect(layoutRow?.value, 'compact-layout');
+      expect(themeRow?.value, 'visual-clean-theme');
+      expect(layoutRow?.value, 'compact-layout');
 
-    // 4. Get bc.layout via bridge
-    executedScripts.clear();
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-get-layout',
-          'method': 'get',
-          'payload': {'key': 'bc.layout'},
-        }),
-      ),
-    );
+      // 4. Get bc.layout via bridge
+      executedScripts.clear();
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-get-layout',
+            'method': 'get',
+            'payload': {'key': 'bc.layout'},
+          }),
+        ),
+      );
 
-    expect(executedScripts, hasLength(1));
-    expect(executedScripts.first, contains('req-get-layout'));
-    expect(executedScripts.first, contains('compact-layout'));
-  });
+      expect(executedScripts, hasLength(1));
+      expect(executedScripts.first, contains('req-get-layout'));
+      expect(executedScripts.first, contains('compact-layout'));
+    },
+  );
 
-  test('provides bidirectional backward compatibility between canonical and legacy keys', () async {
-    // 1. Set canonical bc.theme and bc.layout
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-bc-theme',
-          'method': 'set',
-          'payload': {'key': 'bc.theme', 'value': 'visual-clean-theme'},
-        }),
-      ),
-    );
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-bc-layout',
-          'method': 'set',
-          'payload': {'key': 'bc.layout', 'value': 'compact-layout'},
-        }),
-      ),
-    );
+  test(
+    'provides bidirectional backward compatibility between canonical and legacy keys',
+    () async {
+      // 1. Set canonical bc.theme and bc.layout
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-bc-theme',
+            'method': 'set',
+            'payload': {'key': 'bc.theme', 'value': 'visual-clean-theme'},
+          }),
+        ),
+      );
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-bc-layout',
+            'method': 'set',
+            'payload': {'key': 'bc.layout', 'value': 'compact-layout'},
+          }),
+        ),
+      );
 
-    // Verify both canonical and legacy companion keys exist in SQLite
-    final bcThemeRow = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals('bc.theme')))
-        .getSingleOrNull();
-    final legacyThemeRow = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals('theme')))
-        .getSingleOrNull();
-    final bcLayoutRow = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals('bc.layout')))
-        .getSingleOrNull();
-    final legacyLayoutRow = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals('layout')))
-        .getSingleOrNull();
+      // Verify both canonical and legacy companion keys exist in SQLite
+      final bcThemeRow = await (database.select(
+        database.appMetadata,
+      )..where((t) => t.key.equals('bc.theme'))).getSingleOrNull();
+      final legacyThemeRow = await (database.select(
+        database.appMetadata,
+      )..where((t) => t.key.equals('theme'))).getSingleOrNull();
+      final bcLayoutRow = await (database.select(
+        database.appMetadata,
+      )..where((t) => t.key.equals('bc.layout'))).getSingleOrNull();
+      final legacyLayoutRow = await (database.select(
+        database.appMetadata,
+      )..where((t) => t.key.equals('layout'))).getSingleOrNull();
 
-    expect(bcThemeRow?.value, 'visual-clean-theme');
-    expect(legacyThemeRow?.value, 'visual-clean-theme');
-    expect(bcLayoutRow?.value, 'compact-layout');
-    expect(legacyLayoutRow?.value, 'compact-layout');
+      expect(bcThemeRow?.value, 'visual-clean-theme');
+      expect(legacyThemeRow?.value, 'visual-clean-theme');
+      expect(bcLayoutRow?.value, 'compact-layout');
+      expect(legacyLayoutRow?.value, 'compact-layout');
 
-    // 2. Querying legacy keys via bridge returns the canonical values
-    executedScripts.clear();
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-get-legacy-theme',
-          'method': 'get',
-          'payload': {'key': 'theme'},
-        }),
-      ),
-    );
-    expect(executedScripts.first, contains('visual-clean-theme'));
+      // 2. Querying legacy keys via bridge returns the canonical values
+      executedScripts.clear();
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-get-legacy-theme',
+            'method': 'get',
+            'payload': {'key': 'theme'},
+          }),
+        ),
+      );
+      expect(executedScripts.first, contains('visual-clean-theme'));
 
-    executedScripts.clear();
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-get-legacy-layout',
-          'method': 'get',
-          'payload': {'key': 'layout'},
-        }),
-      ),
-    );
-    expect(executedScripts.first, contains('compact-layout'));
+      executedScripts.clear();
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-get-legacy-layout',
+            'method': 'get',
+            'payload': {'key': 'layout'},
+          }),
+        ),
+      );
+      expect(executedScripts.first, contains('compact-layout'));
 
-    // 3. Fallback when only legacy key was in SQLite (e.g. from earlier app version)
-    await (database.delete(database.appMetadata)..where((t) => t.key.equals('bc.theme'))).go();
-    await (database.delete(database.appMetadata)..where((t) => t.key.equals('bc.layout'))).go();
+      // 3. Fallback when only legacy key was in SQLite (e.g. from earlier app version)
+      await (database.delete(
+        database.appMetadata,
+      )..where((t) => t.key.equals('bc.theme'))).go();
+      await (database.delete(
+        database.appMetadata,
+      )..where((t) => t.key.equals('bc.layout'))).go();
 
-    executedScripts.clear();
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-fallback-theme',
-          'method': 'get',
-          'payload': {'key': 'bc.theme'},
-        }),
-      ),
-    );
-    expect(executedScripts.first, contains('visual-clean-theme'));
+      executedScripts.clear();
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-fallback-theme',
+            'method': 'get',
+            'payload': {'key': 'bc.theme'},
+          }),
+        ),
+      );
+      expect(executedScripts.first, contains('visual-clean-theme'));
 
-    executedScripts.clear();
-    await bridge.handleMessage(
-      JavaScriptMessage(
-        message: jsonEncode({
-          'id': 'req-fallback-layout',
-          'method': 'get',
-          'payload': {'key': 'bc.layout'},
-        }),
-      ),
-    );
-    expect(executedScripts.first, contains('compact-layout'));
-  });
+      executedScripts.clear();
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-fallback-layout',
+            'method': 'get',
+            'payload': {'key': 'bc.layout'},
+          }),
+        ),
+      );
+      expect(executedScripts.first, contains('compact-layout'));
+    },
+  );
 }

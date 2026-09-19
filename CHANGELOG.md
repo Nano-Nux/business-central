@@ -2,6 +2,13 @@
 
 This is the chronological record of meaningful repository and feature changes. Use project-level `IMPLEMENTATION_STATUS.md` for current state and this file for history.
 
+## 2026-09-19
+
+- Added `business_central_pricing_model` to `merchants` table across schema and versioned migration `0043_business_central_pricing_model.sql`.
+- Supported 4 pricing models: `Starter` (default), `Growth`, `Professional`, and `Enterprise`.
+- Integrated pricing model assignment into platform-admin merchant provisioning (`POST /api/v1/admin/merchants` and `POST /api/v1/admin/merchant-users`), merchant updates (`PATCH /api/v1/admin/merchants/{id}`), and merchant reads (`GET /api/v1/admin/merchants` and `GET /api/v1/merchant`).
+- Added pricing model selection UI to platform-admin merchant user creation and edit modal in `business-central-admin`, and displayed pricing model in the merchants directory.
+
 ## 2026-08-08
 
 - Backend/portal temporary offline: added typed provisional POS checkout with

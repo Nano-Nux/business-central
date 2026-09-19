@@ -32,6 +32,7 @@ func (h *Handler) RegisterPublicRoutes(r fiber.Router) {
 
 func (h *Handler) RegisterProtectedRoutes(r fiber.Router) {
 	r.Get("/auth/me", h.me)
+	r.Get("/merchants/me/status", h.getMerchantStatus)
 	r.Get("/merchant", h.getMerchant)
 	r.Patch("/merchant", h.updateCurrentMerchant)
 	r.Post("/auth/logout", h.logout)
@@ -75,6 +76,28 @@ func (h *Handler) getMerchant(c fiber.Ctx) error {
 		return noResource(err, "Merchant")
 	}
 	return c.JSON(map[string]any{"data": merchant, "meta": map[string]any{}})
+}
+
+func (h *Handler) getMerchantStatus(c fiber.Ctx) error {
+	ctx, cancel := contextWithTimeout(c)
+	defer cancel()
+	merchant, err := h.Authentication.GetMerchant(ctx, claims(c))
+	if err != nil {
+		return noResource(err, "Merchant")
+	}
+	status := "ACTIVE"
+	if !merchant.IsActive {
+		status = "SUSPENDED"
+	}
+	return c.JSON(map[string]any{
+		"data": map[string]any{
+			"merchant_id": merchant.ID,
+			"name":        merchant.Name,
+			"is_active":   merchant.IsActive,
+			"status":      status,
+		},
+		"meta": map[string]any{},
+	})
 }
 
 func (h *Handler) updateCurrentMerchant(c fiber.Ctx) error {
