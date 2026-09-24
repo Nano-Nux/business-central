@@ -8,6 +8,7 @@ import {
 } from "./offline-db";
 import type { Delivery, Promotion, Shop, Variant } from "./types";
 import { randomUuid } from "./random-uuid";
+import { usingNativeDatabaseBridge, callNativeDatabase } from "./native-database";
 
 export const OFFLINE_CHECKOUT_ENTITY = "POS_CHECKOUT";
 
@@ -244,6 +245,9 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
     },
     projection,
   );
+  if (usingNativeDatabaseBridge()) {
+    await callNativeDatabase("checkout", { projection, payload }).catch(() => null);
+  }
   requestBackgroundSync();
   return { operation, projection };
 }

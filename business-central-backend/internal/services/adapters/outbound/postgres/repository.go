@@ -394,15 +394,21 @@ func (r *Repository) ListServiceCatalog(ctx context.Context, c *authdto.Claims, 
 	if v := q.Filter("is_active"); v != "" {
 		w, a = addFilter(w, a, "x.is_active=$%d", v == "true")
 	}
-	return listRows(ctx, r.pool, contextPrefix(), "SELECT COUNT(*) FROM service_catalog x WHERE "+w, "SELECT x.id,x.merchant_id,x.category_id,x.code,x.name,x.description,x.duration_minutes,x.is_active,x.labor_fee::text FROM service_catalog x CROSS JOIN ctx WHERE "+w+" ORDER BY x.name", a, q, func(rows pgx.Rows) (dto.ServiceDefinition, error) {
+	return listRows(ctx, r.pool, contextPrefix(), "SELECT COUNT(*) FROM service_catalog x WHERE "+w, "SELECT x.id,x.merchant_id,x.category_id,COALESCE(x.code,''),x.name,x.description,x.duration_minutes,x.is_active,x.labor_fee::text FROM service_catalog x CROSS JOIN ctx WHERE "+w+" ORDER BY x.name", a, q, func(rows pgx.Rows) (dto.ServiceDefinition, error) {
 		var v dto.ServiceDefinition
 		err := rows.Scan(&v.ID, &v.MerchantID, &v.CategoryID, &v.Code, &v.Name, &v.Description, &v.DurationMinutes, &v.IsActive, &v.LaborFee)
 		return v, err
 	})
 }
 func (r *Repository) CreateServiceCatalog(ctx context.Context, c *authdto.Claims, x dto.ServiceDefinitionRequest) (dto.ServiceDefinition, error) {
-	if err := required(x.Code, x.Name); err != nil {
+	if err := required(x.Name); err != nil {
 		return dto.ServiceDefinition{}, err
+	}
+	var code *string
+	if x.Code != nil {
+		if trimmed := strings.TrimSpace(*x.Code); trimmed != "" {
+			code = &trimmed
+		}
 	}
 	active := true
 	if x.IsActive != nil {
@@ -410,20 +416,28 @@ func (r *Repository) CreateServiceCatalog(ctx context.Context, c *authdto.Claims
 	}
 	return writeIdempotent(ctx, r.pool, c, "services.catalog", app.IdempotencyKey(ctx), x, func(tx pgx.Tx) (dto.ServiceDefinition, error) {
 		var v dto.ServiceDefinition
-		err := tx.QueryRow(ctx, "INSERT INTO service_catalog(merchant_id,category_id,code,name,description,duration_minutes,is_active,labor_fee) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,merchant_id,category_id,code,name,description,duration_minutes,is_active,labor_fee::text", c.MerchantID, x.CategoryID, strings.TrimSpace(x.Code), strings.TrimSpace(x.Name), x.Description, nil, active, x.LaborFee).Scan(&v.ID, &v.MerchantID, &v.CategoryID, &v.Code, &v.Name, &v.Description, &v.DurationMinutes, &v.IsActive, &v.LaborFee)
+		err := tx.QueryRow(ctx, "INSERT INTO service_catalog(merchant_id,category_id,code,name,description,duration_minutes,is_active,labor_fee) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,merchant_id,category_id,COALESCE(code,''),name,description,duration_minutes,is_active,labor_fee::text", c.MerchantID, x.CategoryID, code, strings.TrimSpace(x.Name), x.Description, nil, active, x.LaborFee).Scan(&v.ID, &v.MerchantID, &v.CategoryID, &v.Code, &v.Name, &v.Description, &v.DurationMinutes, &v.IsActive, &v.LaborFee)
 		return v, err
 	})
 }
 func (r *Repository) UpdateServiceCatalog(ctx context.Context, c *authdto.Claims, id string, x dto.ServiceDefinitionRequest) (dto.ServiceDefinition, error) {
-	if err := required(x.Code, x.Name); err != nil {
+	if err := required(x.Name); err != nil {
 		return dto.ServiceDefinition{}, err
+	}
+	updateCode := false
+	var code *string
+	if x.Code != nil {
+		updateCode = true
+		if trimmed := strings.TrimSpace(*x.Code); trimmed != "" {
+			code = &trimmed
+		}
 	}
 	return writeIdempotent(ctx, r.pool, c, "services.catalog", app.IdempotencyKey(ctx), struct {
 		ID      string                       `json:"id"`
 		Request dto.ServiceDefinitionRequest `json:"request"`
 	}{ID: id, Request: x}, func(tx pgx.Tx) (dto.ServiceDefinition, error) {
 		var v dto.ServiceDefinition
-		err := tx.QueryRow(ctx, "UPDATE service_catalog SET category_id=$3,code=$4,name=$5,description=$6,duration_minutes=NULL,is_active=COALESCE($7,is_active),labor_fee=$8 WHERE merchant_id=$1::uuid AND id=$2 RETURNING id,merchant_id,category_id,code,name,description,duration_minutes,is_active,labor_fee::text", c.MerchantID, id, x.CategoryID, x.Code, x.Name, x.Description, x.IsActive, x.LaborFee).Scan(&v.ID, &v.MerchantID, &v.CategoryID, &v.Code, &v.Name, &v.Description, &v.DurationMinutes, &v.IsActive, &v.LaborFee)
+		err := tx.QueryRow(ctx, "UPDATE service_catalog SET category_id=$3,code=CASE WHEN $4::boolean THEN $5 ELSE code END,name=$6,description=$7,duration_minutes=NULL,is_active=COALESCE($8,is_active),labor_fee=$9 WHERE merchant_id=$1::uuid AND id=$2 RETURNING id,merchant_id,category_id,COALESCE(code,''),name,description,duration_minutes,is_active,labor_fee::text", c.MerchantID, id, x.CategoryID, updateCode, code, strings.TrimSpace(x.Name), x.Description, x.IsActive, x.LaborFee).Scan(&v.ID, &v.MerchantID, &v.CategoryID, &v.Code, &v.Name, &v.Description, &v.DurationMinutes, &v.IsActive, &v.LaborFee)
 		return v, err
 	})
 }
@@ -1256,10 +1270,14 @@ func resolveRepairServiceItems(ctx context.Context, tx pgx.Tx, merchantID string
 		item := dto.ServiceOrderItem{WorkItemID: request.WorkItemID, ServiceID: request.ServiceID, VariantID: request.VariantID, Quantity: request.Quantity, Status: "OPEN"}
 		if request.ServiceID != nil {
 			var code, name, unitPrice string
-			if err := tx.QueryRow(ctx, `SELECT code,name,labor_fee::text FROM service_catalog WHERE merchant_id=$1::uuid AND id=$2::uuid AND is_active`, merchantID, *request.ServiceID).Scan(&code, &name, &unitPrice); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT COALESCE(code,''),name,labor_fee::text FROM service_catalog WHERE merchant_id=$1::uuid AND id=$2::uuid AND is_active`, merchantID, *request.ServiceID).Scan(&code, &name, &unitPrice); err != nil {
 				return nil, 0, app.Validation("The selected service catalog item is unavailable.", nil)
 			}
-			item.Description = code + " · " + name
+			if code != "" {
+				item.Description = code + " · " + name
+			} else {
+				item.Description = name
+			}
 			item.UnitPrice = unitPrice
 		} else {
 			var description, unitPrice string

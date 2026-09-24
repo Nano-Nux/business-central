@@ -4,15 +4,17 @@ import Link from "next/link";
 import { ReactNode } from "react";
 import { Session } from "../lib/api";
 
-export type AdminSection = "overview" | "users" | "currencies" | "business-types" | "roles" | "shops";
+export type AdminSection = "overview" | "merchants" | "users" | "currencies" | "business-types" | "roles" | "shops" | "ai-maintenance";
 
 const navigation: { href: string; label: string; section: AdminSection }[] = [
   { href: "/", label: "Overview", section: "overview" },
+  { href: "/merchants", label: "Merchants", section: "merchants" },
   { href: "/users", label: "Users", section: "users" },
   { href: "/roles", label: "Roles", section: "roles" },
   { href: "/currencies", label: "Currencies", section: "currencies" },
   { href: "/business-types", label: "Business types", section: "business-types" },
   { href: "/shops", label: "Shops", section: "shops" },
+  { href: "/ai-maintenance", label: "AI Maintenance", section: "ai-maintenance" },
 ];
 
 export function AdminShell({ session, active, children }: { session: Session; active: AdminSection; children: ReactNode }) {

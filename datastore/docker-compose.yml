@@ -86,7 +86,6 @@ services:
       - -volume.port=8080
       - -volume.index=leveldb
       - -volume.dir.idx=/data/index
-      - -volume.disk=ssd
       - -volume.fileSizeLimitMB=128
       - -filer=true
       - -filer.port=8888

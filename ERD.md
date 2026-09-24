@@ -83,6 +83,10 @@ variant created by the backend. MINI mode automates default unit creation, bundl
 and retail price configuration into product creation, hides standalone pricing/units,
 and organizes repair sub-pages under a unified repair hub.
 
+`merchants.business_central_pricing_model` records the commercial pricing tier for the
+merchant: `starter`, `growth`, `professional`, or `enterprise` (defaulting to `starter`).
+It is assigned during merchant creation/onboarding and can be updated by platform administrators.
+
 The ERD intentionally shows the core system of record. Channel-specific UI, shipping-provider, CRM, and vertical-service extensions can reference these aggregates without creating competing masters.
 
 `repair_work_item_devices` stores `waiting_start_date` and `waiting_end_date`.

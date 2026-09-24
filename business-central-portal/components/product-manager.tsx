@@ -613,11 +613,11 @@ export function ProductManager() {
     const sellPriceRaw = values.get("sell_price");
     const originalPrice =
       originalPriceRaw !== null && String(originalPriceRaw).trim() !== ""
-        ? Number(originalPriceRaw)
+        ? String(originalPriceRaw).trim()
         : undefined;
     const sellPrice =
       sellPriceRaw !== null && String(sellPriceRaw).trim() !== ""
-        ? Number(sellPriceRaw)
+        ? String(sellPriceRaw).trim()
         : undefined;
 
     const body = {
@@ -1008,7 +1008,8 @@ export function ProductManager() {
                                     : "neutral"
                               }
                             >
-                              {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
+                              {item.product_type.charAt(0) +
+                                item.product_type.slice(1).toLowerCase()}
                             </Badge>
                           </td>
                         )}
@@ -1257,7 +1258,10 @@ export function ProductManager() {
                     defaultValue={editing?.original_price ?? ""}
                   />
                 </Field>
-                <Field label="Sell price (retail)" hint="Selling price in standard retail price list">
+                <Field
+                  label="Sell price (retail)"
+                  hint="Selling price in standard retail price list"
+                >
                   <input
                     name="sell_price"
                     type="number"

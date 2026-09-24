@@ -212,12 +212,17 @@
   }
 
   [data-layout="default-layout"] .pos-catalog {
-    padding: 14px 12px 160px;
+    padding: 14px 12px 170px;
   }
 
   [data-layout="default-layout"] .product-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  [data-layout="default-layout"] .cart-panel:not(.mobile-open) .cart-actions,
+  [data-layout="default-layout"] .cart-panel.mobile-open .cart-actions {
+    display: flex !important;
   }
 }

@@ -4,6 +4,8 @@ package dto
 
 import (
 	"encoding/json"
+	"strconv"
+	"strings"
 	"time"
 
 	"business-central-backend/internal/media"
@@ -157,6 +159,59 @@ type ProductRequest struct {
 	SellPrice       *string                 `json:"sell_price,omitempty"`
 	StandardVariant *StandardVariantRequest `json:"standard_variant,omitempty"`
 }
+
+func parseFlexPrice(v any) *string {
+	if v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case string:
+		trimmed := strings.TrimSpace(val)
+		if trimmed == "" {
+			return nil
+		}
+		return &trimmed
+	case float64:
+		s := strconv.FormatFloat(val, 'f', -1, 64)
+		return &s
+	case float32:
+		s := strconv.FormatFloat(float64(val), 'f', -1, 32)
+		return &s
+	case int:
+		s := strconv.Itoa(val)
+		return &s
+	case int64:
+		s := strconv.FormatInt(val, 10)
+		return &s
+	case json.Number:
+		s := val.String()
+		return &s
+	default:
+		return nil
+	}
+}
+
+func (r *ProductRequest) UnmarshalJSON(data []byte) error {
+	type Alias ProductRequest
+	aux := struct {
+		*Alias
+		OriginalPrice any `json:"original_price"`
+		SellPrice     any `json:"sell_price"`
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.OriginalPrice != nil {
+		r.OriginalPrice = parseFlexPrice(aux.OriginalPrice)
+	}
+	if aux.SellPrice != nil {
+		r.SellPrice = parseFlexPrice(aux.SellPrice)
+	}
+	return nil
+}
+
 type Barcode struct {
 	ID         string `json:"id"`
 	Code       string `json:"code"`
@@ -178,6 +233,28 @@ type StandardVariantRequest struct {
 	OriginalPrice  *string         `json:"original_price,omitempty"`
 	SellPrice      *string         `json:"sell_price,omitempty"`
 }
+
+func (r *StandardVariantRequest) UnmarshalJSON(data []byte) error {
+	type Alias StandardVariantRequest
+	aux := struct {
+		*Alias
+		OriginalPrice any `json:"original_price"`
+		SellPrice     any `json:"sell_price"`
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.OriginalPrice != nil {
+		r.OriginalPrice = parseFlexPrice(aux.OriginalPrice)
+	}
+	if aux.SellPrice != nil {
+		r.SellPrice = parseFlexPrice(aux.SellPrice)
+	}
+	return nil
+}
+
 type VariantRequest struct {
 	SKU            string          `json:"sku"`
 	Barcode        *string         `json:"barcode,omitempty"`

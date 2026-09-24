@@ -327,7 +327,7 @@ func (s *Service) CreateProduct(ctx context.Context, claims *authdto.Claims, r P
 		if standard.SellPrice != nil && strings.TrimSpace(*standard.SellPrice) != "" {
 			sellAmt := strings.TrimSpace(*standard.SellPrice)
 			var priceListID string
-			err = tx.QueryRow(ctx, `SELECT id::text FROM price_lists WHERE merchant_id=$1::uuid AND (code='RETAIL' OR is_default) ORDER BY is_default DESC, created_at ASC LIMIT 1`, claims.MerchantID).Scan(&priceListID)
+			err = tx.QueryRow(ctx, `SELECT id::text FROM price_lists WHERE merchant_id=$1::uuid AND (code='RETAIL' OR is_default) ORDER BY CASE WHEN code='RETAIL' THEN 0 ELSE 1 END, is_default DESC, code ASC LIMIT 1`, claims.MerchantID).Scan(&priceListID)
 			if errors.Is(err, pgx.ErrNoRows) {
 				var curr string
 				_ = tx.QueryRow(ctx, `SELECT default_currency_code FROM merchants WHERE id=$1::uuid`, claims.MerchantID).Scan(&curr)
@@ -436,7 +436,7 @@ func (s *Service) UpdateProduct(ctx context.Context, claims *authdto.Claims, id 
 			trimmed := strings.TrimSpace(*sellPriceInput)
 			if trimmed != "" {
 				var priceListID string
-				err = tx.QueryRow(ctx, `SELECT id::text FROM price_lists WHERE merchant_id=$1::uuid AND (code='RETAIL' OR is_default) ORDER BY is_default DESC, created_at ASC LIMIT 1`, claims.MerchantID).Scan(&priceListID)
+				err = tx.QueryRow(ctx, `SELECT id::text FROM price_lists WHERE merchant_id=$1::uuid AND (code='RETAIL' OR is_default) ORDER BY CASE WHEN code='RETAIL' THEN 0 ELSE 1 END, is_default DESC, code ASC LIMIT 1`, claims.MerchantID).Scan(&priceListID)
 				if errors.Is(err, pgx.ErrNoRows) {
 					var curr string
 					_ = tx.QueryRow(ctx, `SELECT default_currency_code FROM merchants WHERE id=$1::uuid`, claims.MerchantID).Scan(&curr)

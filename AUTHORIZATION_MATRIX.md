@@ -28,9 +28,10 @@ service.manage
 repair.manage
 repair.approve
 reports.read
+ai.chat
 ```
 
-The current portal uses the implemented baseline codes `tenant.read`, `tenant.write`, `membership.manage`, and `rbac.manage`. More granular domain codes remain a future compatibility-preserving extension.
+The current portal uses the implemented baseline codes `tenant.read`, `tenant.write`, `membership.manage`, `rbac.manage`, and `ai.chat`. More granular domain codes remain a future compatibility-preserving extension.
 
 ## Baseline matrix
 
@@ -38,6 +39,10 @@ The current portal uses the implemented baseline codes `tenant.read`, `tenant.wr
 |---|---:|---:|---:|---:|
 | Create/update merchants | Yes | No | No | No |
 | Enable merchant modules | Yes | No | No | No |
+| Enable AI Assistant for merchant (`ai_assistant_enabled`) | Yes | No | No | No |
+| Set/reset merchant AI usage limit (`ai_usage_limit`, `ai_usage_count`) | Yes | No | No | No |
+| Access Nanonux AI Assistant (`ai.chat`) | No | Yes | Configurable through `ai.chat` | Configurable through `ai.chat` (default off) |
+| AI Chat: View profit & original purchase price | No | Yes | Yes (if owner/merchant role) | Strictly Forbidden (deterministic SQL block & prompt scrub) |
 | Manage merchant users | Authorized platform operation | Yes | Configurable | No |
 | Manage products | No | Yes | Configurable | Configurable |
 | Operate POS | No | Yes | Yes | Configurable |
@@ -55,6 +60,8 @@ The current portal uses the implemented baseline codes `tenant.read`, `tenant.wr
 - Module permissions are ineffective when the merchant module is disabled.
 - A user must have an active identity, active membership, and applicable role assignment.
 - Staff memberships require exactly one active `shop_id`; POS, inventory locations/receipts, repairs, invoices, and reports are constrained to that shop by backend queries.
+- AI Assistant enforces strict staff confidentiality boundaries: staff members are never permitted to view, calculate, estimate, or query business profit, margins, original purchase prices, or cost of goods sold. Queries containing disallowed tokens are deterministically blocked by the backend SQL validator before hitting the database, conversational system prompts omit confidential cost schemas, and executed SQL queries are omitted from responses.
+- AI Assistant enforces per-merchant query usage limits (`ai_usage_limit`, default 50). Only platform administrators may configure the limit or reset the count (`ai_usage_count`); tenant users cannot alter their own limit or count. Requests exceeding the limit are blocked with HTTP 403 `AI_USAGE_LIMIT_EXCEEDED`.
 - Customer, delivery-option, and repair-ticket intake edits require the system `owner` or `merchant` role; generic tenant write permission is not sufficient.
 - Merchant and shop settings require `membership.manage`; hiding routes in the portal is not the security boundary.
 - Sensitive operations such as refunds, inventory adjustments, repair approvals, and module changes require audit events.

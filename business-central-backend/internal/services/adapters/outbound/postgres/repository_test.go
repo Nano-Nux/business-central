@@ -457,3 +457,24 @@ func TestFilterNewPresetValues(t *testing.T) {
 		t.Fatalf("expected only 'New Condition', got %#v", newConditions)
 	}
 }
+
+func TestServiceCatalogValidation(t *testing.T) {
+	r := &Repository{}
+	ctx := context.Background()
+	claims := &authdto.Claims{MerchantID: "00000000-0000-0000-0000-000000000001"}
+
+	// Missing Name should fail
+	_, err := r.CreateServiceCatalog(ctx, claims, servicedto.ServiceDefinitionRequest{
+		Name: "",
+	})
+	if err == nil {
+		t.Fatal("expected error when Name is empty in CreateServiceCatalog")
+	}
+
+	_, err = r.UpdateServiceCatalog(ctx, claims, "some-id", servicedto.ServiceDefinitionRequest{
+		Name: "",
+	})
+	if err == nil {
+		t.Fatal("expected error when Name is empty in UpdateServiceCatalog")
+	}
+}

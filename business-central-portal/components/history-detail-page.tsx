@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { formatMoney, formatQuantity } from "@/lib/currency";
 import { formatShopDateTime } from "@/lib/date-time";
+import { useAuth } from "@/lib/auth";
 import { useShop } from "@/lib/shop";
 import type { StockMovementDetail, TransactionHistoryDetail } from "@/lib/types";
 import { useCachedQuery } from "@/lib/use-cached-query";
 import { EmptyState, Loading, PageHeader, StatusBadge } from "./ui";
 
 export function TransactionDetailPage({ id }: { id: string }) {
+  const { isMerchant } = useAuth();
   const { currentShop } = useShop();
   const {
     data: detail,
@@ -18,6 +20,15 @@ export function TransactionDetailPage({ id }: { id: string }) {
     `/transaction-history/${id}`,
     `transaction-history-detail:${id}`,
   );
+
+  if (!isMerchant) {
+    return (
+      <EmptyState
+        title="Access restricted"
+        message="Only merchant administrators can view complete financial and FIFO cost details."
+      />
+    );
+  }
 
   if (loading) return <Loading />;
   if (error || !detail)
@@ -283,6 +294,7 @@ export function TransactionDetailPage({ id }: { id: string }) {
 }
 
 export function MovementDetailPage({ id }: { id: string }) {
+  const { isMerchant } = useAuth();
   const { currentShop } = useShop();
   const {
     data: detail,
@@ -292,6 +304,16 @@ export function MovementDetailPage({ id }: { id: string }) {
     `/inventory/movements/${id}`,
     `stock-movement-detail:${id}`,
   );
+
+  if (!isMerchant) {
+    return (
+      <EmptyState
+        title="Access restricted"
+        message="Only merchant administrators can view stock movement cost allocations and ledger details."
+      />
+    );
+  }
+
   if (loading) return <Loading />;
   if (error || !detail)
     return (

@@ -28,7 +28,7 @@ import {
 
 type Service = {
   id: string;
-  code: string;
+  code?: string;
   name: string;
   description?: string;
   labor_fee: string;
@@ -48,7 +48,7 @@ export function RepairCatalogPage() {
       services.data
         .filter(
           (item) =>
-            `${item.name} ${item.code} ${item.description ?? ""}`
+            `${item.name} ${item.code ?? ""} ${item.description ?? ""}`
               .toLowerCase()
               .includes(query.toLowerCase()) &&
             (filter === "ALL" || (filter === "ACTIVE" ? item.is_active : !item.is_active)),
@@ -71,13 +71,26 @@ export function RepairCatalogPage() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
-    const data = {
-      code: String(values.get("code")),
+    const codeValue = values.get("code");
+    const code =
+      codeValue !== null
+        ? String(codeValue).trim()
+        : (editing?.code ? String(editing.code).trim() : "");
+    const data: {
+      code?: string;
+      name: string;
+      description?: string;
+      labor_fee: string;
+      is_active: boolean;
+    } = {
       name: String(values.get("name")),
       description: String(values.get("description") || "") || undefined,
       labor_fee: String(values.get("labor_fee") || "0"),
       is_active: values.get("active") === "on",
     };
+    if (code) {
+      data.code = code;
+    }
     try {
       if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
         throw new Error("Offline storage is required to save repair services while disconnected.");
@@ -203,7 +216,7 @@ export function RepairCatalogPage() {
                     <br />
                     <small>{item.description}</small>
                   </td>
-                  <td>{item.code}</td>
+                  <td>{item.code || "—"}</td>
                   <td>{item.labor_fee}</td>
                   <td>
                     <StatusBadge status={item.is_active ? "ACTIVE" : "INACTIVE"} />
@@ -248,9 +261,11 @@ export function RepairCatalogPage() {
         description="Catalogs are shared by the merchant; use a shop-specific price list when shops need different fees."
       >
         <Form onSubmit={save}>
-          <Field label="Code">
-            <input name="code" required defaultValue={editing?.code} />
-          </Field>
+          {!mini && (
+            <Field label="Code">
+              <input name="code" defaultValue={editing?.code} placeholder="Optional service code" />
+            </Field>
+          )}
           <Field label="Service name">
             <input name="name" required defaultValue={editing?.name} />
           </Field>

@@ -2790,7 +2790,7 @@ components:
             $ref: '#/components/schemas/UUID'
     Merchant:
       type: object
-      required: [id, name, slug, default_currency_code, pos_complexity_level, is_active, created_at, updated_at]
+      required: [id, name, slug, default_currency_code, pos_complexity_level, business_central_pricing_model, is_active, created_at, updated_at]
       properties:
         id:
           $ref: '#/components/schemas/UUID'
@@ -2811,6 +2811,10 @@ components:
         pos_complexity_level:
           type: string
           enum: [SIMPLE, COMPLEX, MINI]
+        business_central_pricing_model:
+          type: string
+          enum: [starter, growth, professional, enterprise]
+          default: starter
         is_active:
           type: boolean
         created_at:
@@ -2837,6 +2841,10 @@ components:
           type: string
           enum: [SIMPLE, COMPLEX, MINI]
           default: SIMPLE
+        business_central_pricing_model:
+          type: string
+          enum: [starter, growth, professional, enterprise]
+          default: starter
     CreateMerchantUserRequest:
       type: object
       required: [merchant_name, merchant_slug, default_currency_code, email, password, display_name]
@@ -2859,6 +2867,10 @@ components:
           type: string
           enum: [SIMPLE, COMPLEX, MINI]
           default: SIMPLE
+        business_central_pricing_model:
+          type: string
+          enum: [starter, growth, professional, enterprise]
+          default: starter
         email:
           type: string
           format: email
@@ -2942,6 +2954,9 @@ components:
         pos_complexity_level:
           type: string
           enum: [SIMPLE, COMPLEX, MINI]
+        business_central_pricing_model:
+          type: string
+          enum: [starter, growth, professional, enterprise]
         is_active:
           type: boolean
     UpdateUserRequest:

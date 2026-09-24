@@ -53,8 +53,10 @@ class NativeScannerBridge {
     final runJavaScript = _runJavaScript;
     if (requestId.isEmpty || runJavaScript == null) return;
     await runJavaScript(
+      'if (window.__businessCentralNativeScannerResolve) { '
       'window.__businessCentralNativeScannerResolve('
-      '${jsonEncode(requestId)}, ${jsonEncode(result)}, ${jsonEncode(error)});',
+      '${jsonEncode(requestId)}, ${jsonEncode(result)}, ${jsonEncode(error)}); '
+      '}',
     );
   }
 

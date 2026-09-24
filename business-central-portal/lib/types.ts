@@ -210,7 +210,43 @@ export type Merchant = {
   default_currency_code: string;
   country_code?: string;
   pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
+  business_central_pricing_model?: "starter" | "growth" | "professional" | "enterprise";
+  ai_assistant_enabled?: boolean;
+  ai_usage_limit?: number;
+  ai_usage_count?: number;
   is_active: boolean;
+};
+
+export type AIUsage = {
+  usage_count: number;
+  usage_limit: number;
+  remaining: number;
+  is_limit_reached: boolean;
+};
+
+export type AIConversation = {
+  id: string;
+  merchant_id: string;
+  membership_id: string;
+  shop_id?: string | null;
+  shop_name?: string | null;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+
+export type AIMessage = {
+  id: string;
+  conversation_id: string;
+  merchant_id: string;
+  membership_id: string;
+  sender_type: "USER" | "ASSISTANT" | "SYSTEM";
+  content: string;
+  raw_query_data?: {
+    row_count?: number;
+  };
+  created_at: string;
 };
 export type Currency = {
   code: string;

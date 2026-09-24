@@ -39,18 +39,36 @@ export type User = {
   created_at: string;
   updated_at: string;
 };
+export type BusinessCentralPricingModel =
+  | "starter"
+  | "growth"
+  | "professional"
+  | "enterprise";
 export type Merchant = {
   id: string;
   name: string;
   slug: string;
   legal_name?: string;
   default_currency_code: string;
-  timezone: string;
+  timezone?: string;
   country_code?: string;
   pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
+  business_central_pricing_model: BusinessCentralPricingModel;
+  ai_assistant_enabled?: boolean;
+  ai_usage_limit?: number;
+  ai_usage_count?: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+};
+export type MerchantBackup = {
+  id: string;
+  merchant_id: string;
+  device_id: string;
+  file_path: string;
+  file_size_bytes: number;
+  sha256_checksum: string;
+  created_at: string;
 };
 export type MerchantUserProvisioning = {
   merchant: Merchant;
@@ -133,10 +151,14 @@ export const updateMerchant = (
   merchantID: string,
   data: {
     pos_complexity_level?: "SIMPLE" | "COMPLEX" | "MINI";
+    business_central_pricing_model?: BusinessCentralPricingModel;
     default_currency_code?: string;
     name?: string;
     legal_name?: string | null;
     country_code?: string | null;
+    ai_assistant_enabled?: boolean;
+    ai_usage_limit?: number;
+    ai_usage_count?: number;
     is_active?: boolean;
   },
 ) =>
@@ -178,6 +200,7 @@ export const createMerchantUser = (
     default_currency_code: string;
     merchant_country_code?: string;
     pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
+    business_central_pricing_model?: BusinessCentralPricingModel;
     email: string;
     password: string;
     display_name: string;
@@ -312,6 +335,18 @@ export const updateShop = (
   );
 export const deleteShop = (token: string, merchantID: string, shopID: string) =>
   request<void>(`/shops/${shopID}`, { method: "DELETE" }, token, merchantID);
+
+export const listMerchantBackups = (token: string, merchantID: string) =>
+  request<{ data: MerchantBackup[] }>(
+    `/merchants/${merchantID}/backups`,
+    {},
+    token,
+    merchantID,
+  );
+
+export const getBackupDownloadUrl = (merchantID: string, backupID: string) =>
+  `${baseURL}/merchants/${merchantID}/backups/${backupID}/download`;
+
 export async function backendHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${baseURL.replace(/\/api\/v1$/, "")}/health`);
@@ -320,3 +355,45 @@ export async function backendHealth(): Promise<boolean> {
     return false;
   }
 }
+
+export type AIDeletionLog = {
+  id: string;
+  deleted_by_identity_id?: string;
+  deleted_by_email: string;
+  deleted_by_name: string;
+  deleted_at: string;
+  messages_count: number;
+  conversations_count: number;
+  created_at: string;
+};
+
+export type AIAdminStats = {
+  total_messages: number;
+  total_conversations: number;
+  total_merchants_with_ai: number;
+  last_deletion?: AIDeletionLog | null;
+};
+
+export type AIPurgeResult = {
+  deleted_messages: number;
+  deleted_conversations: number;
+  log: AIDeletionLog;
+};
+
+export const getAIAdminStats = (token: string) =>
+  request<{ data: AIAdminStats }>("/admin/ai/stats", {}, token).then((r) => r.data);
+
+export const purgeAIChatMessages = (token: string) =>
+  request<{ data: AIPurgeResult }>(
+    "/admin/ai/purge",
+    { method: "POST" },
+    token,
+  ).then((r) => r.data);
+
+export const listAIDeletionLogs = (token: string, limit: number = 50) =>
+  request<{ data: AIDeletionLog[]; meta: { total: number } }>(
+    `/admin/ai/deletion-logs?limit=${limit}`,
+    {},
+    token,
+  ).then((r) => r.data);
+
