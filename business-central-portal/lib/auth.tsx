@@ -12,6 +12,7 @@ import {
   putCachedEntity,
   quarantineOfflineScope,
 } from "./offline-db";
+import { nativeStorageBridge } from "./theme-storage";
 
 export class PendingOfflineChangesError extends Error {
   constructor(public count: number) {
@@ -157,7 +158,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => {
-    if (session) localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    if (session) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      const bridge = nativeStorageBridge();
+      if (bridge) {
+        if (session.access_token) {
+          void bridge.set("bc.access_token", session.access_token);
+        }
+        if (session.user?.merchant_id) {
+          void bridge.set("bc.merchant_id", session.user.merchant_id);
+        }
+      }
+    }
   }, [session]);
 
   const login = useCallback(async (email: string, password: string, merchantId?: string) => {
@@ -178,6 +190,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setMerchantLoadedFor("");
     setSession(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const bridge = nativeStorageBridge();
+    if (bridge) {
+      if (next.access_token) {
+        void bridge.set("bc.access_token", next.access_token);
+      }
+      if (next.user?.merchant_id) {
+        void bridge.set("bc.merchant_id", next.user.merchant_id);
+      }
+    }
     return next.user;
   }, []);
 
@@ -205,6 +226,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (scope) await clearOfflineScope(scope).catch(() => undefined);
       localStorage.removeItem(STORAGE_KEY);
+      const bridge = nativeStorageBridge();
+      if (bridge) {
+        void bridge.remove("bc.access_token");
+      }
       setMerchant(null);
       setMerchantLoadedFor("");
       setSession(null);
@@ -214,7 +239,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<AuthValue>(() => {
-    const permissions = new Set(session?.user?.roles?.flatMap((role) => role.permission_codes ?? []) ?? []);
+    const permissions = new Set(
+      session?.user?.roles?.flatMap((role) => role.permission_codes ?? []) ?? [],
+    );
     const codes = session?.user?.roles?.map((role) => role.code?.toUpperCase() ?? "") ?? [];
     const isMerchant = codes.some((role) => role === "OWNER" || role === "MERCHANT");
     const merchantScope = session?.user?.merchant_id

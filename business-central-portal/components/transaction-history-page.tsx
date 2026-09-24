@@ -14,11 +14,6 @@ import type { TransactionHistoryEntry } from "@/lib/types";
 const eventLabels: Record<string, string> = {
   TRANSACTION: "Transaction",
   REFUND: "Refund",
-  STOCK_IN: "Stock in",
-  STOCK_OUT: "Stock out",
-  STOCK_RETURN: "Stock return",
-  STOCK_TRANSFER: "Stock transfer",
-  STOCK_ADJUSTMENT: "Stock adjustment",
   REPAIR_CHECKOUT: "Repair checkout",
 };
 
@@ -32,7 +27,6 @@ function filterDate(range: string) {
 }
 
 function eventIcon(eventType: string) {
-  if (eventType.startsWith("STOCK")) return "package" as const;
   if (eventType === "REPAIR_CHECKOUT") return "repair" as const;
   if (eventType === "REFUND") return "swap" as const;
   return "receipt" as const;
@@ -66,28 +60,35 @@ export function TransactionHistoryPage() {
   }, [eventType, pageIndex, range, search, shopId]);
   const cacheKey = `transaction-history:${shopId ?? "none"}:${range}:${eventType}:${search.trim()}:${pageIndex}`;
   const { data, loading, error, meta } = useResource<TransactionHistoryEntry>(path, cacheKey);
+  const filteredData = useMemo(
+    () =>
+      data.filter(
+        (item) => !item.event_type.startsWith("STOCK") && item.status !== "SALE",
+      ),
+    [data],
+  );
   const currency = merchant?.default_currency_code;
   const sortedData = useMemo(
     () =>
-      [...data].sort((a, b) => {
+      [...filteredData].sort((a, b) => {
         if (sort === "occurred_at:asc")
           return new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime();
         if (sort === "event_type:asc") return a.event_type.localeCompare(b.event_type);
         if (sort === "reference:asc") return a.reference.localeCompare(b.reference);
         return new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime();
       }),
-    [data, sort],
+    [filteredData, sort],
   );
-  const transactionCount = data.filter((item) => item.event_type === "TRANSACTION").length;
-  const stockCount = data.filter((item) => item.event_type.startsWith("STOCK")).length;
-  const repairCount = data.filter((item) => item.event_type === "REPAIR_CHECKOUT").length;
+  const transactionCount = filteredData.filter((item) => item.event_type === "TRANSACTION").length;
+  const refundCount = filteredData.filter((item) => item.event_type === "REFUND").length;
+  const repairCount = filteredData.filter((item) => item.event_type === "REPAIR_CHECKOUT").length;
 
   return (
     <>
       <PageHeader
         eyebrow="Operations · Audit history"
         title="Transaction history"
-        description="One chronological view of stock activity, sales, refunds and repair checkout payments."
+        description="One chronological view of sales, refunds and repair checkout payments."
         action={
           <Button variant="secondary" onClick={() => window.print()}>
             Print view
@@ -111,7 +112,7 @@ export function TransactionHistoryPage() {
               </span>
               <div>
                 <p>Records in view</p>
-                <strong>{data.length}</strong>
+                <strong>{filteredData.length}</strong>
                 <small>Latest operational events</small>
               </div>
             </article>
@@ -127,12 +128,12 @@ export function TransactionHistoryPage() {
             </article>
             <article className="stat-card">
               <span className="stat-icon amber">
-                <Icon name="package" />
+                <Icon name="swap" />
               </span>
               <div>
-                <p>Stock events</p>
-                <strong>{stockCount}</strong>
-                <small>In, out, return and adjustment</small>
+                <p>Refunds</p>
+                <strong>{refundCount}</strong>
+                <small>Customer refunds issued</small>
               </div>
             </article>
             <article className="stat-card">
@@ -171,8 +172,6 @@ export function TransactionHistoryPage() {
               <option value="">All activity</option>
               <option value="TRANSACTION">Transactions</option>
               <option value="REFUND">Refunds</option>
-              <option value="STOCK_IN">Stock in</option>
-              <option value="STOCK_OUT">Stock out</option>
               <option value="REPAIR_CHECKOUT">Repair checkout</option>
             </select>
             <select
@@ -210,11 +209,11 @@ export function TransactionHistoryPage() {
               <Loading />
             ) : error ? (
               <EmptyState title="Transaction history could not load" message={error} />
-            ) : data.length === 0 ? (
+            ) : filteredData.length === 0 ? (
               <EmptyState
                 icon="history"
                 title="No activity matches these filters"
-                message="Stock events, sales, refunds and repair checkout payments will appear here."
+                message="Sales, refunds and repair checkout payments will appear here."
               />
             ) : (
               <table className="data-table history-table">
@@ -258,7 +257,7 @@ export function TransactionHistoryPage() {
                         <td>
                           <div className="cell-main">
                             <strong>{item.customer_name || "Walk-in / not recorded"}</strong>
-                            <small>{item.customer_phone || item.details || "—"}</small>
+                            <small>{item.customer_phone || "No phone recorded"}</small>
                           </div>
                         </td>
                         <td>
@@ -271,20 +270,22 @@ export function TransactionHistoryPage() {
                         <td>
                           <div className="cell-main history-value-cell">
                             <strong>{amountLabel}</strong>
-                            {item.event_type.startsWith("STOCK") && item.amount && (
-                              <small>
-                                {item.event_type === "STOCK_OUT" ? "COGS" : "Unit cost"}
-                              </small>
-                            )}
                           </div>
                         </td>
                         <td>
-                          <StatusBadge status={item.status} />
-                          {isMerchant && (
-                            <Link className="text-link" href={`/transaction-history/${item.id}`}>
-                              View detail
-                            </Link>
-                          )}
+                          <div className="history-status-cell">
+                            <StatusBadge status={item.status} />
+                            {isMerchant && (
+                              <Link
+                                className="history-detail-btn"
+                                href={`/transaction-history/${item.id}`}
+                                aria-label={`View detail for ${item.reference}`}
+                              >
+                                <Icon name="eye" size={13} />
+                                <span>View detail</span>
+                              </Link>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -296,7 +297,7 @@ export function TransactionHistoryPage() {
           <Pagination
             pageIndex={pageIndex}
             pageSize={meta?.page_size ?? 10}
-            totalItems={meta?.total ?? data.length}
+            totalItems={meta?.total ?? filteredData.length}
             totalPages={meta?.total_pages ?? 1}
             itemLabel="records"
             onPageChange={setPageIndex}

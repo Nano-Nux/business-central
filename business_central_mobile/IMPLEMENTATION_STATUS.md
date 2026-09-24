@@ -1,11 +1,17 @@
 # Mobile Implementation Status
 
-Last reviewed: 2026-08-15
+Last reviewed: 2026-09-23
 
 ## Current state
 
 - Flutter project structure and platform runners exist.
-- Portal WebView mode injects native scanner, printer, and refresh bridges. Camera barcode/IMEI/serial capture uses a fullscreen `mobile_scanner` route even when the portal is served over local HTTP, keyboard/HID scanners continue through focused text input, and Bluetooth thermal operations use native permission, discovery, connection, and ESC/POS transport. A deliberate top-of-page downward pull displays pull/release feedback and reloads once, with duplicate requests suppressed until navigation completes. Transient startup main-frame failures use bounded automatic reload backoff before presenting an error, allowing the persisted portal service worker to recover after an offline process restart. WebView platform permission requests grant camera only and deny unrelated resources.
+- Portal WebView mode embeds the latest Next.js 16 `business-central-portal` web application inside a hardened WebView shell backed by Drift SQLite (`app.db`) and robust JavaScript channels (`BusinessCentralDatabaseChannel`, `BusinessCentralStorageChannel`, `BusinessCentralPrinterChannel`, `BusinessCentralScannerChannel`, `BusinessCentralRefreshChannel`, `NativeFileSelectorBridge`).
+- Bridge scripts are injected on both `onPageStarted` and `onPageFinished` with chained callback resolver preservation (`prevResolver`), preventing race conditions during React hydration and eliminating dropped JavaScript bridge resolutions.
+- JavaScript channel safety checks prevent uncaught exceptions if resolvers are invoked before registration.
+- Local Drift SQLite database bridge (`NativeDatabaseBridge`) supports full canonical catalog operations (`getProducts`, `saveProduct`, `deleteProduct`), canonical customer upserts (`getCustomers`, `saveCustomer`) with idempotent record updates preserving UUID keys and timestamps, atomic POS checkout (`checkout`) with line-scoped inventory movement keys preventing collisions on multi-line same-variant purchases, provisional ID fallback, order lookup (`getOrder`, `getOrders`), setting persistence with bidirectional companion key synchronization (`bc.theme` $\leftrightarrow$ `theme`, `bc.layout` $\leftrightarrow$ `layout`), and raw SQL queries.
+- Authentication synchronization bridges `bc.access_token` and `bc.merchant_id` from portal sessions into device storage and immediately triggers the `SilentLicenseValidator` heartbeat.
+- Local static asset shelf server in `PortalBundleManager` supports WebP, WOFF, WOFF2, TTF, and WebAssembly MIME types for embedded portal bundles.
+- Platform runners gracefully fall back from `.env` to `.env.example` if no custom `.env` is present.
 - Riverpod and dotenv bootstrap are implemented.
 - Runtime configuration accepts case-insensitive `ONLINE`, `OFFLINE`, and `FULLY_OFFLINE` values and fails closed for missing/invalid modes.
 - `FULLY_OFFLINE` omits the backend URI and injects a network-denying client; production ONLINE HTTP URLs are rejected.
@@ -40,7 +46,6 @@ Last reviewed: 2026-08-15
 - The native Services destination is module- and permission-gated, lists the merchant service catalog, creates/removes service definitions, lists only the selected shop's service orders, creates service orders, reads/adds service-order items, and reads/adds appointments, notes, and billing records. Repository/controller contracts pair service catalog/order/item/appointment/billing updates and deletes to backend routes, while FULLY_OFFLINE uses the same typed workflow against durable merchant/shop-scoped local service records; local billing is standalone and does not capture external payments.
 - ONLINE temporary-offline shop settings, repair-ticket CREATE, and supported repair-child CREATE operations commit local projections and queue rows with payload hashes. Riverpod starts a reconnect worker that performs the backend handshake, uploads dependency-ready rows in parent-before-child order, records accepted/rejected/conflicted outcomes, applies server settings and repair ticket/child projections, and advances a durable merchant checkpoint after transactionally applying pull pages. The settings screen surfaces queued rejection/conflict counts.
 - `ExactMoney` represents decimal amounts with `BigInt` minor units and is covered by parsing/arithmetic tests.
-- Dashboard summary and sales-by-day reads, workspace cache hydration, authenticated transport, guarded navigation, reports, transaction history, ONLINE catalog/measurement administration/pricing/POS refunds, FULLY_OFFLINE local catalog/measurement/pricing/delivery/settings/staff CRUD/POS checkout/refund/inventory FIFO ledger/invoice/report/dashboard/customer/history/service/repair projections, append-only audit events, checksum-validated backup/restore, password-protected encrypted backup envelopes, delivery, invoice PDF/print/share, local Bluetooth ESC/POS thermal profiles/output, customer, repair intake/follow-up including parts/images/approvals/warranties/refunds, repair invoice projection, used repair-part FIFO costing, refund-adjusted local reports/history, services including update/delete contracts, settings, promotions schedules/codes/scopes, local repair specifications, and selected-shop settings synchronization are evidenced by implementation and tests; repeatable repair-ticket aggregate creation now has a reconnect queue policy with server-authoritative totals and field/work-item projection pull, while dependency-ordered repair child creates/reconciliation, local work-item scope validation, local/server identity mapping, local permission-definition creation, and broader catalog operations remain pending.
 
 ## Next implementation increments
 
@@ -52,15 +57,14 @@ Last reviewed: 2026-08-15
 
 ## Evidence for the current increment
 
-- `flutter analyze` passes.
-- `flutter test` passes 119 tests covering configuration, WebView scanner and pull-to-refresh bridge dispatch/duplicate suppression, native printer discovery/connection/byte transport and cleanup, network boundaries, auth, tenant/shop scope, catalog/location cache, ONLINE catalog/measurement administration/pricing, FULLY_OFFLINE catalog/measurement/pricing/delivery/settings/staff CRUD and role/module authorization, POS checkout/payment/refund/inventory FIFO ledger, exact local tax and promotion eligibility/redemption, repair-part promotion application, explicit standalone service-promotion rejection, invoice/report/dashboard/customer/history/service/repair projections and backup/restore, append-only audit scope/events, printer profile scope/settings, local repair specifications, payload-preserving canonical records, password-protected encrypted backups, native SQLite encryption, variants, exact money, schema metadata, shell gating, POS quote/checkout, backend promotion schedules/codes/scopes, reports with refund-adjusted local profit, transaction history including repair refunds, delivery, invoice PDF output, customer, repeatable repair work-item intake/read projections including multiple issues and optional conditions, repair follow-up including parts/images/approvals/warranties/refunds and used-part FIFO effects, services including appointments/notes/billing/update/delete, inventory stock-in/movement detail/FIFO allocations, settings contracts, and durable sync queue behavior.
-- `dart format lib test` completes cleanly.
-- `business_central_mobile/.env.example` documents emulator and physical-device backend URL overrides.
-- `dart run build_runner build` generates the Drift database adapter.
-- `flutter pub get` resolves the Riverpod, Dio, Drift, secure-storage, cryptography, UUID, file-selector, and share-plus dependencies; Windows plugin symlink creation still requires Developer Mode, so the command exits non-zero in this environment after updating the lockfile.
-- `flutter build web --no-pub` succeeds. Flutter reports only the existing `flutter_secure_storage_web` WebAssembly dry-run incompatibility; the JavaScript web build is complete.
-- `flutter build apk --debug` succeeds and produces `build/app/outputs/flutter-apk/app-debug.apk`; real-device camera, HID scanner, and representative BLE/Classic ESC/POS printer checks remain required before release.
+- `flutter analyze` passes with 0 issues.
+- `flutter test` passes 63 unit/widget tests covering configuration, bundle manager static asset serving, silent license validator lockdown/unlock, SQLite schema migrations, encrypted backups, local audit logging, network boundaries, native printer/scanner/refresh/file-selector bridges, navigation policies, and native database channel operations (settings, products, customers, atomic checkout with inventory deductions, deleteProduct, getOrder).
+- `dart format --output=none --set-exit-if-changed lib test` reports 0 changed files.
+- `npm test` in `business-central-portal` passes all 171 unit tests (39 test suites) covering native database bridge dispatch, timeouts, error propagation, resolver chaining, and offline storage.
+- `npx tsc --noEmit` in `business-central-portal` passes with 0 errors.
+- `npx prettier --check` across portal bridge files passes with 0 style issues.
 
 ## Offline record requirements
 
 For each feature, record supported local tables, read/write behavior, whether it works in `ONLINE` temporary-offline mode or `FULLY_OFFLINE` mode, queued operation types, conflict policy, retry behavior, and the matching portal workflow.
+

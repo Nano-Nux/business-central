@@ -29,6 +29,28 @@
     margin: 0 auto;
   }
 
+  [data-layout="default-layout"] .main-area:has(.nanonux-ai-workspace),
+  [data-layout="default-layout"] .main-area.main-area-ai {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  [data-layout="default-layout"] .content:has(.nanonux-ai-workspace),
+  [data-layout="default-layout"] .content.content-ai {
+    padding: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
   [data-layout="default-layout"] .topbar {
     height: 66px;
     padding: 0 clamp(22px, 3vw, 42px);

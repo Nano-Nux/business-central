@@ -25,4 +25,11 @@ Public visitors ── business-central-public-facing
 - The backend is authoritative for permissions, module enablement, validation, state transitions, and persistent data.
 - In `ONLINE` mode, mobile communicates with the backend and can temporarily use local SQLite while disconnected; synchronization reconciles local changes after connectivity returns.
 - In `FULLY_OFFLINE` mode, selected by mobile `.env`, mobile has no backend connection or synchronization path and operates only on local SQLite.
+- When embedded in mobile WebView mode (Option A), the Portal UI connects via `window.BusinessCentralDatabaseChannel` (JavaScript Bridge) to native Drift SQLite (`app.db`), retaining identical UI/UX workflows without requiring mobile-specific PIN entry screens.
+- Mobile offline-first architecture operates with exactly 3 internet-only touchpoints:
+  1. Activation / Heartbeat: `GET /api/v1/merchants/me/status` silently validates status and remotely locks the mobile app if the merchant is suspended in Admin.
+  2. OTA Bundle Updater: `GET /api/v1/portal-bundle/version` checks for new versions and serves local assets via embedded loopback server.
+  3. Disaster Recovery Backup: `POST /api/v1/merchants/:id/backups` and `GET /api/v1/merchants/:id/backups/latest` for off-site cloud storage and restore.
+- All core business operations (catalog, customers, inventory, checkout, invoices, printing, scanning) execute 100% locally offline.
+- Nanonux AI Assistant (`/api/v1/ai`): Online-only conversational and business analytics service utilizing Gemini tool calling against merchant database scopes via read-only transactions, returning humanized HTML responses. Gated by Admin merchant enablement (`ai_assistant_enabled`), merchant query usage limits (`ai_usage_limit`, default 50, with admin controls and portal quota monitoring), and user-level role permission (`ai.chat`).
 - Portal and mobile should be designed from the same workflow specification and acceptance criteria.

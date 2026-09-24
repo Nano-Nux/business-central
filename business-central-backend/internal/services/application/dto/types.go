@@ -31,7 +31,7 @@ type ServiceDefinition struct {
 
 type ServiceDefinitionRequest struct {
 	CategoryID      *string `json:"category_id,omitempty"`
-	Code            string  `json:"code"`
+	Code            *string `json:"code,omitempty"`
 	Name            string  `json:"name"`
 	Description     *string `json:"description,omitempty"`
 	DurationMinutes *int    `json:"duration_minutes,omitempty"`

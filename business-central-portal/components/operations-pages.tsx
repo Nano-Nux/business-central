@@ -1049,9 +1049,17 @@ export function MovementsPage() {
                   )}
                   <td>
                     <code>{item.event_key}</code>
-                    <Link className="text-link" href={`/stock-movements/${item.id}`}>
-                      {t("common.details")}
-                    </Link>
+                    {isMerchant && (
+                      <Link
+                        className="history-detail-btn"
+                        href={`/stock-movements/${item.id}`}
+                        style={{ marginLeft: "8px" }}
+                        aria-label={`View detail for ${item.event_key}`}
+                      >
+                        <Icon name="eye" size={13} />
+                        <span>{t("common.details")}</span>
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1113,6 +1121,39 @@ export function AccountsPage() {
     } catch (err) {
       setPermissionError(
         err instanceof Error ? err.message : "Failed to update staff stock-in permission.",
+      );
+    } finally {
+      setPermissionBusy(false);
+    }
+  }
+
+  const isAiChatAllowed = Boolean(staffRole?.permission_codes?.includes("ai.chat"));
+
+  async function handleToggleAiChat(checked: boolean) {
+    if (!isMerchant) return;
+    if (!staffRole) {
+      setPermissionError("Staff role could not be loaded for this merchant.");
+      return;
+    }
+    if (offline.status === "offline") {
+      setPermissionError("Role permission changes require an active connection.");
+      return;
+    }
+    setPermissionBusy(true);
+    setPermissionError("");
+    try {
+      const existingCodes = staffRole.permission_codes || [];
+      const updatedCodes = checked
+        ? Array.from(new Set([...existingCodes, "ai.chat"]))
+        : existingCodes.filter((code) => code !== "ai.chat");
+
+      await patch(`/roles/${staffRole.id}`, {
+        permission_codes: updatedCodes,
+      });
+      await roles.reload();
+    } catch (err) {
+      setPermissionError(
+        err instanceof Error ? err.message : "Failed to update staff AI assistant permission.",
       );
     } finally {
       setPermissionBusy(false);
@@ -1278,6 +1319,54 @@ export function AccountsPage() {
                   : isStockInAllowed
                     ? t("accounts.stock_in_enabled")
                     : t("accounts.stock_in_disabled")}
+              </Badge>
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+              paddingTop: 12,
+              marginTop: 12,
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <label
+              className="check-field switch-field"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                cursor: isMerchant ? "pointer" : "default",
+              }}
+            >
+              <input
+                type="checkbox"
+                role="switch"
+                checked={isAiChatAllowed}
+                disabled={!isMerchant || offline.status === "offline" || permissionBusy || roles.loading}
+                onChange={(event) => handleToggleAiChat(event.target.checked)}
+                aria-label={t("accounts.staff_ai_chat_permission", "Staff Nanonux AI Permission")}
+              />
+              <span>
+                <strong style={{ fontSize: 13, fontWeight: 600 }}>
+                  {t("accounts.staff_ai_chat_permission", "Staff Nanonux AI Permission")}
+                </strong>
+                <small style={{ fontSize: 11, color: "var(--muted)" }}>
+                  {t("accounts.staff_ai_chat_desc", "Allow staff to access Nanonux AI Assistant for operational queries and inventory analysis.")}
+                </small>
+              </span>
+            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Badge tone={isAiChatAllowed ? "success" : "neutral"}>
+                {permissionBusy
+                  ? t("common.loading", "Loading…")
+                  : isAiChatAllowed
+                    ? t("accounts.ai_chat_enabled", "AI Allowed")
+                    : t("accounts.ai_chat_disabled", "AI Off")}
               </Badge>
             </div>
           </div>

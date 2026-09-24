@@ -6,8 +6,14 @@ import (
 	"time"
 
 	httpadapter "business-central-backend/internal/adapters/inbound/http"
+	aigemini "business-central-backend/internal/ai/adapters/outbound/gemini"
+	aipostgres "business-central-backend/internal/ai/adapters/outbound/postgres"
+	aiapp "business-central-backend/internal/ai/application"
 	authpostgres "business-central-backend/internal/auth/adapters/outbound/postgres"
 	authapp "business-central-backend/internal/auth/application"
+	backuppostgres "business-central-backend/internal/backup/adapters/outbound/postgres"
+	backupstorage "business-central-backend/internal/backup/adapters/outbound/storage"
+	backupapp "business-central-backend/internal/backup/application"
 	catalogpostgres "business-central-backend/internal/catalog/adapters/outbound/postgres"
 	catalogseaweedfs "business-central-backend/internal/catalog/adapters/outbound/seaweedfs"
 	catalogapp "business-central-backend/internal/catalog/application"
@@ -74,8 +80,26 @@ func main() {
 		log.Printf("platform admin bootstrap ready for %s", cfg.PlatformAdminEmail)
 	}
 	imageStorage := catalogseaweedfs.New(cfg.SeaweedFSFilerURL, cfg.SeaweedFSFilerAuthorization)
+	backupsStorage, err := backupstorage.NewFileSystemStorage("./data/backups")
+	if err != nil {
+		log.Fatal(err)
+	}
+	backupService := backupapp.NewService(backuppostgres.NewRepository(pool), backupsStorage)
+
+	aiLLMClient := aigemini.NewClient(aigemini.Config{
+		APIKey:                       cfg.GeminiAPIKey,
+		QueryGenerateAIModel:        cfg.QueryGenerateAIModel,
+		QueryGenerateAIModelFallback: cfg.QueryGenerateAIModelFallback,
+		HumanizerAIModel:            cfg.HumanizerAIModel,
+		HumanizerAIModelFallback:    cfg.HumanizerAIModelFallback,
+	})
+	aiService := aiapp.NewService(aipostgres.NewRepository(pool), aiLLMClient, authapp.NewService(authService))
+
 	api := httpadapter.New(pool, httpadapter.Dependencies{
+		AI:              aiService,
 		Authentication:  authapp.NewService(authService),
+		Backup:          backupService,
+		BundlesDir:      "./data/bundles",
 		Catalog:         catalogapp.NewService(catalogpostgres.NewRepository(pool), imageStorage),
 		Media:           media.NewService(imageStorage),
 		POS:             posapp.NewService(pospostgres.NewRepository(pool)),

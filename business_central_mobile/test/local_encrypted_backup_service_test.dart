@@ -6,24 +6,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:business_central_mobile/core/database/app_database.dart';
 import 'package:business_central_mobile/core/database/local_backup_service.dart';
 import 'package:business_central_mobile/core/database/local_encrypted_backup_service.dart';
-import 'package:business_central_mobile/features/auth/domain/local_auth_service.dart';
 
 void main() {
   late AppDatabase database;
-  late String merchantId;
+  const merchantId = 'm-encrypted-1';
   late LocalEncryptedBackupService service;
 
   setUp(() async {
     database = AppDatabase(executor: NativeDatabase.memory());
-    final setup = await LocalAuthService(database: database).provisionOwner(
-      email: 'owner@example.com',
-      password: 'correct horse battery staple',
-    );
-    merchantId = setup.merchantId;
+    await database
+        .into(database.merchants)
+        .insert(
+          MerchantsCompanion.insert(
+            id: merchantId,
+            name: 'Encrypted Test Merchant',
+            slug: 'encrypted-test-merchant',
+            currencyCode: 'USD',
+            createdAt: '2026-09-18T00:00:00Z',
+          ),
+        );
     service = LocalEncryptedBackupService(database);
   });
 
-  tearDown(() => database.closeForTest());
+  tearDown(() async {
+    await database.close();
+  });
 
   test('round-trips an Argon2id/AES-GCM operational backup', () async {
     final payload = await service.exportMerchant(
@@ -33,7 +40,6 @@ void main() {
     final decoded = Map<String, Object?>.from(jsonDecode(payload) as Map);
     expect(decoded['format'], 'business-central-mobile-encrypted-backup');
     expect(decoded['cipher'], 'aes-256-gcm');
-    expect(payload, isNot(contains('correct horse battery staple')));
 
     await service.restoreMerchant(
       merchantId: merchantId,

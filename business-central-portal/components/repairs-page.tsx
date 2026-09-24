@@ -385,7 +385,11 @@ function TicketDetails({
     `/repairs/orders/${repair.id}/payments?page_index=0&page_size=100`,
   );
   const paymentTypes = useResource<PaymentType>("/payment-types?active_only=true");
-  const usablePaymentTypes = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
+  const usablePaymentTypes = useMemo(() => {
+    const active = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
+    if (active.length > 0) return active;
+    return [{ id: "cash", merchant_id: "", name: "Cash", category_code: "CASH" as const, is_active: true, created_at: "", updated_at: "" }];
+  }, [paymentTypes.data]);
   const images = useResource<RepairImage>(
     `/repairs/orders/${repair.id}/images?page_index=0&page_size=100`,
   );
@@ -1427,7 +1431,11 @@ export function RepairsPage() {
     "/promotions?page_index=0&page_size=100&filter=is_active:true",
   );
   const paymentTypes = useResource<PaymentType>("/payment-types?active_only=true");
-  const usablePaymentTypes = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
+  const usablePaymentTypes = useMemo(() => {
+    const active = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
+    if (active.length > 0) return active;
+    return [{ id: "cash", merchant_id: "", name: "Cash", category_code: "CASH" as const, is_active: true, created_at: "", updated_at: "" }];
+  }, [paymentTypes.data]);
   const services = useResource<ServiceCatalog>(
     "/services/catalog?page_index=0&page_size=100&filter=is_active:true",
   );
@@ -1454,6 +1462,11 @@ export function RepairsPage() {
         (!definition.service_type || definition.service_type.toUpperCase() === "REPAIR"),
     )
     .sort((left, right) => left.display_order - right.display_order);
+  const posMode = merchant?.pos_complexity_level || "SIMPLE";
+  const isMini = posMode === "MINI";
+  const isSimple = posMode === "SIMPLE";
+  const isComplex = posMode === "COMPLEX";
+
   const [open, setOpen] = useState(false);
   const [details, setDetails] = useState<RepairOrder | null>(null);
   const [selected, setSelected] = useState<RepairOrder | null>(null);
@@ -1472,6 +1485,7 @@ export function RepairsPage() {
   const [serviceLines, setServiceLines] = useState<ServiceLineDraft[]>([
     { serviceId: "", quantity: "1", workItemIndex: 0 },
   ]);
+  const [priority, setPriority] = useState("NORMAL");
   const [promotionId, setPromotionId] = useState("");
   const [invoicePreview, setInvoicePreview] = useState(false);
   const [thermalPreviewBusy, setThermalPreviewBusy] = useState(false);
@@ -1490,6 +1504,41 @@ export function RepairsPage() {
   const [repairNote, setRepairNote] = useState("");
   const [ticketFields, setTicketFields] = useState<Record<string, unknown>>({});
   const [workItemFields, setWorkItemFields] = useState<Record<string, unknown>>({});
+  const [showMiniAdvanced, setShowMiniAdvanced] = useState(false);
+  const [partSearch, setPartSearch] = useState("");
+  const [activeSection, setActiveSection] = useState<
+    "customer-device" | "services-parts" | "payment-total"
+  >("customer-device");
+
+  const filteredVariants = useMemo(() => {
+    const q = partSearch.trim().toLowerCase();
+    return variants.data.filter((item) => {
+      if (!item.is_stock_tracked) return false;
+      if (!q) return true;
+      return (
+        item.product_name?.toLowerCase().includes(q) ||
+        item.name?.toLowerCase().includes(q) ||
+        item.sku?.toLowerCase().includes(q)
+      );
+    });
+  }, [variants.data, partSearch]);
+
+  function resetCreateForm() {
+    setAdditionalWorkItems([]);
+    setPartIds([]);
+    setPartQuantities({});
+    setPartWorkItemIndexes({});
+    setPartSource("NONE");
+    setServiceLines([{ serviceId: "", quantity: "1", workItemIndex: 0 }]);
+    setPaymentStatus("UNPAID");
+    setDepositAmount("0");
+    setTicketFields({});
+    setWorkItemFields({});
+    setShowMiniAdvanced(false);
+    setPartSearch("");
+    setActiveSection("customer-device");
+  }
+
   const [additionalWorkItems, setAdditionalWorkItems] = useState<
     Array<{
       id: string;
@@ -1564,7 +1613,7 @@ export function RepairsPage() {
         idempotency_key: `repair-ticket:${number}`,
         order_number: number,
         shop_id: currentShop.id,
-        priority: String(form.get("priority")),
+        priority: String(form.get("priority") || priority || "NORMAL"),
         device: {
           device_type: String(form.get("device_type")),
           manufacturer: String(form.get("manufacturer") || "") || undefined,
@@ -1707,20 +1756,7 @@ export function RepairsPage() {
         await post("/repairs/tickets", body);
       }
       setOpen(false);
-      setPartIds([]);
-      setPartQuantities({});
-      setPartWorkItemIndexes({});
-      setServiceLines([{ serviceId: "", quantity: "1", workItemIndex: 0 }]);
-      setPaymentStatus("UNPAID");
-      setDepositAmount("0");
-      setWaitingDays(0);
-      setWaitingEndDate(currentDateOnly(currentShop?.timezone));
-      setAdditionalWorkItems([]);
-      setAdditionalIssues([]);
-      setConditions([""]);
-      setWorkItemNote("");
-      setTicketFields({});
-      setWorkItemFields({});
+      resetCreateForm();
       if (syncQueuedRepair) void offline.syncNow();
       else if (!offline.scope || !offline.storageAvailable) await repairs.reload();
     } catch (reason) {
@@ -2074,7 +2110,11 @@ export function RepairsPage() {
         }
         action={
           <div className="repair-desk-actions">
-            <Button icon="repair" onClick={() => setOpen(true)}>
+            <Button
+              icon="repair"
+              onClick={() => setOpen(true)}
+              aria-label="Create repair ticket"
+            >
               {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
             </Button>
             <Link className="button button-secondary" href="/repairs/catalog">
@@ -2155,7 +2195,11 @@ export function RepairsPage() {
             title={t("repairs.title")}
             message={t("repairs.description")}
             action={
-              <Button icon="repair" onClick={() => setOpen(true)}>
+              <Button
+                icon="repair"
+                onClick={() => setOpen(true)}
+                aria-label="Create repair ticket"
+              >
                 {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
               </Button>
             }
@@ -2249,80 +2293,134 @@ export function RepairsPage() {
         itemLabel="repair tickets"
         onPageChange={repairsPagination.setPageIndex}
       />
+      {/* Sub-renderers for clean modularity */}
+      {(() => null)()}
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+          resetCreateForm();
+        }}
         title="New repair ticket"
-        description="Register the customer, devices, and repair details."
-        className="repair-ticket-modal repair-ticket-create-modal"
+        description={
+          isMini
+            ? "Fast ticket intake for standard device repair."
+            : isSimple
+              ? "Register customer, device, and service details."
+              : "Register customer, multiple devices, custom fields, and financial details."
+        }
+        className={`repair-ticket-modal repair-ticket-create-modal mode-${posMode.toLowerCase()}`}
       >
         <Form className="repair-ticket-form" onSubmit={create}>
-          <section className="configuration-section">
-            <h3>1. Customer & ticket</h3>
-            <p>Information shared by every device on this repair ticket.</p>
-            <div className="form-grid">
-              <Field label="Customer name">
-                <input
-                  name="customer_name"
-                  value={customerName}
-                  onChange={(event) => setCustomerName(event.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Customer phone">
-                <input
-                  name="customer_phone"
-                  value={customerPhone}
-                  onChange={(event) => setCustomerPhone(event.target.value)}
-                />
-              </Field>
-              <Field label="Priority">
-                <select name="priority" defaultValue="NORMAL">
-                  <option>NORMAL</option>
-                  <option>HIGH</option>
-                  <option>URGENT</option>
-                </select>
-              </Field>
-              <Field label="Promotion">
-                <select
-                  name="promotion_id"
-                  value={promotionId}
-                  onChange={(event) => setPromotionId(event.target.value)}
-                >
-                  <option value="">No promotion</option>
-                  {promotions.data.map((item) => (
-                    <option value={item.id} key={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Receiving shop">
-                <input value={currentShop?.name ?? "No shop selected"} readOnly />
-              </Field>
-              <ImageSourceField
-                name="images-ticket"
-                label="Ticket-level photos"
-                multiple
-                disabled={offline.status === "offline"}
-              />
+          {/* Mode Header Banner */}
+          <div className={`repair-mode-banner banner-${posMode.toLowerCase()}`}>
+            <div className={`repair-mode-badge ${posMode.toLowerCase()}`}>
+              <span className="badge-dot" />
+              <strong>{isMini ? "POS-Mini" : isSimple ? "POS-Simple" : "POS-Complex"}</strong>
+              <span>
+                · {isMini ? "Fast Intake" : isSimple ? "Standard Intake" : "Enterprise Depot"}
+                {additionalWorkItems.length > 0 ? ` (${additionalWorkItems.length + 1} devices)` : ""}
+              </span>
             </div>
-          </section>
-          <section className="configuration-section">
-            <h3>2. Devices</h3>
-            <p>
-              Keep each device&apos;s identity, issue, notes, price, waiting time, and photos
-              together.
-            </p>
-            <div className="repair-device-stack">
-              <div className="configuration-card repair-device-card">
-                <div className="repair-device-card-header">
-                  <div>
-                    <h4>Device 1</h4>
-                    <small>Primary device</small>
+            <span className="repair-mode-hint">
+              {isMini
+                ? "Essential intake upfront. Additional details can be expanded."
+                : isSimple
+                  ? "Streamlined intake for customer, device, and services."
+                  : "Multi-device tracking, custom fields, and parts allocation."}
+            </span>
+          </div>
+
+          {/* COMPLEX Mode Section Navigator */}
+          {isComplex && (
+            <nav className="repair-section-nav" aria-label="Ticket sections">
+              <button
+                type="button"
+                className={`repair-nav-tab ${activeSection === "customer-device" ? "active" : ""}`}
+                onClick={() => {
+                  setActiveSection("customer-device");
+                  document.getElementById("ticket-section-customer")?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                <span className="step-num">1</span>
+                <span>Customer & Devices</span>
+                {additionalWorkItems.length > 0 && (
+                  <span className="step-count">{additionalWorkItems.length + 1} devices</span>
+                )}
+              </button>
+              <button
+                type="button"
+                className={`repair-nav-tab ${activeSection === "services-parts" ? "active" : ""}`}
+                onClick={() => {
+                  setActiveSection("services-parts");
+                  document.getElementById("ticket-section-services")?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                <span className="step-num">2</span>
+                <span>Services & Parts</span>
+                {(serviceLines.some((line) => line.serviceId) || partIds.length > 0) && (
+                  <span className="step-count">
+                    {serviceLines.filter((line) => line.serviceId).length + partIds.length} items
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                className={`repair-nav-tab ${activeSection === "payment-total" ? "active" : ""}`}
+                onClick={() => {
+                  setActiveSection("payment-total");
+                  document.getElementById("ticket-section-payment")?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                <span className="step-num">3</span>
+                <span>Payment & Total</span>
+                <span className="step-total">
+                  {formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}
+                </span>
+              </button>
+            </nav>
+          )}
+
+          {/* ========================================================================= */}
+          {/* POS-MINI MODE: Streamlined, low-friction, single-view intake             */}
+          {/* ========================================================================= */}
+          {isMini && (
+            <>
+              <section className="configuration-section repair-form-card">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="repair" />
+                    <div>
+                      <h3>Customer & Device Intake</h3>
+                      <p className="repair-form-card-subtitle">
+                        {additionalWorkItems.length > 0
+                          ? `Primary contact and ${additionalWorkItems.length + 1} devices`
+                          : "Primary contact and device specifications"}
+                      </p>
+                    </div>
                   </div>
+                  {additionalWorkItems.length > 0 && (
+                    <span className="badge info">{additionalWorkItems.length + 1} devices</span>
+                  )}
                 </div>
                 <div className="form-grid">
+                  <Field label="Customer name">
+                    <input
+                      name="customer_name"
+                      value={customerName}
+                      onChange={(event) => setCustomerName(event.target.value)}
+                      required
+                      placeholder="Customer name"
+                    />
+                  </Field>
+                  <Field label="Customer phone">
+                    <input
+                      name="customer_phone"
+                      value={customerPhone}
+                      onChange={(event) => setCustomerPhone(event.target.value)}
+                      placeholder="Customer phone"
+                    />
+                  </Field>
                   <Field label="Device type">
                     <select
                       name="device_type"
@@ -2360,6 +2458,540 @@ export function RepairsPage() {
                       name="model"
                       value={deviceModel}
                       onChange={(event) => setDeviceModel(event.target.value)}
+                      placeholder="e.g. Galaxy S24, iPhone 15"
+                    />
+                  </Field>
+                  <Field label="IMEI / serial number">
+                    <BarcodeScanner
+                      value={serialNumber}
+                      onChange={setSerialNumber}
+                      placeholder="Enter or scan IMEI / serial number"
+                    />
+                  </Field>
+                  <RepeatableDeviceValues
+                    label="Issue"
+                    values={[issueDescription, ...additionalIssues]}
+                    presets={issuePresets.data}
+                    required
+                    onChange={(values) => {
+                      setIssueDescription(values[0] ?? "");
+                      setAdditionalIssues(values.slice(1));
+                    }}
+                  />
+                  <Field label="Price">
+                    <input
+                      name="additional_fee"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={laborFee}
+                      onChange={(event) => setLaborFee(event.target.value)}
+                      required
+                      placeholder="0.00"
+                    />
+                  </Field>
+                </div>
+
+                {/* Additional devices in POS-Mini mode */}
+                {additionalWorkItems.length > 0 && (
+                  <div className="repair-device-stack" style={{ marginTop: "16px" }}>
+                    {additionalWorkItems.map((item, index) => (
+                      <div className="configuration-card repair-device-card" key={item.id}>
+                        <div className="repair-device-card-header">
+                          <div>
+                            <h4>Device {index + 2}</h4>
+                            <small>{item.deviceType || "Additional device"}</small>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-link"
+                            onClick={() => removeAdditionalWorkItem(index)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div className="form-grid">
+                          <Field label="Device type">
+                            <select
+                              value={item.deviceType}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...value, deviceType: event.target.value }
+                                      : value,
+                                  ),
+                                )
+                              }
+                              required
+                            >
+                              <option value="">Choose type</option>
+                              <option>PHONE</option>
+                              <option>TABLET</option>
+                              <option>LAPTOP</option>
+                              <option>APPLIANCE</option>
+                              <option>OTHER</option>
+                            </select>
+                          </Field>
+                          <Field label="Manufacturer">
+                            <select
+                              value={item.manufacturer}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...value, manufacturer: event.target.value }
+                                      : value,
+                                  ),
+                                )
+                              }
+                            >
+                              <option value="">Choose brand</option>
+                              {brands.data
+                                .filter((brand) => brand.is_active)
+                                .sort((left, right) => left.name.localeCompare(right.name))
+                                .map((brand) => (
+                                  <option value={brand.name} key={brand.id}>
+                                    {brand.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </Field>
+                          <Field label="Model">
+                            <input
+                              value={item.model}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index ? { ...value, model: event.target.value } : value,
+                                  ),
+                                )
+                              }
+                              placeholder="e.g. Galaxy S24, iPhone 15"
+                            />
+                          </Field>
+                          <Field label="IMEI / serial number">
+                            <BarcodeScanner
+                              value={item.serialNumber}
+                              onChange={(serialNumber) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index ? { ...value, serialNumber } : value,
+                                  ),
+                                )
+                              }
+                              placeholder="Enter or scan IMEI / serial number"
+                            />
+                          </Field>
+                          <RepeatableDeviceValues
+                            label="Issue"
+                            values={[item.issueDescription, ...item.issues]}
+                            presets={issuePresets.data}
+                            required
+                            onChange={(values) =>
+                              setAdditionalWorkItems((current) =>
+                                current.map((value, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...value,
+                                        issueDescription: values[0] ?? "",
+                                        issues: values.slice(1),
+                                      }
+                                    : value,
+                                ),
+                              )
+                            }
+                          />
+                          <Field label="Price">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.additionalFee}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...value, additionalFee: event.target.value }
+                                      : value,
+                                  ),
+                                )
+                              }
+                              placeholder="0.00"
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="repair-add-device"
+                  style={{ marginTop: "12px" }}
+                  onClick={() =>
+                    setAdditionalWorkItems((current) => [
+                      ...current,
+                      {
+                        id: crypto.randomUUID(),
+                        deviceType: "",
+                        manufacturer: "",
+                        model: "",
+                        serialNumber: "",
+                        issueDescription: "",
+                        issues: [],
+                        conditions: [""],
+                        note: "",
+                        additionalFee: "0",
+                        waitingDays: 0,
+                        waitingEndDate: waitingStartDate,
+                        fields: {},
+                      },
+                    ])
+                  }
+                >
+                  + Add another device to this ticket
+                </button>
+              </section>
+
+              <section className="configuration-section repair-form-card">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="tag" />
+                    <div>
+                      <h3>Payment</h3>
+                      <p className="repair-form-card-subtitle">Initial payment status & method</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <Field label="Payment status">
+                    <select
+                      name="payment_status"
+                      value={paymentStatus}
+                      onChange={(event) => setPaymentStatus(event.target.value)}
+                    >
+                      <option value="UNPAID">Unpaid</option>
+                      <option value="DEPOSIT_PAID">Deposit Paid</option>
+                      <option value="PAID">Paid</option>
+                    </select>
+                  </Field>
+                  {paymentStatus === "DEPOSIT_PAID" && (
+                    <Field label="Deposit amount">
+                      <input
+                        name="deposit_amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={depositAmount}
+                        onChange={(event) => setDepositAmount(event.target.value)}
+                        required
+                      />
+                    </Field>
+                  )}
+                  {paymentStatus !== "UNPAID" && (
+                    <Field label="Payment type">
+                      <select
+                        name="deposit_payment_type_id"
+                        defaultValue={
+                          usablePaymentTypes.find((item) => item.category_code === "CASH")?.id
+                        }
+                        required
+                      >
+                        {usablePaymentTypes.map((item) => (
+                          <option value={item.id} key={item.id}>
+                            {item.name} · {item.category_code}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                </div>
+
+                <div className="repair-summary-card">
+                  <div className="repair-summary-header">
+                    <span>
+                      Estimated Total
+                      {additionalWorkItems.length > 0
+                        ? ` (${additionalWorkItems.length + 1} devices)`
+                        : ""}
+                    </span>
+                    <strong>{formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}</strong>
+                  </div>
+                  <div className="repair-summary-turnaround">
+                    <span>Projected Turnaround</span>
+                    <strong>{formatDateOnly(ticketWaitingEndDate)} ({ticketWaitingDays} days)</strong>
+                  </div>
+                </div>
+              </section>
+
+              <button
+                type="button"
+                className="repair-mini-toggle"
+                onClick={() => setShowMiniAdvanced(!showMiniAdvanced)}
+              >
+                {showMiniAdvanced
+                  ? "▲ Hide additional options"
+                  : "▼ Show additional options (services, parts, notes, waiting time, photos)"}
+              </button>
+
+              {showMiniAdvanced ? (
+                <div className="repair-mini-advanced-drawer stack gap-3">
+                  <section className="configuration-section repair-form-card">
+                    <div className="repair-form-card-header">
+                      <h4>Intake Details & Turnaround</h4>
+                    </div>
+                    <div className="form-grid">
+                      <Field label="Priority">
+                        <select
+                          name="priority"
+                          value={priority}
+                          onChange={(event) => setPriority(event.target.value)}
+                        >
+                          <option>NORMAL</option>
+                          <option>HIGH</option>
+                          <option>URGENT</option>
+                        </select>
+                      </Field>
+                      <Field label="Promotion">
+                        <select
+                          name="promotion_id"
+                          value={promotionId}
+                          onChange={(event) => setPromotionId(event.target.value)}
+                        >
+                          <option value="">No promotion</option>
+                          {promotions.data.map((item) => (
+                            <option value={item.id} key={item.id}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <RepairWaitingFields
+                        startDate={waitingStartDate}
+                        initialDays={waitingDays}
+                        initialEndDate={waitingEndDate}
+                        daysName="waiting_days"
+                        endDateName="waiting_end_date"
+                        onChange={(days, endDate) => {
+                          setWaitingDays(days);
+                          setWaitingEndDate(endDate);
+                        }}
+                      />
+                      <RepeatableDeviceValues
+                        label="Condition"
+                        values={conditions}
+                        presets={conditionPresets.data}
+                        onChange={setConditions}
+                      />
+                      <div className="wide">
+                        <Field label="Device note">
+                          <textarea
+                            value={workItemNote}
+                            onChange={(event) => setWorkItemNote(event.target.value)}
+                            placeholder="Notes specific to this device"
+                          />
+                        </Field>
+                      </div>
+                      <div className="wide">
+                        <Field label="Ticket note">
+                          <textarea
+                            name="note"
+                            value={repairNote}
+                            onChange={(event) => setRepairNote(event.target.value)}
+                            placeholder="Additional customer or technician notes"
+                          />
+                        </Field>
+                      </div>
+                      <ImageSourceField
+                        name="images-0"
+                        label="Device photos"
+                        multiple
+                        disabled={offline.status === "offline"}
+                      />
+                      <ImageSourceField
+                        name="images-ticket"
+                        label="Ticket-level photos"
+                        multiple
+                        disabled={offline.status === "offline"}
+                      />
+                    </div>
+                  </section>
+
+                  <section className="configuration-section repair-form-card">
+                    <div className="repair-form-card-header">
+                      <h4>Catalog Services (Optional)</h4>
+                    </div>
+                    <div className="stack gap-3">
+                      {serviceLines.map((line, index) => (
+                        <div className="form-grid repair-service-line" key={`service-line-${index}`}>
+                          <Field label={`Service ${index + 1} (optional)`}>
+                            <select
+                              name={index === 0 ? "service_id" : `service_id_${index}`}
+                              value={line.serviceId}
+                              onChange={(event) =>
+                                setServiceLines((current) =>
+                                  current.map((entry, lineIndex) =>
+                                    lineIndex === index ? { ...entry, serviceId: event.target.value } : entry,
+                                  ),
+                                )
+                              }
+                            >
+                              <option value="">No service selected</option>
+                              {services.data
+                                .filter((item) => item.is_active)
+                                .map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.code ? `${item.code} · ` : ""}{item.name} · {formatMoney(item.labor_fee, merchant?.default_currency_code)}
+                                  </option>
+                                ))}
+                            </select>
+                          </Field>
+                          {line.serviceId && (
+                            <Field label="Quantity">
+                              <input
+                                type="number"
+                                min="0.001"
+                                step="0.001"
+                                value={line.quantity}
+                                onChange={(event) =>
+                                  setServiceLines((current) =>
+                                    current.map((entry, lineIndex) =>
+                                      lineIndex === index ? { ...entry, quantity: event.target.value } : entry,
+                                    ),
+                                  )
+                                }
+                                required
+                              />
+                            </Field>
+                          )}
+                          {serviceLines.length > 1 && (
+                            <button
+                              type="button"
+                              className="text-link"
+                              onClick={() =>
+                                setServiceLines((current) =>
+                                  current.filter((_, lineIndex) => lineIndex !== index),
+                                )
+                              }
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="text-link"
+                        onClick={() =>
+                          setServiceLines((current) => [
+                            ...current,
+                            { serviceId: "", quantity: "1", workItemIndex: 0 },
+                          ])
+                        }
+                      >
+                        + Add service line
+                      </button>
+                    </div>
+                  </section>
+                </div>
+              ) : (
+                <>
+                  <input type="hidden" name="priority" value={priority || "NORMAL"} />
+                  <input type="hidden" name="promotion_id" value={promotionId} />
+                  <input type="hidden" name="part_source" value={partSource || "NONE"} />
+                  <input type="hidden" name="note" value={repairNote} />
+                </>
+              )}
+            </>
+          )}
+
+          {/* ========================================================================= */}
+          {/* POS-SIMPLE MODE: Clean 3-card balanced layout                             */}
+          {/* ========================================================================= */}
+          {isSimple && (
+            <>
+              {/* Card 1: Customer & Primary Device */}
+              <section className="configuration-section repair-form-card">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="repair" />
+                    <div>
+                      <h3>1. Customer & Device Intake</h3>
+                      <p className="repair-form-card-subtitle">Customer identity and device diagnostics</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <Field label="Customer name">
+                    <input
+                      name="customer_name"
+                      value={customerName}
+                      onChange={(event) => setCustomerName(event.target.value)}
+                      required
+                      placeholder="Customer name"
+                    />
+                  </Field>
+                  <Field label="Customer phone">
+                    <input
+                      name="customer_phone"
+                      value={customerPhone}
+                      onChange={(event) => setCustomerPhone(event.target.value)}
+                      placeholder="Customer phone"
+                    />
+                  </Field>
+                  <Field label="Priority">
+                    <select
+                      name="priority"
+                      value={priority}
+                      onChange={(event) => setPriority(event.target.value)}
+                    >
+                      <option>NORMAL</option>
+                      <option>HIGH</option>
+                      <option>URGENT</option>
+                    </select>
+                  </Field>
+                  <Field label="Receiving shop">
+                    <input value={currentShop?.name ?? "No shop selected"} readOnly />
+                  </Field>
+                  <Field label="Device type">
+                    <select
+                      name="device_type"
+                      value={deviceType}
+                      onChange={(event) => setDeviceType(event.target.value)}
+                      required
+                    >
+                      <option value="">Choose type</option>
+                      <option>PHONE</option>
+                      <option>TABLET</option>
+                      <option>LAPTOP</option>
+                      <option>APPLIANCE</option>
+                      <option>OTHER</option>
+                    </select>
+                  </Field>
+                  <Field label="Manufacturer">
+                    <select
+                      name="manufacturer"
+                      value={manufacturer}
+                      onChange={(event) => setManufacturer(event.target.value)}
+                    >
+                      <option value="">Choose brand</option>
+                      {brands.data
+                        .filter((brand) => brand.is_active)
+                        .sort((left, right) => left.name.localeCompare(right.name))
+                        .map((brand) => (
+                          <option value={brand.name} key={brand.id}>
+                            {brand.name}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                  <Field label="Model">
+                    <input
+                      name="model"
+                      value={deviceModel}
+                      onChange={(event) => setDeviceModel(event.target.value)}
+                      placeholder="Model name / number"
                     />
                   </Field>
                   <Field label="IMEI / serial number">
@@ -2403,6 +3035,7 @@ export function RepairsPage() {
                       value={laborFee}
                       onChange={(event) => setLaborFee(event.target.value)}
                       required
+                      placeholder="0.00"
                     />
                   </Field>
                   <RepairWaitingFields
@@ -2423,255 +3056,191 @@ export function RepairsPage() {
                     disabled={offline.status === "offline"}
                   />
                 </div>
-                <DynamicFieldGroup
-                  definitions={workItemDefinitions}
-                  values={workItemFields}
-                  onChange={(code, value) =>
-                    setWorkItemFields((current) => ({ ...current, [code]: value }))
+
+                {/* Additional devices if any */}
+                {additionalWorkItems.length > 0 && (
+                  <div className="repair-device-stack" style={{ marginTop: "16px" }}>
+                    {additionalWorkItems.map((item, index) => (
+                      <div className="configuration-card repair-device-card" key={item.id}>
+                        <div className="repair-device-card-header">
+                          <div>
+                            <h4>Device {index + 2}</h4>
+                            <small>{item.deviceType || "Additional device"}</small>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-link"
+                            onClick={() => removeAdditionalWorkItem(index)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div className="form-grid">
+                          <Field label="Device type">
+                            <select
+                              value={item.deviceType}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...value, deviceType: event.target.value }
+                                      : value,
+                                  ),
+                                )
+                              }
+                              required
+                            >
+                              <option value="">Choose type</option>
+                              <option>PHONE</option>
+                              <option>TABLET</option>
+                              <option>LAPTOP</option>
+                              <option>APPLIANCE</option>
+                              <option>OTHER</option>
+                            </select>
+                          </Field>
+                          <Field label="Manufacturer">
+                            <select
+                              value={item.manufacturer}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...value, manufacturer: event.target.value }
+                                      : value,
+                                  ),
+                                )
+                              }
+                            >
+                              <option value="">Choose brand</option>
+                              {brands.data
+                                .filter((brand) => brand.is_active)
+                                .sort((left, right) => left.name.localeCompare(right.name))
+                                .map((brand) => (
+                                  <option value={brand.name} key={brand.id}>
+                                    {brand.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </Field>
+                          <Field label="Model">
+                            <input
+                              value={item.model}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index ? { ...value, model: event.target.value } : value,
+                                  ),
+                                )
+                              }
+                              placeholder="Model name / number"
+                            />
+                          </Field>
+                          <Field label="IMEI / serial number">
+                            <BarcodeScanner
+                              value={item.serialNumber}
+                              onChange={(serialNumber) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index ? { ...value, serialNumber } : value,
+                                  ),
+                                )
+                              }
+                              placeholder="Enter or scan IMEI / serial number"
+                            />
+                          </Field>
+                          <RepeatableDeviceValues
+                            label="Issue"
+                            values={[item.issueDescription, ...item.issues]}
+                            presets={issuePresets.data}
+                            required
+                            onChange={(values) =>
+                              setAdditionalWorkItems((current) =>
+                                current.map((value, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...value,
+                                        issueDescription: values[0] ?? "",
+                                        issues: values.slice(1),
+                                      }
+                                    : value,
+                                ),
+                              )
+                            }
+                          />
+                          <Field label="Price">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.additionalFee}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...value, additionalFee: event.target.value }
+                                      : value,
+                                  ),
+                                )
+                              }
+                              placeholder="0.00"
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="repair-add-device"
+                  style={{ marginTop: "12px" }}
+                  onClick={() =>
+                    setAdditionalWorkItems((current) => [
+                      ...current,
+                      {
+                        id: crypto.randomUUID(),
+                        deviceType: "",
+                        manufacturer: "",
+                        model: "",
+                        serialNumber: "",
+                        issueDescription: "",
+                        issues: [],
+                        conditions: [""],
+                        note: "",
+                        additionalFee: "0",
+                        waitingDays: 0,
+                        waitingEndDate: waitingStartDate,
+                        fields: {},
+                      },
+                    ])
                   }
-                  title="Device-specific details"
-                />
-              </div>
-              {additionalWorkItems.map((item, index) => (
-                <div className="configuration-card repair-device-card" key={item.id}>
-                  <div className="repair-device-card-header">
+                >
+                  + Add another device to this ticket
+                </button>
+              </section>
+
+              {/* Card 2: Services & Replacement Parts */}
+              <section className="configuration-section repair-form-card">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="box" />
                     <div>
-                      <h4>Device {index + 2}</h4>
-                      <small>{item.deviceType || "Additional device"}</small>
+                      <h3>2. Services & Replacement Parts</h3>
+                      <p className="repair-form-card-subtitle">Add catalog repair services or inventory items (optional)</p>
                     </div>
-                    <button
-                      type="button"
-                      className="text-link"
-                      onClick={() => removeAdditionalWorkItem(index)}
-                    >
-                      Remove
-                    </button>
                   </div>
-                  <div className="form-grid">
-                    <Field label="Device type">
-                      <select
-                        value={item.deviceType}
-                        onChange={(event) =>
-                          setAdditionalWorkItems((current) =>
-                            current.map((value, itemIndex) =>
-                              itemIndex === index
-                                ? { ...value, deviceType: event.target.value }
-                                : value,
-                            ),
-                          )
-                        }
-                        required
-                      >
-                        <option value="">Choose type</option>
-                        <option>PHONE</option>
-                        <option>TABLET</option>
-                        <option>LAPTOP</option>
-                        <option>APPLIANCE</option>
-                        <option>OTHER</option>
-                      </select>
-                    </Field>
-                    <Field label="Manufacturer">
-                      <select
-                        value={item.manufacturer}
-                        onChange={(event) =>
-                          setAdditionalWorkItems((current) =>
-                            current.map((value, itemIndex) =>
-                              itemIndex === index
-                                ? { ...value, manufacturer: event.target.value }
-                                : value,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="">Choose brand</option>
-                        {brands.data
-                          .filter((brand) => brand.is_active)
-                          .sort((left, right) => left.name.localeCompare(right.name))
-                          .map((brand) => (
-                            <option value={brand.name} key={brand.id}>
-                              {brand.name}
-                            </option>
-                          ))}
-                      </select>
-                    </Field>
-                    <Field label="Model">
-                      <input
-                        value={item.model}
-                        onChange={(event) =>
-                          setAdditionalWorkItems((current) =>
-                            current.map((value, itemIndex) =>
-                              itemIndex === index ? { ...value, model: event.target.value } : value,
-                            ),
-                          )
-                        }
-                      />
-                    </Field>
-                    <Field label="IMEI / serial number">
-                      <BarcodeScanner
-                        value={item.serialNumber}
-                        onChange={(serialNumber) =>
-                          setAdditionalWorkItems((current) =>
-                            current.map((value, itemIndex) =>
-                              itemIndex === index ? { ...value, serialNumber } : value,
-                            ),
-                          )
-                        }
-                        placeholder="Enter or scan IMEI / serial number"
-                      />
-                    </Field>
-                    <RepeatableDeviceValues
-                      label="Issue"
-                      values={[item.issueDescription, ...item.issues]}
-                      presets={issuePresets.data}
-                      required
-                      onChange={(values) =>
-                        setAdditionalWorkItems((current) =>
-                          current.map((value, itemIndex) =>
-                            itemIndex === index
-                              ? {
-                                  ...value,
-                                  issueDescription: values[0] ?? "",
-                                  issues: values.slice(1),
-                                }
-                              : value,
-                          ),
-                        )
-                      }
-                    />
-                    <RepeatableDeviceValues
-                      label="Condition"
-                      values={item.conditions}
-                      presets={conditionPresets.data}
-                      onChange={(conditions) =>
-                        setAdditionalWorkItems((current) =>
-                          current.map((value, itemIndex) =>
-                            itemIndex === index ? { ...value, conditions } : value,
-                          ),
-                        )
-                      }
-                    />
-                    <div className="wide">
-                      <Field label="Device note">
-                        <textarea
-                          value={item.note}
-                          onChange={(event) =>
-                            setAdditionalWorkItems((current) =>
-                              current.map((value, itemIndex) =>
-                                itemIndex === index
-                                  ? { ...value, note: event.target.value }
-                                  : value,
-                              ),
-                            )
-                          }
-                          placeholder="Notes specific to this device"
-                        />
-                      </Field>
-                    </div>
-                    <Field label="Price">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.additionalFee}
-                        onChange={(event) =>
-                          setAdditionalWorkItems((current) =>
-                            current.map((value, itemIndex) =>
-                              itemIndex === index
-                                ? { ...value, additionalFee: event.target.value }
-                                : value,
-                            ),
-                          )
-                        }
-                      />
-                    </Field>
-                    <RepairWaitingFields
-                      startDate={waitingStartDate}
-                      initialDays={item.waitingDays}
-                      initialEndDate={item.waitingEndDate}
-                      daysName={`waiting_days_${index + 1}`}
-                      endDateName={`waiting_end_date_${index + 1}`}
-                      onChange={(days, endDate) =>
-                        setAdditionalWorkItems((current) =>
-                          current.map((value, itemIndex) =>
-                            itemIndex === index
-                              ? { ...value, waitingDays: days, waitingEndDate: endDate }
-                              : value,
-                          ),
-                        )
-                      }
-                    />
-                    <ImageSourceField
-                      name={`images-${index + 1}`}
-                      label="Device photos"
-                      multiple
-                      disabled={offline.status === "offline"}
-                    />
-                  </div>
-                  <DynamicFieldGroup
-                    definitions={workItemDefinitions}
-                    values={item.fields}
-                    onChange={(code, value) =>
-                      setAdditionalWorkItems((current) =>
-                        current.map((entry, itemIndex) =>
-                          itemIndex === index
-                            ? { ...entry, fields: { ...entry.fields, [code]: value } }
-                            : entry,
-                        ),
-                      )
-                    }
-                    title="Device-specific details"
-                  />
                 </div>
-              ))}
-              <button
-                type="button"
-                className="repair-add-device"
-                onClick={() =>
-                  setAdditionalWorkItems((current) => [
-                    ...current,
-                    {
-                      id: crypto.randomUUID(),
-                      deviceType: "",
-                      manufacturer: "",
-                      model: "",
-                      serialNumber: "",
-                      issueDescription: "",
-                      issues: [],
-                      conditions: [""],
-                      note: "",
-                      additionalFee: "0",
-                      waitingDays: 0,
-                      waitingEndDate: waitingStartDate,
-                      fields: {},
-                    },
-                  ])
-                }
-              >
-                + Add device to this ticket
-              </button>
-            </div>
-          </section>
-          <section className="configuration-section">
-            <h3>3. Services</h3>
-            <p className="muted">
-              Service selection is optional. You can create the ticket with only a device price, or
-              add catalog services when known.
-            </p>
-            <div className="stack gap-3">
-              {serviceLines.map((line, index) => (
-                <div className="form-grid repair-service-line" key={`service-line-${index}`}>
-                  <Field label={`Service ${index + 1} (optional)`}>
+
+                <div className="stack gap-3">
+                  <Field label="Service 1 (optional)">
                     <select
-                      name={index === 0 ? "service_id" : `service_id_${index}`}
-                      value={line.serviceId}
+                      name="service_id"
+                      value={serviceLines[0]?.serviceId ?? ""}
                       onChange={(event) =>
-                        setServiceLines((current) =>
-                          current.map((entry, lineIndex) =>
-                            lineIndex === index
-                              ? { ...entry, serviceId: event.target.value }
-                              : entry,
-                          ),
-                        )
+                        setServiceLines((current) => [
+                          { ...current[0], serviceId: event.target.value },
+                          ...current.slice(1),
+                        ])
                       }
                     >
                       <option value="">No service selected</option>
@@ -2679,375 +3248,1243 @@ export function RepairsPage() {
                         .filter((item) => item.is_active)
                         .map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.code} · {item.name} · {item.labor_fee}
+                            {item.code ? `${item.code} · ` : ""}{item.name} · {formatMoney(item.labor_fee, merchant?.default_currency_code)}
                           </option>
                         ))}
                     </select>
                   </Field>
-                  {line.serviceId && (
-                    <>
-                      <Field label="Quantity">
-                        <input
-                          type="number"
-                          min="0.001"
-                          step="0.001"
-                          value={line.quantity}
+                  {serviceLines.slice(1).map((line, index) => (
+                    <div className="form-grid repair-service-line" key={`service-line-${index + 1}`}>
+                      <Field label={`Service ${index + 2}`}>
+                        <select
+                          name={`service_id_${index + 1}`}
+                          value={line.serviceId}
                           onChange={(event) =>
                             setServiceLines((current) =>
                               current.map((entry, lineIndex) =>
-                                lineIndex === index
-                                  ? { ...entry, quantity: event.target.value }
+                                lineIndex === index + 1 ? { ...entry, serviceId: event.target.value } : entry,
+                              ),
+                            )
+                          }
+                        >
+                          <option value="">No service selected</option>
+                          {services.data
+                            .filter((item) => item.is_active)
+                            .map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.code ? `${item.code} · ` : ""}{item.name} · {formatMoney(item.labor_fee, merchant?.default_currency_code)}
+                              </option>
+                            ))}
+                        </select>
+                      </Field>
+                      <button
+                        type="button"
+                        className="text-link"
+                        onClick={() =>
+                          setServiceLines((current) =>
+                            current.filter((_, lineIndex) => lineIndex !== index + 1),
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() =>
+                      setServiceLines((current) => [
+                        ...current,
+                        { serviceId: "", quantity: "1", workItemIndex: 0 },
+                      ])
+                    }
+                  >
+                    + Add service line
+                  </button>
+                </div>
+
+                <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--line)" }}>
+                  <Field label="Replacement part source">
+                    <select
+                      name="part_source"
+                      value={partSource}
+                      onChange={(event) => setPartSource(event.target.value)}
+                    >
+                      <option value="NONE">None - Service only</option>
+                      <option value="INVENTORY">Add item from inventory</option>
+                      <option value="CUSTOMER">Customer Provided Part</option>
+                    </select>
+                  </Field>
+                  {partSource === "INVENTORY" && (
+                    <div className="form-grid">
+                      <Field label="Inventory replacement parts (sold)">
+                        <div className="repair-parts-search-wrap">
+                          <input
+                            type="search"
+                            className="repair-parts-search-input"
+                            placeholder="Filter parts by name or SKU..."
+                            value={partSearch}
+                            onChange={(e) => setPartSearch(e.target.value)}
+                          />
+                          {partSearch && (
+                            <button
+                              type="button"
+                              className="text-link"
+                              onClick={() => setPartSearch("")}
+                              style={{ whiteSpace: "nowrap" }}
+                            >
+                              Clear filter
+                            </button>
+                          )}
+                        </div>
+                        <div className="repair-parts-meta">
+                          <span>
+                            {filteredVariants.length} product{filteredVariants.length === 1 ? "" : "s"} found
+                          </span>
+                          <span>
+                            {partIds.length} selected
+                          </span>
+                        </div>
+                        <div className="repair-product-picker">
+                          {filteredVariants.map((item) => {
+                            const isSelected = partIds.includes(item.id);
+                            return (
+                              <button
+                                type="button"
+                                key={item.id}
+                                className={`repair-product-option${isSelected ? " selected" : ""}`}
+                                onClick={() => {
+                                  setPartIds((current) =>
+                                    isSelected ? current.filter((id) => id !== item.id) : [...current, item.id],
+                                  );
+                                  setPartWorkItemIndexes((current) => {
+                                    const next = { ...current };
+                                    if (isSelected) delete next[item.id];
+                                    else next[item.id] ??= 0;
+                                    return next;
+                                  });
+                                  setPartQuantities((current) => {
+                                    if (!isSelected)
+                                      return { ...current, [item.id]: current[item.id] ?? "1" };
+                                    const next = { ...current };
+                                    delete next[item.id];
+                                    return next;
+                                  });
+                                }}
+                                aria-pressed={isSelected}
+                              >
+                                <span className="repair-product-check">{isSelected ? "✓" : ""}</span>
+                                <span className="repair-product-copy">
+                                  <strong>
+                                    {[item.product_name, item.name].filter(Boolean).join(" · ")}
+                                  </strong>
+                                  <small>
+                                    SKU {item.sku} · {formatQuantity(item.quantity_on_hand)} in stock ·{" "}
+                                    {formatMoney(item.price, merchant?.default_currency_code)}
+                                  </small>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <select
+                          className="repair-native-picker"
+                          name="variant_id"
+                          multiple
+                          size={6}
+                          value={partIds}
+                          onChange={(event) => {
+                            const next = Array.from(
+                              event.target.selectedOptions,
+                              (option) => option.value,
+                            );
+                            setPartIds(next);
+                            setPartWorkItemIndexes((current) =>
+                              Object.fromEntries(next.map((id) => [id, current[id] ?? 0])),
+                            );
+                          }}
+                        >
+                          {variants.data
+                            .filter((item) => item.is_stock_tracked)
+                            .map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {[item.product_name, item.name].filter(Boolean).join(" · ")} · Stock{" "}
+                                {formatQuantity(item.quantity_on_hand)}
+                              </option>
+                            ))}
+                        </select>
+                      </Field>
+                      {partIds.length > 0 && (
+                        <div className="wide selected-repair-parts">
+                          <strong>Selected parts & quantities</strong>
+                          {partIds.map((id) => {
+                            const item = variants.data.find((variant) => variant.id === id);
+                            return (
+                              <div className="selected-repair-part" key={id}>
+                                <span>
+                                  {[item?.product_name, item?.name].filter(Boolean).join(" · ")}
+                                </span>
+                                <span className="repair-quantity-control">
+                                  <small>Qty</small>
+                                  <input
+                                    className="repair-quantity-input"
+                                    aria-label={`${item?.name ?? "Part"} quantity`}
+                                    type="number"
+                                    min="0.001"
+                                    step="0.001"
+                                    value={partQuantities[id] ?? "1"}
+                                    onChange={(event) =>
+                                      setPartQuantities((current) => ({
+                                        ...current,
+                                        [id]: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Card 3: Payment & Summary */}
+              <section className="configuration-section repair-form-card">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="tag" />
+                    <div>
+                      <h3>3. Payment & Total</h3>
+                      <p className="repair-form-card-subtitle">Payment status, customer note, and total cost breakdown</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <Field label="Payment status">
+                    <select
+                      name="payment_status"
+                      value={paymentStatus}
+                      onChange={(event) => setPaymentStatus(event.target.value)}
+                    >
+                      <option value="UNPAID">Unpaid</option>
+                      <option value="DEPOSIT_PAID">Deposit Paid</option>
+                      <option value="PAID">Paid</option>
+                    </select>
+                  </Field>
+                  {paymentStatus === "DEPOSIT_PAID" && (
+                    <Field label="Deposit amount">
+                      <input
+                        name="deposit_amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={depositAmount}
+                        onChange={(event) => setDepositAmount(event.target.value)}
+                        required
+                      />
+                    </Field>
+                  )}
+                  {paymentStatus !== "UNPAID" && (
+                    <Field label="Payment type">
+                      <select
+                        name="deposit_payment_type_id"
+                        defaultValue={
+                          usablePaymentTypes.find((item) => item.category_code === "CASH")?.id
+                        }
+                        required
+                      >
+                        {usablePaymentTypes.map((item) => (
+                          <option value={item.id} key={item.id}>
+                            {item.name} · {item.category_code}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                  <div className="wide">
+                    <Field label="Ticket note">
+                      <textarea
+                        name="note"
+                        value={repairNote}
+                        onChange={(event) => setRepairNote(event.target.value)}
+                        placeholder="Additional customer or technician notes"
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                <div className="repair-summary-card">
+                  <div className="repair-summary-header">
+                    <span>Estimated Total Cost</span>
+                    <strong>{formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}</strong>
+                  </div>
+                  <div className="repair-price-breakdown">
+                    {catalogLaborFee > 0 && (
+                      <div>
+                        <span>{selectedService?.name || "Service catalog"}</span>
+                        <strong>{formatMoney(catalogLaborFee, merchant?.default_currency_code)}</strong>
+                      </div>
+                    )}
+                    {allAdditionalFees > 0 && (
+                      <div>
+                        <span>Device price{additionalWorkItems.length > 0 ? "s" : ""}</span>
+                        <strong>{formatMoney(allAdditionalFees, merchant?.default_currency_code)}</strong>
+                      </div>
+                    )}
+                    {estimatedDiscount > 0 && (
+                      <div className="discount">
+                        <span>Promotion discount</span>
+                        <strong>−{formatMoney(estimatedDiscount, merchant?.default_currency_code)}</strong>
+                      </div>
+                    )}
+                    {partIds.map((id) => {
+                      const item = variants.data.find((variant) => variant.id === id);
+                      const quantity = partQuantities[id] ?? "1";
+                      const amount = Number(item?.price ?? 0) * Number(quantity);
+                      return (
+                        <div key={id}>
+                          <span>
+                            {[item?.product_name, item?.name].filter(Boolean).join(" · ") || "Replacement part"}{" "}
+                            × {formatQuantity(quantity)}
+                          </span>
+                          <strong>{formatMoney(amount, merchant?.default_currency_code)}</strong>
+                        </div>
+                      );
+                    })}
+                    {estimatedTax > 0 && (
+                      <div>
+                        <span>{currentShop?.tax_label || "Tax"}</span>
+                        <strong>{formatMoney(estimatedTax, merchant?.default_currency_code)}</strong>
+                      </div>
+                    )}
+                  </div>
+                  <div className="repair-summary-turnaround">
+                    <span>Ticket waiting period</span>
+                    <strong>
+                      {formatDateOnly(waitingStartDate)} – {formatDateOnly(ticketWaitingEndDate)} ({ticketWaitingDays} days)
+                    </strong>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "14px" }}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="receipt"
+                    onClick={() => setInvoicePreview(true)}
+                  >
+                    Preview repair invoice
+                  </Button>
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* ========================================================================= */}
+          {/* POS-COMPLEX MODE: Full enterprise depot with multi-device navigation       */}
+          {/* ========================================================================= */}
+          {isComplex && (
+            <>
+              {/* 1. Customer & Ticket Details */}
+              <section className="configuration-section repair-form-card" id="ticket-section-customer">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="user" />
+                    <div>
+                      <h3>1. Customer & Ticket Details</h3>
+                      <p className="repair-form-card-subtitle">Information shared across all devices on this ticket</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <Field label="Customer name">
+                    <input
+                      name="customer_name"
+                      value={customerName}
+                      onChange={(event) => setCustomerName(event.target.value)}
+                      required
+                      placeholder="Customer name"
+                    />
+                  </Field>
+                  <Field label="Customer phone">
+                    <input
+                      name="customer_phone"
+                      value={customerPhone}
+                      onChange={(event) => setCustomerPhone(event.target.value)}
+                      placeholder="Customer phone"
+                    />
+                  </Field>
+                  <Field label="Priority">
+                    <select
+                      name="priority"
+                      value={priority}
+                      onChange={(event) => setPriority(event.target.value)}
+                    >
+                      <option>NORMAL</option>
+                      <option>HIGH</option>
+                      <option>URGENT</option>
+                    </select>
+                  </Field>
+                  <Field label="Promotion">
+                    <select
+                      name="promotion_id"
+                      value={promotionId}
+                      onChange={(event) => setPromotionId(event.target.value)}
+                    >
+                      <option value="">No promotion</option>
+                      {promotions.data.map((item) => (
+                        <option value={item.id} key={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Receiving shop">
+                    <input value={currentShop?.name ?? "No shop selected"} readOnly />
+                  </Field>
+                  <ImageSourceField
+                    name="images-ticket"
+                    label="Ticket-level photos"
+                    multiple
+                    disabled={offline.status === "offline"}
+                  />
+                </div>
+                {ticketDefinitions.length > 0 && (
+                  <DynamicFieldGroup
+                    definitions={ticketDefinitions}
+                    values={ticketFields}
+                    onChange={(code, value) =>
+                      setTicketFields((current) => ({ ...current, [code]: value }))
+                    }
+                    title="Ticket details"
+                  />
+                )}
+              </section>
+
+              {/* 2. Devices Stack */}
+              <section className="configuration-section repair-form-card" id="ticket-section-devices">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="repair" />
+                    <div>
+                      <h3>2. Devices</h3>
+                      <p className="repair-form-card-subtitle">
+                        Identity, issue diagnostics, waiting period, and photos for each device
+                      </p>
+                    </div>
+                  </div>
+                  <span className="step-count">{additionalWorkItems.length + 1} device{additionalWorkItems.length === 0 ? "" : "s"}</span>
+                </div>
+
+                <div className="repair-device-stack">
+                  {/* Device 1: Primary Device */}
+                  <div className="configuration-card repair-device-card">
+                    <div className="repair-device-card-header">
+                      <div>
+                        <h4>Device 1</h4>
+                        <small>Primary device · {deviceType || "Choose type"}</small>
+                      </div>
+                    </div>
+                    <div className="form-grid">
+                      <Field label="Device type">
+                        <select
+                          name="device_type"
+                          value={deviceType}
+                          onChange={(event) => setDeviceType(event.target.value)}
+                          required
+                        >
+                          <option value="">Choose type</option>
+                          <option>PHONE</option>
+                          <option>TABLET</option>
+                          <option>LAPTOP</option>
+                          <option>APPLIANCE</option>
+                          <option>OTHER</option>
+                        </select>
+                      </Field>
+                      <Field label="Manufacturer">
+                        <select
+                          name="manufacturer"
+                          value={manufacturer}
+                          onChange={(event) => setManufacturer(event.target.value)}
+                        >
+                          <option value="">Choose brand</option>
+                          {brands.data
+                            .filter((brand) => brand.is_active)
+                            .sort((left, right) => left.name.localeCompare(right.name))
+                            .map((brand) => (
+                              <option value={brand.name} key={brand.id}>
+                                {brand.name}
+                              </option>
+                            ))}
+                        </select>
+                      </Field>
+                      <Field label="Model">
+                        <input
+                          name="model"
+                          value={deviceModel}
+                          onChange={(event) => setDeviceModel(event.target.value)}
+                          placeholder="Model name / number"
+                        />
+                      </Field>
+                      <Field label="IMEI / serial number">
+                        <BarcodeScanner
+                          value={serialNumber}
+                          onChange={setSerialNumber}
+                          placeholder="Enter or scan IMEI / serial number"
+                        />
+                      </Field>
+                      <RepeatableDeviceValues
+                        label="Issue"
+                        values={[issueDescription, ...additionalIssues]}
+                        presets={issuePresets.data}
+                        required
+                        onChange={(values) => {
+                          setIssueDescription(values[0] ?? "");
+                          setAdditionalIssues(values.slice(1));
+                        }}
+                      />
+                      <RepeatableDeviceValues
+                        label="Condition"
+                        values={conditions}
+                        presets={conditionPresets.data}
+                        onChange={setConditions}
+                      />
+                      <div className="wide">
+                        <Field label="Device note">
+                          <textarea
+                            value={workItemNote}
+                            onChange={(event) => setWorkItemNote(event.target.value)}
+                            placeholder="Notes specific to this device"
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Price">
+                        <input
+                          name="additional_fee"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={laborFee}
+                          onChange={(event) => setLaborFee(event.target.value)}
+                          required
+                          placeholder="0.00"
+                        />
+                      </Field>
+                      <RepairWaitingFields
+                        startDate={waitingStartDate}
+                        initialDays={waitingDays}
+                        initialEndDate={waitingEndDate}
+                        daysName="waiting_days"
+                        endDateName="waiting_end_date"
+                        onChange={(days, endDate) => {
+                          setWaitingDays(days);
+                          setWaitingEndDate(endDate);
+                        }}
+                      />
+                      <ImageSourceField
+                        name="images-0"
+                        label="Device photos"
+                        multiple
+                        disabled={offline.status === "offline"}
+                      />
+                    </div>
+                    {workItemDefinitions.length > 0 && (
+                      <DynamicFieldGroup
+                        definitions={workItemDefinitions}
+                        values={workItemFields}
+                        onChange={(code, value) =>
+                          setWorkItemFields((current) => ({ ...current, [code]: value }))
+                        }
+                        title="Device-specific details"
+                      />
+                    )}
+                  </div>
+
+                  {/* Additional Devices */}
+                  {additionalWorkItems.map((item, index) => (
+                    <div className="configuration-card repair-device-card" key={item.id}>
+                      <div className="repair-device-card-header">
+                        <div>
+                          <h4>Device {index + 2}</h4>
+                          <small>{item.deviceType || "Additional device"}</small>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-link"
+                          onClick={() => removeAdditionalWorkItem(index)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="form-grid">
+                        <Field label="Device type">
+                          <select
+                            value={item.deviceType}
+                            onChange={(event) =>
+                              setAdditionalWorkItems((current) =>
+                                current.map((value, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...value, deviceType: event.target.value }
+                                    : value,
+                                ),
+                              )
+                            }
+                            required
+                          >
+                            <option value="">Choose type</option>
+                            <option>PHONE</option>
+                            <option>TABLET</option>
+                            <option>LAPTOP</option>
+                            <option>APPLIANCE</option>
+                            <option>OTHER</option>
+                          </select>
+                        </Field>
+                        <Field label="Manufacturer">
+                          <select
+                            value={item.manufacturer}
+                            onChange={(event) =>
+                              setAdditionalWorkItems((current) =>
+                                current.map((value, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...value, manufacturer: event.target.value }
+                                    : value,
+                                ),
+                              )
+                            }
+                          >
+                            <option value="">Choose brand</option>
+                            {brands.data
+                              .filter((brand) => brand.is_active)
+                              .sort((left, right) => left.name.localeCompare(right.name))
+                              .map((brand) => (
+                                <option value={brand.name} key={brand.id}>
+                                  {brand.name}
+                                </option>
+                              ))}
+                          </select>
+                        </Field>
+                        <Field label="Model">
+                          <input
+                            value={item.model}
+                            onChange={(event) =>
+                              setAdditionalWorkItems((current) =>
+                                current.map((value, itemIndex) =>
+                                  itemIndex === index ? { ...value, model: event.target.value } : value,
+                                ),
+                              )
+                            }
+                            placeholder="Model name / number"
+                          />
+                        </Field>
+                        <Field label="IMEI / serial number">
+                          <BarcodeScanner
+                            value={item.serialNumber}
+                            onChange={(serialNumber) =>
+                              setAdditionalWorkItems((current) =>
+                                current.map((value, itemIndex) =>
+                                  itemIndex === index ? { ...value, serialNumber } : value,
+                                ),
+                              )
+                            }
+                            placeholder="Enter or scan IMEI / serial number"
+                          />
+                        </Field>
+                        <RepeatableDeviceValues
+                          label="Issue"
+                          values={[item.issueDescription, ...item.issues]}
+                          presets={issuePresets.data}
+                          required
+                          onChange={(values) =>
+                            setAdditionalWorkItems((current) =>
+                              current.map((value, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...value,
+                                      issueDescription: values[0] ?? "",
+                                      issues: values.slice(1),
+                                    }
+                                  : value,
+                              ),
+                            )
+                          }
+                        />
+                        <RepeatableDeviceValues
+                          label="Condition"
+                          values={item.conditions}
+                          presets={conditionPresets.data}
+                          onChange={(conditions) =>
+                            setAdditionalWorkItems((current) =>
+                              current.map((value, itemIndex) =>
+                                itemIndex === index ? { ...value, conditions } : value,
+                              ),
+                            )
+                          }
+                        />
+                        <div className="wide">
+                          <Field label="Device note">
+                            <textarea
+                              value={item.note}
+                              onChange={(event) =>
+                                setAdditionalWorkItems((current) =>
+                                  current.map((value, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...value, note: event.target.value }
+                                      : value,
+                                  ),
+                                )
+                              }
+                              placeholder="Notes specific to this device"
+                            />
+                          </Field>
+                        </div>
+                        <Field label="Price">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.additionalFee}
+                            onChange={(event) =>
+                              setAdditionalWorkItems((current) =>
+                                current.map((value, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...value, additionalFee: event.target.value }
+                                    : value,
+                                ),
+                              )
+                            }
+                            placeholder="0.00"
+                          />
+                        </Field>
+                        <RepairWaitingFields
+                          startDate={waitingStartDate}
+                          initialDays={item.waitingDays}
+                          initialEndDate={item.waitingEndDate}
+                          daysName={`waiting_days_${index + 1}`}
+                          endDateName={`waiting_end_date_${index + 1}`}
+                          onChange={(days, endDate) =>
+                            setAdditionalWorkItems((current) =>
+                              current.map((value, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...value, waitingDays: days, waitingEndDate: endDate }
+                                  : value,
+                              ),
+                            )
+                          }
+                        />
+                        <ImageSourceField
+                          name={`images-${index + 1}`}
+                          label="Device photos"
+                          multiple
+                          disabled={offline.status === "offline"}
+                        />
+                      </div>
+                      {workItemDefinitions.length > 0 && (
+                        <DynamicFieldGroup
+                          definitions={workItemDefinitions}
+                          values={item.fields}
+                          onChange={(code, value) =>
+                            setAdditionalWorkItems((current) =>
+                              current.map((entry, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...entry, fields: { ...entry.fields, [code]: value } }
                                   : entry,
                               ),
                             )
                           }
-                          required
+                          title="Device-specific details"
                         />
-                      </Field>
-                      <Field label="Work item">
+                      )}
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="repair-add-device"
+                    onClick={() =>
+                      setAdditionalWorkItems((current) => [
+                        ...current,
+                        {
+                          id: crypto.randomUUID(),
+                          deviceType: "",
+                          manufacturer: "",
+                          model: "",
+                          serialNumber: "",
+                          issueDescription: "",
+                          issues: [],
+                          conditions: [""],
+                          note: "",
+                          additionalFee: "0",
+                          waitingDays: 0,
+                          waitingEndDate: waitingStartDate,
+                          fields: {},
+                        },
+                      ])
+                    }
+                  >
+                    + Add device to this ticket
+                  </button>
+                </div>
+              </section>
+
+              {/* 3. Services */}
+              <section className="configuration-section repair-form-card" id="ticket-section-services">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="box" />
+                    <div>
+                      <h3>3. Services (Optional)</h3>
+                      <p className="repair-form-card-subtitle">
+                        Catalog repair services and per-device allocation
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="stack gap-3">
+                  {serviceLines.map((line, index) => (
+                    <div className="form-grid repair-service-line" key={`service-line-${index}`}>
+                      <Field label={`Service ${index + 1} (optional)`}>
                         <select
-                          value={line.workItemIndex}
+                          name={index === 0 ? "service_id" : `service_id_${index}`}
+                          value={line.serviceId}
                           onChange={(event) =>
                             setServiceLines((current) =>
                               current.map((entry, lineIndex) =>
                                 lineIndex === index
-                                  ? { ...entry, workItemIndex: Number(event.target.value) }
+                                  ? { ...entry, serviceId: event.target.value }
                                   : entry,
                               ),
                             )
                           }
                         >
-                          <option value={0}>1. {deviceType || "Primary device"}</option>
-                          {additionalWorkItems.map((item, itemIndex) => (
-                            <option key={item.id} value={itemIndex + 1}>
-                              {itemIndex + 2}. {item.deviceType || "Device"}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    </>
-                  )}
-                  {serviceLines.length > 1 && (
-                    <button
-                      type="button"
-                      className="text-link"
-                      onClick={() =>
-                        setServiceLines((current) =>
-                          current.filter((_, lineIndex) => lineIndex !== index),
-                        )
-                      }
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button
-                type="button"
-                className="text-link"
-                onClick={() =>
-                  setServiceLines((current) => [
-                    ...current,
-                    { serviceId: "", quantity: "1", workItemIndex: 0 },
-                  ])
-                }
-              >
-                + Add service line
-              </button>
-            </div>
-          </section>
-          <section className="configuration-section">
-            <h3>4. Payment</h3>
-            <div className="form-grid">
-              <Field label="Payment status">
-                <select
-                  name="payment_status"
-                  value={paymentStatus}
-                  onChange={(event) => setPaymentStatus(event.target.value)}
-                >
-                  <option value="UNPAID">Unpaid</option>
-                  <option value="DEPOSIT_PAID">Deposit Paid</option>
-                  <option value="PAID">Paid</option>
-                </select>
-              </Field>
-              {paymentStatus === "DEPOSIT_PAID" && (
-                <Field label="Deposit amount">
-                  <input
-                    name="deposit_amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={depositAmount}
-                    onChange={(event) => setDepositAmount(event.target.value)}
-                    required
-                  />
-                </Field>
-              )}
-              {paymentStatus !== "UNPAID" && (
-                <Field label="Payment type">
-                  <select
-                    name="deposit_payment_type_id"
-                    defaultValue={
-                      usablePaymentTypes.find((item) => item.category_code === "CASH")?.id
-                    }
-                    required
-                  >
-                    {usablePaymentTypes.map((item) => (
-                      <option value={item.id} key={item.id}>
-                        {item.name} · {item.category_code}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-            </div>
-          </section>
-          <section className="configuration-section">
-            <h3>5. Replacement parts charged to the customer</h3>
-            <p className="notice">
-              The customer&apos;s device is recorded in Device details above. Only select products
-              here when they will be installed or consumed during the repair; each selection adds
-              its retail price to checkout and deducts its quantity from stock as soon as the ticket
-              is saved.
-            </p>
-            <Field label="Replacement part source">
-              <select
-                name="part_source"
-                value={partSource}
-                onChange={(event) => setPartSource(event.target.value)}
-              >
-                <option value="NONE">None - Service only</option>
-                <option value="INVENTORY">Add item from inventory</option>
-                <option value="CUSTOMER">Customer Provided Part</option>
-              </select>
-            </Field>
-            {partSource === "INVENTORY" && (
-              <div className="form-grid">
-                <Field label="Inventory replacement parts (sold)">
-                  <div className="repair-product-picker">
-                    {variants.data
-                      .filter((item) => item.is_stock_tracked)
-                      .map((item) => {
-                        const isSelected = partIds.includes(item.id);
-                        return (
-                          <button
-                            type="button"
-                            key={item.id}
-                            className={`repair-product-option${isSelected ? " selected" : ""}`}
-                            onClick={() => {
-                              setPartIds((current) =>
-                                isSelected
-                                  ? current.filter((id) => id !== item.id)
-                                  : [...current, item.id],
-                              );
-                              setPartWorkItemIndexes((current) => {
-                                const next = { ...current };
-                                if (isSelected) delete next[item.id];
-                                else next[item.id] ??= 0;
-                                return next;
-                              });
-                              setPartQuantities((current) => {
-                                if (!isSelected)
-                                  return { ...current, [item.id]: current[item.id] ?? "1" };
-                                const next = { ...current };
-                                delete next[item.id];
-                                return next;
-                              });
-                            }}
-                            aria-pressed={isSelected}
-                          >
-                            <span className="repair-product-check">{isSelected ? "✓" : ""}</span>
-                            <span className="repair-product-copy">
-                              <strong>
-                                {[item.product_name, item.name].filter(Boolean).join(" · ")}
-                              </strong>
-                              <small>
-                                SKU {item.sku} · {formatQuantity(item.quantity_on_hand)} in stock ·{" "}
-                                {formatMoney(item.price, merchant?.default_currency_code)}
-                              </small>
-                            </span>
-                          </button>
-                        );
-                      })}
-                  </div>
-                  <small>
-                    {partIds.length
-                      ? `${partIds.length} product${partIds.length === 1 ? "" : "s"} selected`
-                      : "Select one or more products"}
-                  </small>
-                  <select
-                    className="repair-native-picker"
-                    name="variant_id"
-                    multiple
-                    size={6}
-                    value={partIds}
-                    onChange={(event) => {
-                      const next = Array.from(
-                        event.target.selectedOptions,
-                        (option) => option.value,
-                      );
-                      setPartIds(next);
-                      setPartWorkItemIndexes((current) =>
-                        Object.fromEntries(next.map((id) => [id, current[id] ?? 0])),
-                      );
-                    }}
-                  >
-                    {variants.data
-                      .filter((item) => item.is_stock_tracked)
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {[item.product_name, item.name].filter(Boolean).join(" · ")} · Stock{" "}
-                          {formatQuantity(item.quantity_on_hand)}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-                {partIds.length > 0 && (
-                  <div className="wide selected-repair-parts">
-                    <strong>Selected quantities</strong>
-                    {partIds.map((id) => {
-                      const item = variants.data.find((variant) => variant.id === id);
-                      return (
-                        <div className="selected-repair-part" key={id}>
-                          <span>
-                            {[item?.product_name, item?.name].filter(Boolean).join(" · ")}
-                          </span>
-                          <select
-                            aria-label={`Work item for ${item?.name ?? "part"}`}
-                            value={String(partWorkItemIndexes[id] ?? 0)}
-                            onChange={(event) =>
-                              setPartWorkItemIndexes((current) => ({
-                                ...current,
-                                [id]: Number(event.target.value),
-                              }))
-                            }
-                          >
-                            <option value="-1">Ticket-level</option>
-                            <option value="0">Device 1</option>
-                            {additionalWorkItems.map((entry, index) => (
-                              <option key={`${id}-work-item-${index + 1}`} value={index + 1}>
-                                Device {index + 2}
-                                {entry.deviceType ? ` · ${entry.deviceType}` : ""}
+                          <option value="">No service selected</option>
+                          {services.data
+                            .filter((item) => item.is_active)
+                            .map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.code ? `${item.code} · ` : ""}{item.name} · {formatMoney(item.labor_fee, merchant?.default_currency_code)}
                               </option>
                             ))}
-                          </select>
-                          <span className="repair-quantity-control">
-                            <small>Qty</small>
+                        </select>
+                      </Field>
+                      {line.serviceId && (
+                        <>
+                          <Field label="Quantity">
                             <input
-                              className="repair-quantity-input"
-                              aria-label={`${item?.name ?? "Part"} quantity`}
                               type="number"
                               min="0.001"
                               step="0.001"
-                              value={partQuantities[id] ?? "1"}
+                              value={line.quantity}
                               onChange={(event) =>
-                                setPartQuantities((current) => ({
-                                  ...current,
-                                  [id]: event.target.value,
-                                }))
+                                setServiceLines((current) =>
+                                  current.map((entry, lineIndex) =>
+                                    lineIndex === index
+                                      ? { ...entry, quantity: event.target.value }
+                                      : entry,
+                                  ),
+                                )
                               }
+                              required
                             />
+                          </Field>
+                          <Field label="Work item">
+                            <select
+                              value={line.workItemIndex}
+                              onChange={(event) =>
+                                setServiceLines((current) =>
+                                  current.map((entry, lineIndex) =>
+                                    lineIndex === index
+                                      ? { ...entry, workItemIndex: Number(event.target.value) }
+                                      : entry,
+                                  ),
+                                )
+                              }
+                            >
+                              <option value={0}>1. {deviceType || "Primary device"}</option>
+                              {additionalWorkItems.map((item, itemIndex) => (
+                                <option key={item.id} value={itemIndex + 1}>
+                                  {itemIndex + 2}. {item.deviceType || "Device"}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                        </>
+                      )}
+                      {serviceLines.length > 1 && (
+                        <button
+                          type="button"
+                          className="text-link"
+                          onClick={() =>
+                            setServiceLines((current) =>
+                              current.filter((_, lineIndex) => lineIndex !== index),
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() =>
+                      setServiceLines((current) => [
+                        ...current,
+                        { serviceId: "", quantity: "1", workItemIndex: 0 },
+                      ])
+                    }
+                  >
+                    + Add service line
+                  </button>
+                </div>
+              </section>
+
+              {/* 4. Replacement parts charged to the customer */}
+              <section className="configuration-section repair-form-card" id="ticket-section-parts">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="package" />
+                    <div>
+                      <h3>4. Replacement parts charged to the customer</h3>
+                      <p className="repair-form-card-subtitle">
+                        Select parts consumed during repair; price adds to total and quantity is deducted from inventory
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <Field label="Replacement part source">
+                  <select
+                    name="part_source"
+                    value={partSource}
+                    onChange={(event) => setPartSource(event.target.value)}
+                  >
+                    <option value="NONE">None - Service only</option>
+                    <option value="INVENTORY">Add item from inventory</option>
+                    <option value="CUSTOMER">Customer Provided Part</option>
+                  </select>
+                </Field>
+
+                {partSource === "INVENTORY" && (
+                  <div className="form-grid">
+                    <Field label="Inventory replacement parts (sold)">
+                      <div className="repair-parts-search-wrap">
+                        <input
+                          type="search"
+                          className="repair-parts-search-input"
+                          placeholder="Filter parts by name, SKU..."
+                          value={partSearch}
+                          onChange={(e) => setPartSearch(e.target.value)}
+                        />
+                        {partSearch && (
+                          <button
+                            type="button"
+                            className="text-link"
+                            onClick={() => setPartSearch("")}
+                            style={{ whiteSpace: "nowrap" }}
+                          >
+                            Clear filter
+                          </button>
+                        )}
+                      </div>
+                      <div className="repair-parts-meta">
+                        <span>
+                          {filteredVariants.length} product{filteredVariants.length === 1 ? "" : "s"} found
+                        </span>
+                        <span>
+                          {partIds.length} selected
+                        </span>
+                      </div>
+                      <div className="repair-product-picker">
+                        {filteredVariants.map((item) => {
+                          const isSelected = partIds.includes(item.id);
+                          return (
+                            <button
+                              type="button"
+                              key={item.id}
+                              className={`repair-product-option${isSelected ? " selected" : ""}`}
+                              onClick={() => {
+                                setPartIds((current) =>
+                                  isSelected
+                                    ? current.filter((id) => id !== item.id)
+                                    : [...current, item.id],
+                                );
+                                setPartWorkItemIndexes((current) => {
+                                  const next = { ...current };
+                                  if (isSelected) delete next[item.id];
+                                  else next[item.id] ??= 0;
+                                  return next;
+                                });
+                                setPartQuantities((current) => {
+                                  if (!isSelected)
+                                    return { ...current, [item.id]: current[item.id] ?? "1" };
+                                  const next = { ...current };
+                                  delete next[item.id];
+                                  return next;
+                                });
+                              }}
+                              aria-pressed={isSelected}
+                            >
+                              <span className="repair-product-check">{isSelected ? "✓" : ""}</span>
+                              <span className="repair-product-copy">
+                                <strong>
+                                  {[item.product_name, item.name].filter(Boolean).join(" · ")}
+                                </strong>
+                                <small>
+                                  SKU {item.sku} · {formatQuantity(item.quantity_on_hand)} in stock ·{" "}
+                                  {formatMoney(item.price, merchant?.default_currency_code)}
+                                </small>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <small>
+                        {partIds.length
+                          ? `${partIds.length} product${partIds.length === 1 ? "" : "s"} selected`
+                          : "Select one or more products"}
+                      </small>
+                      <select
+                        className="repair-native-picker"
+                        name="variant_id"
+                        multiple
+                        size={6}
+                        value={partIds}
+                        onChange={(event) => {
+                          const next = Array.from(
+                            event.target.selectedOptions,
+                            (option) => option.value,
+                          );
+                          setPartIds(next);
+                          setPartWorkItemIndexes((current) =>
+                            Object.fromEntries(next.map((id) => [id, current[id] ?? 0])),
+                          );
+                        }}
+                      >
+                        {variants.data
+                          .filter((item) => item.is_stock_tracked)
+                          .map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {[item.product_name, item.name].filter(Boolean).join(" · ")} · Stock{" "}
+                              {formatQuantity(item.quantity_on_hand)}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    {partIds.length > 0 && (
+                      <div className="wide selected-repair-parts">
+                        <strong>Selected quantities</strong>
+                        {partIds.map((id) => {
+                          const item = variants.data.find((variant) => variant.id === id);
+                          return (
+                            <div className="selected-repair-part" key={id}>
+                              <span>
+                                {[item?.product_name, item?.name].filter(Boolean).join(" · ")}
+                              </span>
+                              <select
+                                aria-label={`Work item for ${item?.name ?? "part"}`}
+                                value={String(partWorkItemIndexes[id] ?? 0)}
+                                onChange={(event) =>
+                                  setPartWorkItemIndexes((current) => ({
+                                    ...current,
+                                    [id]: Number(event.target.value),
+                                  }))
+                                }
+                              >
+                                <option value="-1">Ticket-level</option>
+                                <option value="0">Device 1</option>
+                                {additionalWorkItems.map((entry, index) => (
+                                  <option key={`${id}-work-item-${index + 1}`} value={index + 1}>
+                                    Device {index + 2}
+                                    {entry.deviceType ? ` · ${entry.deviceType}` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                              <span className="repair-quantity-control">
+                                <small>Qty</small>
+                                <input
+                                  className="repair-quantity-input"
+                                  aria-label={`${item?.name ?? "Part"} quantity`}
+                                  type="number"
+                                  min="0.001"
+                                  step="0.001"
+                                  value={partQuantities[id] ?? "1"}
+                                  onChange={(event) =>
+                                    setPartQuantities((current) => ({
+                                      ...current,
+                                      [id]: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* 5. Payment, Notes & Total */}
+              <section className="configuration-section repair-form-card" id="ticket-section-payment">
+                <div className="repair-form-card-header">
+                  <div className="repair-form-card-title">
+                    <Icon name="tag" />
+                    <div>
+                      <h3>5. Payment & Total Review</h3>
+                      <p className="repair-form-card-subtitle">
+                        Payment status, customer notes, and itemized billing breakdown
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <Field label="Payment status">
+                    <select
+                      name="payment_status"
+                      value={paymentStatus}
+                      onChange={(event) => setPaymentStatus(event.target.value)}
+                    >
+                      <option value="UNPAID">Unpaid</option>
+                      <option value="DEPOSIT_PAID">Deposit Paid</option>
+                      <option value="PAID">Paid</option>
+                    </select>
+                  </Field>
+                  {paymentStatus === "DEPOSIT_PAID" && (
+                    <Field label="Deposit amount">
+                      <input
+                        name="deposit_amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={depositAmount}
+                        onChange={(event) => setDepositAmount(event.target.value)}
+                        required
+                      />
+                    </Field>
+                  )}
+                  {paymentStatus !== "UNPAID" && (
+                    <Field label="Payment type">
+                      <select
+                        name="deposit_payment_type_id"
+                        defaultValue={
+                          usablePaymentTypes.find((item) => item.category_code === "CASH")?.id
+                        }
+                        required
+                      >
+                        {usablePaymentTypes.map((item) => (
+                          <option value={item.id} key={item.id}>
+                            {item.name} · {item.category_code}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                  <div className="wide">
+                    <Field label="Ticket note">
+                      <textarea
+                        name="note"
+                        value={repairNote}
+                        onChange={(event) => setRepairNote(event.target.value)}
+                        placeholder="Additional customer or technician notes"
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                <div className="repair-summary-card">
+                  <div className="repair-summary-header">
+                    <span>Estimated Total Cost</span>
+                    <strong>{formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}</strong>
+                  </div>
+                  <div className="repair-price-breakdown">
+                    <div>
+                      <span>{selectedService?.name || "Service catalog"}</span>
+                      <strong>{formatMoney(catalogLaborFee, merchant?.default_currency_code)}</strong>
+                    </div>
+                    {allAdditionalFees > 0 && (
+                      <div>
+                        <span>Device prices</span>
+                        <strong>
+                          {formatMoney(allAdditionalFees, merchant?.default_currency_code)}
+                        </strong>
+                      </div>
+                    )}
+                    {estimatedDiscount > 0 && (
+                      <div className="discount">
+                        <span>Promotion discount</span>
+                        <strong>
+                          −{formatMoney(estimatedDiscount, merchant?.default_currency_code)}
+                        </strong>
+                      </div>
+                    )}
+                    {partIds.map((id) => {
+                      const item = variants.data.find((variant) => variant.id === id);
+                      const quantity = partQuantities[id] ?? "1";
+                      const amount = Number(item?.price ?? 0) * Number(quantity);
+                      return (
+                        <div key={id}>
+                          <span>
+                            {[item?.product_name, item?.name].filter(Boolean).join(" · ") ||
+                              "Replacement part"}{" "}
+                            × {formatQuantity(quantity)}
                           </span>
+                          <strong>{formatMoney(amount, merchant?.default_currency_code)}</strong>
                         </div>
                       );
                     })}
+                    {estimatedTax > 0 && (
+                      <div>
+                        <span>{currentShop?.tax_label || "Tax"}</span>
+                        <strong>{formatMoney(estimatedTax, merchant?.default_currency_code)}</strong>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
-          </section>
-          <section className="configuration-section">
-            <h3>6. Ticket notes & total</h3>
-            <DynamicFieldGroup
-              definitions={ticketDefinitions}
-              values={ticketFields}
-              onChange={(code, value) =>
-                setTicketFields((current) => ({ ...current, [code]: value }))
-              }
-              title="Ticket details"
-            />
-            <Field label="Ticket note">
-              <textarea
-                name="note"
-                value={repairNote}
-                onChange={(event) => setRepairNote(event.target.value)}
-                placeholder="Additional customer or technician notes"
-              />
-            </Field>
-            <div className="repair-total-card">
-              <span>Final total cost</span>
-              <strong>{formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}</strong>
-              <div className="repair-price-breakdown">
-                <div>
-                  <span>{selectedService?.name || "Service catalog"}</span>
-                  <strong>{formatMoney(catalogLaborFee, merchant?.default_currency_code)}</strong>
-                </div>
-                {allAdditionalFees > 0 && (
-                  <div>
-                    <span>Device prices</span>
+                  <div className="repair-summary-turnaround">
+                    <span>Ticket waiting period</span>
                     <strong>
-                      {formatMoney(allAdditionalFees, merchant?.default_currency_code)}
+                      {formatDateOnly(waitingStartDate)} – {formatDateOnly(ticketWaitingEndDate)} (
+                      {ticketWaitingDays} days)
                     </strong>
                   </div>
-                )}
-                {estimatedDiscount > 0 && (
-                  <div>
-                    <span>Promotion discount</span>
-                    <strong>
-                      −{formatMoney(estimatedDiscount, merchant?.default_currency_code)}
-                    </strong>
-                  </div>
-                )}
-                {partIds.map((id) => {
-                  const item = variants.data.find((variant) => variant.id === id);
-                  const quantity = partQuantities[id] ?? "1";
-                  const amount = Number(item?.price ?? 0) * Number(quantity);
-                  return (
-                    <div key={id}>
-                      <span>
-                        {[item?.product_name, item?.name].filter(Boolean).join(" · ") ||
-                          "Replacement part"}{" "}
-                        × {formatQuantity(quantity)}
-                      </span>
-                      <strong>{formatMoney(amount, merchant?.default_currency_code)}</strong>
-                    </div>
-                  );
-                })}
-                {estimatedTax > 0 && (
-                  <div>
-                    <span>{currentShop?.tax_label || "Tax"}</span>
-                    <strong>{formatMoney(estimatedTax, merchant?.default_currency_code)}</strong>
-                  </div>
-                )}
-                <div>
-                  <span>Ticket waiting period</span>
-                  <strong>
-                    {formatDateOnly(waitingStartDate)} – {formatDateOnly(ticketWaitingEndDate)} (
-                    {ticketWaitingDays} days)
-                  </strong>
+                  <small style={{ display: "block", marginTop: "8px", color: "var(--muted)", fontSize: "10px" }}>
+                    Final tax, promotions, and stock pricing are confirmed by the backend when the ticket is saved.
+                  </small>
                 </div>
-              </div>
-              <small>
-                Final tax, promotions, and stock pricing are confirmed by the backend when the
-                ticket is saved.
-              </small>
-            </div>
+
+                <div style={{ marginTop: "14px" }}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="receipt"
+                    onClick={() => setInvoicePreview(true)}
+                  >
+                    Preview repair invoice
+                  </Button>
+                </div>
+              </section>
+            </>
+          )}
+
+          {error && <div className="form-error">{error}</div>}
+          <div className="modal-actions">
             <Button
               type="button"
               variant="secondary"
-              icon="receipt"
-              onClick={() => setInvoicePreview(true)}
+              onClick={() => {
+                setOpen(false);
+                resetCreateForm();
+              }}
             >
-              Preview repair invoice
-            </Button>
-          </section>
-          {error && <div className="form-error">{error}</div>}
-          <div className="modal-actions">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit">
-              {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
+            <Button type="submit" aria-label="Create ticket">
+              {offline.status === "offline" ? t("repairs.save_ticket") : "Create ticket"}
             </Button>
           </div>
         </Form>

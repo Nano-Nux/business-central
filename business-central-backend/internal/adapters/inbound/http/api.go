@@ -9,9 +9,13 @@ import (
 	"time"
 
 	"business-central-backend/internal/app"
+	aihttp "business-central-backend/internal/ai/adapters/inbound/http"
+	aiinbound "business-central-backend/internal/ai/ports/inbound"
 	authhttp "business-central-backend/internal/auth/adapters/inbound/http"
 	authdto "business-central-backend/internal/auth/application/dto"
 	authinbound "business-central-backend/internal/auth/ports/inbound"
+	backuphttp "business-central-backend/internal/backup/adapters/inbound/http"
+	backupinbound "business-central-backend/internal/backup/ports/inbound"
 	cataloghttp "business-central-backend/internal/catalog/adapters/inbound/http"
 	cataloginbound "business-central-backend/internal/catalog/ports/inbound"
 	"business-central-backend/internal/media"
@@ -38,7 +42,10 @@ import (
 type API struct {
 	app             *fiber.App
 	db              *pgxpool.Pool
+	ai              *aihttp.Handler
 	auth            *authhttp.Handler
+	backup          *backuphttp.Handler
+	bundle          *BundleHandler
 	catalog         *cataloghttp.Handler
 	media           *mediahttp.Handler
 	pos             *poshttp.Handler
@@ -49,7 +56,10 @@ type API struct {
 }
 
 type Dependencies struct {
+	AI              aiinbound.AIService
 	Authentication  authinbound.Authentication
+	Backup          backupinbound.BackupService
+	BundlesDir      string
 	Catalog         cataloginbound.Catalog
 	Media           *media.Service
 	POS             posinbound.POS
@@ -68,6 +78,7 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 	api := &API{
 		db:              db,
 		auth:            authhttp.NewHandler(dependencies.Authentication),
+		bundle:          NewBundleHandler(dependencies.BundlesDir),
 		catalog:         cataloghttp.NewHandler(dependencies.Catalog, dependencies.Authentication),
 		media:           mediahttp.NewHandler(dependencies.Media, dependencies.Authentication),
 		pos:             poshttp.NewHandler(dependencies.POS, dependencies.Authentication),
@@ -76,9 +87,15 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 		services:        serviceshttp.NewHandler(dependencies.Services, dependencies.Authentication),
 		synchronization: synchronizationhttp.NewHandler(dependencies.Synchronization, dependencies.Authentication),
 	}
+	if dependencies.AI != nil {
+		api.ai = aihttp.NewHandler(dependencies.AI, dependencies.Authentication)
+	}
+	if dependencies.Backup != nil {
+		api.backup = backuphttp.NewHandler(dependencies.Backup, dependencies.Authentication)
+	}
 	// Resource validators enforce the 500 KB image limit. The wider transport limit
 	// also accommodates synchronization and legacy repair JSON payloads.
-	api.app = fiber.New(fiber.Config{ErrorHandler: api.errorHandler, BodyLimit: 11 << 20})
+	api.app = fiber.New(fiber.Config{ErrorHandler: api.errorHandler, BodyLimit: 26 << 20})
 	origin := dependencies.CORSOrigin
 	if strings.TrimSpace(origin) == "" {
 		origin = "*"
@@ -86,7 +103,7 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 	api.app.Use(cors.New(cors.Config{
 		AllowOrigins: strings.Split(origin, ","),
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Merchant-ID", "X-Request-ID", "Idempotency-Key"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Merchant-ID", "X-Request-ID", "X-Device-ID", "X-Backup-Checksum", "Idempotency-Key"},
 	}))
 	api.app.Use(api.requestID)
 	api.app.Use(logger.New(logger.Config{
@@ -103,9 +120,16 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 
 	v1 := api.app.Group("/api/v1")
 	api.auth.RegisterPublicRoutes(v1)
+	api.bundle.RegisterRoutes(v1)
 
 	protected := v1.Group("", api.authenticate)
 	api.auth.RegisterProtectedRoutes(protected)
+	if api.ai != nil {
+		api.ai.RegisterRoutes(protected)
+	}
+	if api.backup != nil {
+		api.backup.RegisterRoutes(protected)
+	}
 	api.catalog.RegisterRoutes(protected)
 	api.media.RegisterRoutes(protected)
 	api.pos.RegisterRoutes(protected)

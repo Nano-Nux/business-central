@@ -1,12 +1,11 @@
 # Mobile Agent Instructions
 
-- Use Flutter and keep the mobile experience aligned with `business-central-portal`.
-- Before implementing an operational feature, add or update its row in the root `PORTAL_MOBILE_PARITY.md`.
-- Do not mark a feature complete until the matching portal workflow, design reference, and shared acceptance tests are recorded.
-- Treat the backend API and schema as the source of truth for domain data.
-- `FULLY_OFFLINE` mode must make zero backend requests for the entire app session. `ONLINE` mode may temporarily lose connectivity and synchronize supported queued operations later.
-- Use local SQLite for offline reads and writes; do not replace the offline database with in-memory state.
-- Keep the local schema compatible with `business-central-backend/schema.sql` for supported entities.
-- Implement synchronization only for `ONLINE` mode, with idempotent operations, retries, durable queues, and explicit conflict handling.
-- Test `ONLINE` connected, `ONLINE` temporary-offline, reconnect, retry, duplicate operation, and `FULLY_OFFLINE` no-network scenarios.
-- Run `flutter analyze` and `flutter test` before finishing when mobile code exists.
+- `business_central_mobile` serves as the offline-first host container for `business-central-portal` using Flutter WebView and Drift SQLite.
+- Do NOT build duplicate pure native Flutter UI screens or competing domain models. All UI, POS workflows, permissions, and staff operations are defined centrally in `business-central-portal`.
+- Do NOT add staff PIN screens or diverging mobile authentication; adhere strictly to the unified portal workflows.
+- Native data persistence and queries must use Drift SQLite (`AppDatabase` / `app.db`) via the Option A JavaScript Bridge (`BusinessCentralDatabaseChannel` / `window.BusinessCentralNativeDatabase`).
+- Retain the 3 internet-only touchpoints:
+  1. Silent license validator & heartbeat (`GET /api/v1/merchants/me/status`) for remote merchant lockdown.
+  2. OTA portal bundle manager (`GET /api/v1/portal-bundle/version`) and embedded shelf HTTP loopback server.
+  3. Cloud disaster recovery backup upload (`POST /api/v1/merchants/:id/backups`) and download (`GET /api/v1/merchants/:id/backups/latest`).
+- Always run `flutter analyze` and `flutter test` before finishing any changes. Ensure 0 analysis issues and 100% test pass rate.
