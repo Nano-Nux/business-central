@@ -6,11 +6,8 @@ import 'package:dio/dio.dart';
 import '../database/app_database.dart';
 
 class PortalBundleManager {
-  PortalBundleManager({
-    required this.database,
-    required this.baseUri,
-    Dio? dio,
-  }) : _dio = dio ?? Dio();
+  PortalBundleManager({required this.database, required this.baseUri, Dio? dio})
+    : _dio = dio ?? Dio();
 
   final AppDatabase database;
   final Uri baseUri;
@@ -23,19 +20,26 @@ class PortalBundleManager {
 
   static const keyBundleVersion = 'bc.portal_bundle_version';
 
-  String get _normalizedBaseUrl => baseUri.toString().replaceFirst(RegExp(r'/$'), '');
+  String get _normalizedBaseUrl =>
+      baseUri.toString().replaceFirst(RegExp(r'/$'), '');
 
   Future<String?> getInstalledVersion() async {
-    final row = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals(keyBundleVersion)))
-        .getSingleOrNull();
+    final row = await (database.select(
+      database.appMetadata,
+    )..where((t) => t.key.equals(keyBundleVersion))).getSingleOrNull();
     return row?.value;
   }
 
   Future<void> setInstalledVersion(String version) async {
     final now = DateTime.now().toUtc().toIso8601String();
-    await database.into(database.appMetadata).insertOnConflictUpdate(
-          AppMetadataCompanion.insert(key: keyBundleVersion, value: version, updatedAt: now),
+    await database
+        .into(database.appMetadata)
+        .insertOnConflictUpdate(
+          AppMetadataCompanion.insert(
+            key: keyBundleVersion,
+            value: version,
+            updatedAt: now,
+          ),
         );
   }
 
@@ -59,7 +63,10 @@ class PortalBundleManager {
     return remoteVersion != localVersion;
   }
 
-  Future<String> startLocalServer({required Directory bundleDir, int port = 0}) async {
+  Future<String> startLocalServer({
+    required Directory bundleDir,
+    int port = 0,
+  }) async {
     if (_localServer != null) {
       return localServerUrl!;
     }
@@ -90,14 +97,19 @@ class PortalBundleManager {
           final ext = targetFile.path.split('.').last.toLowerCase();
           final contentType = switch (ext) {
             'html' => ContentType.html,
-            'js' || 'mjs' => ContentType('application', 'javascript', charset: 'utf-8'),
+            'js' ||
+            'mjs' => ContentType('application', 'javascript', charset: 'utf-8'),
             'css' => ContentType('text', 'css', charset: 'utf-8'),
             'json' => ContentType.json,
             'png' => ContentType('image', 'png'),
             'jpg' || 'jpeg' => ContentType('image', 'jpeg'),
+            'webp' => ContentType('image', 'webp'),
             'svg' => ContentType('image', 'svg+xml'),
             'ico' => ContentType('image', 'x-icon'),
             'woff2' => ContentType('font', 'woff2'),
+            'woff' => ContentType('font', 'woff'),
+            'ttf' => ContentType('font', 'ttf'),
+            'wasm' => ContentType('application', 'wasm'),
             _ => ContentType.binary,
           };
           request.response.headers.contentType = contentType;

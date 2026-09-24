@@ -56,7 +56,9 @@ class WebViewNavigationPolicy {
     if (trimmed.isEmpty) return NavigationDecision.prevent;
 
     final lower = trimmed.toLowerCase();
-    if (lower.startsWith('blob:') || lower.startsWith('data:')) {
+    if (lower.startsWith('blob:') ||
+        lower.startsWith('data:') ||
+        lower.startsWith('about:')) {
       return NavigationDecision.navigate;
     }
 
@@ -107,12 +109,18 @@ class _PortalWebViewState extends State<_PortalWebView> {
   if (window.BusinessCentralNativeDatabase) return;
   const pending = new Map();
   let nextId = 1;
+  const prevResolver = window.__businessCentralNativeDatabaseResolve;
   window.__businessCentralNativeDatabaseResolve = function (id, result, error) {
     const request = pending.get(id);
-    if (!request) return;
-    pending.delete(id);
-    if (error) request.reject(new Error(error));
-    else request.resolve(result);
+    if (request) {
+      pending.delete(id);
+      if (error) request.reject(new Error(error));
+      else request.resolve(result);
+      return;
+    }
+    if (typeof prevResolver === 'function') {
+      prevResolver(id, result, error);
+    }
   };
   function request(method, payload) {
     return new Promise(function (resolve, reject) {
@@ -130,10 +138,12 @@ class _PortalWebViewState extends State<_PortalWebView> {
     isAvailable: function () { return true; },
     getProducts: function (search, categoryId) { return request('getProducts', { search: search, categoryId: categoryId }); },
     saveProduct: function (product) { return request('saveProduct', { product: product }); },
+    deleteProduct: function (id) { return request('deleteProduct', { id: id }); },
     getCustomers: function (search) { return request('getCustomers', { search: search }); },
     saveCustomer: function (customer) { return request('saveCustomer', { customer: customer }); },
     checkout: function (orderData) { return request('checkout', { order: orderData }); },
     getOrders: function (limit, offset) { return request('getOrders', { limit: limit, offset: offset }); },
+    getOrder: function (id) { return request('getOrder', { id: id }); },
     getSetting: function (key) { return request('getSetting', { key: key }); },
     saveSetting: function (key, value) { return request('saveSetting', { key: key, value: value }); },
     rawQuery: function (sql, params) { return request('rawQuery', { sql: sql, params: params }); },
@@ -148,12 +158,18 @@ class _PortalWebViewState extends State<_PortalWebView> {
   if (window.BusinessCentralNativePrinter) return;
   const pending = new Map();
   let nextId = 1;
+  const prevResolver = window.__businessCentralNativePrinterResolve;
   window.__businessCentralNativePrinterResolve = function (id, result, error) {
     const request = pending.get(id);
-    if (!request) return;
-    pending.delete(id);
-    if (error) request.reject(new Error(error));
-    else request.resolve(result);
+    if (request) {
+      pending.delete(id);
+      if (error) request.reject(new Error(error));
+      else request.resolve(result);
+      return;
+    }
+    if (typeof prevResolver === 'function') {
+      prevResolver(id, result, error);
+    }
   };
   function request(method, payload) {
     return new Promise(function (resolve, reject) {
@@ -181,12 +197,18 @@ class _PortalWebViewState extends State<_PortalWebView> {
   if (window.BusinessCentralNativeScanner) return;
   const pending = new Map();
   let nextId = 1;
+  const prevResolver = window.__businessCentralNativeScannerResolve;
   window.__businessCentralNativeScannerResolve = function (id, result, error) {
     const request = pending.get(id);
-    if (!request) return;
-    pending.delete(id);
-    if (error) request.reject(new Error(error));
-    else request.resolve(result);
+    if (request) {
+      pending.delete(id);
+      if (error) request.reject(new Error(error));
+      else request.resolve(result);
+      return;
+    }
+    if (typeof prevResolver === 'function') {
+      prevResolver(id, result, error);
+    }
   };
   function request(method) {
     return new Promise(function (resolve, reject) {
@@ -211,12 +233,18 @@ class _PortalWebViewState extends State<_PortalWebView> {
   if (window.BusinessCentralNativeStorage) return;
   const pending = new Map();
   let nextId = 1;
+  const prevResolver = window.__businessCentralNativeStorageResolve;
   window.__businessCentralNativeStorageResolve = function (id, result, error) {
     const request = pending.get(id);
-    if (!request) return;
-    pending.delete(id);
-    if (error) request.reject(new Error(error));
-    else request.resolve(result);
+    if (request) {
+      pending.delete(id);
+      if (error) request.reject(new Error(error));
+      else request.resolve(result);
+      return;
+    }
+    if (typeof prevResolver === 'function') {
+      prevResolver(id, result, error);
+    }
   };
   function request(method, payload) {
     return new Promise(function (resolve, reject) {
@@ -385,6 +413,9 @@ class _PortalWebViewState extends State<_PortalWebView> {
                 );
               },
               onProgress: (progress) => setState(() => _progress = progress),
+              onPageStarted: (_) async {
+                await _injectBridgeScripts();
+              },
               onPageFinished: (_) async {
                 _portalHasLoaded = true;
                 _navigationRetryTimer?.cancel();
@@ -392,10 +423,7 @@ class _PortalWebViewState extends State<_PortalWebView> {
                 _navigationRetryPolicy.reset();
                 if (_error != null && mounted) setState(() => _error = null);
                 _refreshBridge.completeRefresh();
-                await _controller.runJavaScript(_bridgeScript);
-                await _controller.runJavaScript(_scannerBridgeScript);
-                await _controller.runJavaScript(_storageBridgeScript);
-                await _controller.runJavaScript(_databaseBridgeScript);
+                await _injectBridgeScripts();
                 // await _controller.runJavaScript(_pullToRefreshScript);
               },
               onWebResourceError: (error) {
@@ -428,12 +456,6 @@ class _PortalWebViewState extends State<_PortalWebView> {
             onMessageReceived: _refreshBridge.handleMessage,
           )
           ..loadRequest(uri);
-    _printerBridge.attach(_controller);
-    _refreshBridge.attach(_controller);
-    _scannerBridge.attach(_controller);
-    _storageBridge.attach(_controller);
-    _databaseBridge.attach(_controller);
-    _fileSelectorBridge.attach(_controller);
 
     final backendUri = Uri.tryParse(widget.backendUrl ?? '');
     if (backendUri != null && backendUri.hasScheme && backendUri.hasAuthority) {
@@ -450,6 +472,24 @@ class _PortalWebViewState extends State<_PortalWebView> {
         },
       );
       unawaited(_checkInitialLicense());
+    }
+
+    _printerBridge.attach(_controller);
+    _refreshBridge.attach(_controller);
+    _scannerBridge.attach(_controller);
+    _storageBridge.attach(_controller, licenseValidator: _licenseValidator);
+    _databaseBridge.attach(_controller);
+    _fileSelectorBridge.attach(_controller);
+  }
+
+  Future<void> _injectBridgeScripts() async {
+    try {
+      await _controller.runJavaScript(_bridgeScript);
+      await _controller.runJavaScript(_scannerBridgeScript);
+      await _controller.runJavaScript(_storageBridgeScript);
+      await _controller.runJavaScript(_databaseBridgeScript);
+    } catch (_) {
+      // Ignore injection failures during early navigation transitions
     }
   }
 
@@ -514,23 +554,33 @@ class _PortalWebViewState extends State<_PortalWebView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.lock_outline, size: 64, color: Colors.redAccent),
+                  const Icon(
+                    Icons.lock_outline,
+                    size: 64,
+                    color: Colors.redAccent,
+                  ),
                   const SizedBox(height: 20),
                   Text(
                     'Account Suspended',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    _lockReason ?? 'Your merchant account has been suspended by platform administration.',
+                    _lockReason ??
+                        'Your merchant account has been suspended by platform administration.',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(
                     onPressed: () async {
                       await _licenseValidator?.checkLicense();
-                      final locked = await _licenseValidator?.isLocked() ?? false;
+                      final locked =
+                          await _licenseValidator?.isLocked() ?? false;
                       if (!locked && mounted) {
                         setState(() => _isLockedDown = false);
                         _controller.reload();

@@ -486,14 +486,37 @@ export function PosPage() {
         </div>
       </Modal>
       <section className="pos-catalog">
-        <header className="pos-header">
+        <header className="page-header pos-header">
           <div>
-            <p className="eyebrow">Point of sale</p>
-            <h1>New sale</h1>
+            <p className="eyebrow">{t("nav.pos", "Point of sale")}</p>
+            <h1>{t("pos.new_sale", "New sale")}</h1>
+            <p className="page-description">
+              {t("pos.description", "Ring up sales, scan barcodes, and process customer checkouts")}
+            </p>
           </div>
-          <Badge tone={currentShop ? "success" : "warning"}>
-            {currentShop?.name ?? "Select a shop"}
-          </Badge>
+          <div className="page-actions pos-header-actions">
+            <Badge tone={currentShop ? "success" : "warning"}>
+              {currentShop?.name ?? t("nav.no_shop_selected", "Select a shop")}
+            </Badge>
+            <div className="pos-mobile-actions">
+              <Button
+                variant="secondary"
+                icon="users"
+                disabled={busy || !currentShop}
+                onClick={() => setDetailsOpen(true)}
+              >
+                {t("common.details", "Details")}
+              </Button>
+              <Button
+                variant="secondary"
+                icon="receipt"
+                disabled={!cart.length || busy || !currentShop}
+                onClick={previewInvoice}
+              >
+                {t("invoices.print_invoice", "Print slip")}
+              </Button>
+            </div>
+          </div>
         </header>
         <BarcodeScanner
           value={query}

@@ -109,6 +109,9 @@ func (h *Handler) updateCurrentMerchant(c fiber.Ctx) error {
 		return app.NewError("VALIDATION_ERROR", "Request body must be valid JSON.", 400)
 	}
 	request.IsActive = nil
+	request.AIAssistantEnabled = nil
+	request.AIUsageLimit = nil
+	request.AIUsageCount = nil
 	ctx, cancel := contextWithTimeout(c)
 	defer cancel()
 	ctx = app.WithIdempotencyKey(ctx, c.Get("Idempotency-Key"))

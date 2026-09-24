@@ -1,0 +1,1 @@
+ALTER TABLE service_catalog ALTER COLUMN code DROP NOT NULL;

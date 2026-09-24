@@ -116,6 +116,9 @@ test("creates one repair ticket with two financially allocated devices", async (
       "/repairs/devices": [],
       "/pos/catalog": [],
       "/promotions": [],
+      "/payment-types": [
+        { id: "cash", code: "CASH", name: "Cash", category_code: "CASH", is_active: true },
+      ],
       "/services/catalog": [
         { id: serviceID, code: "DIAG", name: "Diagnostics", labor_fee: "25.00", is_active: true },
       ],

@@ -374,6 +374,9 @@ export function isMobileWebView(): boolean {
   const win = window as unknown as Record<string, unknown>;
   return Boolean(
     win.BusinessCentralNativeStorage ||
+    win.BusinessCentralStorageChannel ||
+    win.BusinessCentralNativeDatabase ||
+    win.BusinessCentralDatabaseChannel ||
     win.BusinessCentralPrinterChannel ||
     win.BusinessCentralScannerChannel ||
     win.BusinessCentralRefreshChannel ||

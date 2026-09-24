@@ -12,7 +12,9 @@ void main() {
 
   setUp(() async {
     database = AppDatabase(executor: NativeDatabase.memory());
-    await database.into(database.merchants).insert(
+    await database
+        .into(database.merchants)
+        .insert(
           MerchantsCompanion.insert(
             id: merchantId,
             name: 'Canonical Test Merchant',
@@ -21,7 +23,9 @@ void main() {
             createdAt: '2026-09-18T00:00:00Z',
           ),
         );
-    await database.into(database.shops).insert(
+    await database
+        .into(database.shops)
+        .insert(
           ShopsCompanion.insert(
             id: shopId,
             merchantId: merchantId,

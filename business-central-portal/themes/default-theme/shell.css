@@ -591,6 +591,26 @@
   max-width: 1500px;
   margin: 0 auto;
 }
+.main-area:has(.nanonux-ai-workspace),
+.main-area.main-area-ai {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.content:has(.nanonux-ai-workspace),
+.content.content-ai {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  width: 100% !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
 .page-header {
   display: flex;
   justify-content: space-between;

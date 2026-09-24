@@ -20,7 +20,7 @@ merchant management, merchant-owner onboarding, user membership, catalog, pricin
 promotion, inventory, transactional POS, invoice, reporting, service, and repair endpoints. Platform administrators
 use `GET /api/v1/admin/merchants` and `PATCH /api/v1/admin/merchants/{id}` to
 inspect and change merchant state (including `default_currency_code`, `pos_complexity_level`,
-`business_central_pricing_model`, `name`, `legal_name`, `country_code`, and `is_active`).
+`business_central_pricing_model`, `ai_assistant_enabled`, `ai_usage_limit`, `ai_usage_count`, `name`, `legal_name`, `country_code`, and `is_active`).
 The canonical business central pricing model values are `starter`, `growth`, `professional`, and `enterprise` (defaulting to `starter`). Setting `is_active` to `false` is a
 deactivation (not deletion); the backend rejects login, refresh, and existing
 access-token validation for memberships belonging to that merchant.
@@ -310,6 +310,57 @@ promotion-eligibility, and lifecycle operations return explicit rejection
 until their domain-specific temporary-offline policies are implemented. See
 `OFFLINE_SYNC_PROTOCOL.md` and the generated backend OpenAPI document for the
 request/response schemas.
+
+## Nanonux AI Assistant
+
+The backend provides the conversational and business analysis intelligence engine for Nanonux AI under `/api/v1/ai`:
+
+- **Admin feature gate:** Access requires `merchants.ai_assistant_enabled = true` (controlled by platform administrators in `business-central-admin`).
+- **Merchant AI Usage Limit & Quota Enforcement:** Each merchant has an AI query limit (`ai_usage_limit`, default `50`) and a persistent counter of total queries executed (`ai_usage_count`). Platform administrators configure the limit and can reset the counter via `PATCH /api/v1/admin/merchants/{id}`. When `ai_usage_count >= ai_usage_limit`, subsequent `/api/v1/ai/chat` requests are blocked with HTTP 403 (`AI_USAGE_LIMIT_EXCEEDED`). Current usage and remaining query count are retrieved via `GET /api/v1/ai/usage`.
+- **User authorization:** Requires `ai.chat` permission. Granted by default to `owner`/`merchant` roles; merchant owners control the toggle for staff members under Staff Accounts settings (default off).
+- **Online-only:** AI chat and audio transcription operate strictly online and require backend connectivity.
+- **Tenant, User & Shop Scoping:** Conversations and messages are user-scoped (`merchant_id` + `membership_id`), and each conversation is scoped to a specific shop (`shop_id`). When asking business questions (orders, revenue, profit, stock, sales) without explicitly mentioning a shop name, the AI automatically scopes all database queries and response context to the active shop (`shop_id`).
+- **Staff Confidentiality Boundary (Profit & Cost Protection):** Staff users are strictly forbidden from accessing, querying, estimating, or calculating business profit (gross profit, net profit, margins, markups, daily profit) or original purchase/cost prices (`original_price`, `cost_price`, supplier purchase prices, COGS). The conversational model's prompt for staff members explicitly omits cost fields and instructs it to politely refuse profit inquiries. Deterministic backend SQL validation intercepts and rejects any query containing staff-restricted tokens before execution. In addition, raw query payloads are withheld from staff responses and history to preserve internal privacy. Merchant owners and managers retain full financial access.
+- **SQL Security & Concealment:** Executed SQL queries are strictly withheld from client responses across all roles (owner, manager, and staff) and never rendered in client UIs or returned in API payloads to protect internal database schema from reconnaissance and mitigate injection risks.
+- **Read-only tool calling:** Queries are executed against merchant database views via strictly validated `SELECT` / `WITH` statements in read-only transactions with timeouts and tenant constraints. Data mutations (`INSERT`, `UPDATE`, `DELETE`, etc.) are blocked at both AST parsing and transaction levels.
+- **Semantic HTML output:** Responses are humanized and returned in semantic HTML formatting, embedding structured HTML `<table>` elements for tabular data queries.
+
+### Endpoints
+
+- `GET /api/v1/ai/usage`
+  - Authorization: Requires authenticated merchant user with `ai.chat` permission.
+  - Response: `{ "data": { "usage_count": number, "usage_limit": number, "remaining": number, "is_limit_reached": boolean, "ai_assistant_enabled": boolean }, "meta": {} }`
+- `POST /api/v1/ai/chat`
+  - Body: `{ "message": string, "conversation_id"?: string, "shop_id"?: string, "audio_base64"?: string, "audio_mime_type"?: string }`
+  - Response: `{ "data": { "conversation_id": string, "shop_id"?: string, "shop_name"?: string, "user_message": Message, "ai_message": Message, "ai_usage_count": number, "ai_usage_limit": number }, "meta": {} }`
+  - Error: HTTP 403 `AI_USAGE_LIMIT_EXCEEDED` if `ai_usage_count >= ai_usage_limit`.
+- `GET /api/v1/ai/conversations`
+  - Query: `?limit=50&shop_id=UUID`
+  - Response: `{ "data": AIConversation[], "meta": { "total": number } }` (includes `shop_id` and `shop_name`)
+- `POST /api/v1/ai/conversations`
+  - Body: `{ "title": string, "shop_id"?: string }`
+  - Response: `{ "data": AIConversation, "meta": {} }`
+- `GET /api/v1/ai/conversations/:id/messages`
+  - Response: `{ "data": { "conversation": AIConversation, "messages": Message[] }, "meta": { "total_messages": number } }`
+- `DELETE /api/v1/ai/conversations/:id`
+  - Response: `204 No Content`
+- `POST /api/v1/ai/transcribe`
+  - Body: `multipart/form-data` with `audio` file or JSON with `audio_base64` and `mime_type`
+  - Response: `{ "data": { "text": string }, "meta": {} }`
+
+### Platform Admin AI Maintenance Endpoints
+
+- `GET /api/v1/admin/ai/stats`
+  - Authorization: Requires platform administrator (`claims.PlatformAdmin == true`).
+  - Response: `{ "data": { "total_messages": number, "total_conversations": number, "total_merchants_with_ai": number, "last_deletion": AIDeletionLog | null }, "meta": {} }`
+- `POST /api/v1/admin/ai/purge`
+  - Authorization: Requires platform administrator (`claims.PlatformAdmin == true`).
+  - Action: Purges all stored AI chat messages and conversations across the server to reclaim storage. Records the deletion event in UTC format in `ai_chat_deletion_logs`.
+  - Response: `{ "data": { "deleted_messages": number, "deleted_conversations": number, "log": AIDeletionLog }, "meta": {} }`
+- `GET /api/v1/admin/ai/deletion-logs`
+  - Authorization: Requires platform administrator (`claims.PlatformAdmin == true`).
+  - Query: `?limit=50`
+  - Response: `{ "data": AIDeletionLog[], "meta": { "total": number } }`
 
 ## API change process
 

@@ -25,6 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isPos = pathname === "/pos" || pathname.startsWith("/pos/");
+  const isAi = pathname === "/ai-assistant" || pathname.startsWith("/ai-assistant/");
   const { user, merchant, merchantReady, ready, isMerchant, can, logout } = useAuth();
   const { t, language } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -102,8 +103,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         can,
         moduleCodes: currentShop?.module_codes,
         mapDashboardForRole: true,
+        aiAssistantEnabled: merchant?.ai_assistant_enabled,
       }),
-    [can, isMerchant, currentShop?.module_codes, merchant?.pos_complexity_level],
+    [can, isMerchant, currentShop?.module_codes, merchant?.pos_complexity_level, merchant?.ai_assistant_enabled],
   );
   if (!ready || !user || !merchantReady)
     return (
@@ -255,7 +257,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
       </aside>
       <QuickGuideModal isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
-      <section className={`main-area ${isPos ? "main-area-pos" : ""}`}>
+      <section className={`main-area ${isPos ? "main-area-pos" : ""} ${isAi ? "main-area-ai" : ""}`}>
         <header className="topbar">
           <button
             className="icon-button menu-button"
@@ -370,7 +372,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </header>
-        <main className={`content ${isPos ? "content-pos" : ""}`}>{children}</main>
+        <main className={`content ${isPos ? "content-pos" : ""} ${isAi ? "content-ai" : ""}`}>{children}</main>
       </section>
     </div>
   );

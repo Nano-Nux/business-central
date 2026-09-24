@@ -8,17 +8,15 @@ import '../database/app_database.dart';
 import '../database/local_backup_service.dart';
 
 class CloudBackupService {
-  CloudBackupService({
-    required this.database,
-    required this.baseUri,
-    Dio? dio,
-  }) : _dio = dio ?? Dio();
+  CloudBackupService({required this.database, required this.baseUri, Dio? dio})
+    : _dio = dio ?? Dio();
 
   final AppDatabase database;
   final Uri baseUri;
   final Dio _dio;
 
-  String get _normalizedBaseUrl => baseUri.toString().replaceFirst(RegExp(r'/$'), '');
+  String get _normalizedBaseUrl =>
+      baseUri.toString().replaceFirst(RegExp(r'/$'), '');
 
   Future<Map<String, dynamic>> uploadBackup({
     required String merchantId,
@@ -26,18 +24,20 @@ class CloudBackupService {
     required String authToken,
   }) async {
     final localBackup = LocalBackupService(database);
-    final payloadJson = await localBackup.exportMerchant(merchantId: merchantId);
+    final payloadJson = await localBackup.exportMerchant(
+      merchantId: merchantId,
+    );
     final bytes = utf8.encode(payloadJson);
     final checksum = sha256.convert(bytes).toString();
 
-    final timestamp = DateTime.now().toUtc().toIso8601String().replaceAll(RegExp(r'[:.-]'), '_');
+    final timestamp = DateTime.now().toUtc().toIso8601String().replaceAll(
+      RegExp(r'[:.-]'),
+      '_',
+    );
     final filename = 'backup_${merchantId}_$timestamp.json';
 
     final formData = FormData.fromMap({
-      'file': MultipartFile.fromBytes(
-        bytes,
-        filename: filename,
-      ),
+      'file': MultipartFile.fromBytes(bytes, filename: filename),
     });
 
     final response = await _dio.post<Map<String, dynamic>>(
@@ -62,9 +62,7 @@ class CloudBackupService {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '$_normalizedBaseUrl/merchants/$merchantId/backups/latest',
-        options: Options(
-          headers: {'Authorization': 'Bearer $authToken'},
-        ),
+        options: Options(headers: {'Authorization': 'Bearer $authToken'}),
       );
       return response.data;
     } on DioException catch (e) {
@@ -82,7 +80,9 @@ class CloudBackupService {
       authToken: authToken,
     );
     if (meta == null || meta['backup_id'] == null) {
-      throw const LocalBackupException('No cloud backups found for this merchant.');
+      throw const LocalBackupException(
+        'No cloud backups found for this merchant.',
+      );
     }
 
     final backupId = meta['backup_id'].toString();

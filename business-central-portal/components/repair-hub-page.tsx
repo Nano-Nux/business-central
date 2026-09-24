@@ -4,9 +4,11 @@ import Link from "next/link";
 import { Icon } from "./icons";
 import { PageHeader } from "./ui";
 import { useAuth } from "@/lib/auth";
+import { useTranslation } from "@/lib/i18n";
 
 export function RepairHubPage() {
   const { isMerchant } = useAuth();
+  const { t } = useTranslation();
 
   return (
     <>
@@ -15,16 +17,22 @@ export function RepairHubPage() {
         title="Repairs"
         description="Select a repair module to manage tickets, services, or intake presets."
       />
-      <div className="settings-grid">
-        <Link href="/repairs/desk" className="settings-card">
-          <span className="stat-icon mint">
+      <div className="settings-grid repair-hub-grid">
+        <Link href="/repairs/desk" className="settings-card repair-desk-hero-card">
+          <span className="stat-icon mint repair-hero-icon">
             <Icon name="repair" />
           </span>
-          <div>
-            <h2>Repair desk</h2>
+          <div className="repair-hero-content">
+            <div className="repair-hero-header">
+              <h2>{t("repairs.repair_desk_title", "Repair desk")}</h2>
+              <span className="repair-hero-badge">{t("repairs.primary_desk", "Primary desk")}</span>
+            </div>
             <p>Active repair tickets, intake diagnostics, status updates, and invoicing.</p>
           </div>
-          <Icon name="arrow" />
+          <div className="repair-hero-action">
+            <span>{t("repairs.open_desk", "Open desk")}</span>
+            <Icon name="arrow" />
+          </div>
         </Link>
         <Link href="/repairs/catalog" className="settings-card">
           <span className="stat-icon blue">

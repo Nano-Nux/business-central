@@ -43,30 +43,30 @@ let requestIdCounter = 1;
 function initNativeDatabaseGlobal() {
   if (typeof window === "undefined") return;
 
-  if (!window.__businessCentralNativeDatabaseResolve) {
-    window.__businessCentralNativeDatabaseResolve = (id, result, error) => {
-      const pending = pendingRequests.get(id);
-      if (!pending) return;
+  const prevResolver = window.__businessCentralNativeDatabaseResolve;
+  window.__businessCentralNativeDatabaseResolve = (id, result, error) => {
+    const pending = pendingRequests.get(id);
+    if (pending) {
       clearTimeout(pending.timer);
       pendingRequests.delete(id);
-
       if (error) {
         pending.reject(new Error(error));
       } else {
         pending.resolve(result);
       }
-    };
-  }
+      return;
+    }
+    if (typeof prevResolver === "function") {
+      prevResolver(id, result, error);
+    }
+  };
 }
 
 initNativeDatabaseGlobal();
 
 export function usingNativeDatabaseBridge(): boolean {
   if (typeof window === "undefined") return false;
-  return Boolean(
-    window.BusinessCentralNativeDatabase ||
-      window.BusinessCentralDatabaseChannel,
-  );
+  return Boolean(window.BusinessCentralNativeDatabase || window.BusinessCentralDatabaseChannel);
 }
 
 export function callNativeDatabase<T = unknown>(
@@ -130,9 +130,10 @@ export const nativeDb = {
   saveProduct: (product: Record<string, unknown>) =>
     callNativeDatabase<any>("saveProduct", { product }),
 
+  deleteProduct: (id: string) => callNativeDatabase<boolean>("deleteProduct", { id }),
+
   // Customers
-  getCustomers: (search?: string) =>
-    callNativeDatabase<any[]>("getCustomers", { search }),
+  getCustomers: (search?: string) => callNativeDatabase<any[]>("getCustomers", { search }),
 
   saveCustomer: (customer: Record<string, unknown>) =>
     callNativeDatabase<any>("saveCustomer", { customer }),
@@ -144,12 +145,12 @@ export const nativeDb = {
     }),
 
   // Orders
-  getOrders: (limit = 50, offset = 0) =>
-    callNativeDatabase<any[]>("getOrders", { limit, offset }),
+  getOrders: (limit = 50, offset = 0) => callNativeDatabase<any[]>("getOrders", { limit, offset }),
+
+  getOrder: (id: string) => callNativeDatabase<any | null>("getOrder", { id }),
 
   // Settings
-  getSetting: (key: string) =>
-    callNativeDatabase<string | null>("getSetting", { key }),
+  getSetting: (key: string) => callNativeDatabase<string | null>("getSetting", { key }),
 
   saveSetting: (key: string, value: string) =>
     callNativeDatabase<boolean>("saveSetting", { key, value }),

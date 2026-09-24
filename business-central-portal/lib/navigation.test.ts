@@ -3,6 +3,7 @@ import {
   formatPosModeName,
   getFilteredNavigationGroups,
   getLandingPageOptions,
+  getLocalizedNavLabel,
 } from "./navigation";
 
 describe("navigation engine", () => {
@@ -149,6 +150,61 @@ describe("navigation engine", () => {
         value: "/pos",
         label: "Point of sale",
       });
+    });
+  });
+
+  describe("AI Assistant Navigation", () => {
+    it("excludes /ai-assistant when aiAssistantEnabled is false", () => {
+      const groups = getFilteredNavigationGroups({
+        posComplexityLevel: "COMPLEX",
+        isMerchant: true,
+        can: (p) => p === "ai.chat",
+        aiAssistantEnabled: false,
+      });
+      const allHrefs = groups.flatMap((g) => g.items.map((i) => i.href));
+      expect(allHrefs).not.toContain("/ai-assistant");
+    });
+
+    it("excludes /ai-assistant when user lacks ai.chat permission even if enabled for merchant", () => {
+      const groups = getFilteredNavigationGroups({
+        posComplexityLevel: "COMPLEX",
+        isMerchant: false,
+        can: (p) => p !== "ai.chat",
+        aiAssistantEnabled: true,
+      });
+      const allHrefs = groups.flatMap((g) => g.items.map((i) => i.href));
+      expect(allHrefs).not.toContain("/ai-assistant");
+    });
+
+    it("includes /ai-assistant when aiAssistantEnabled is true and user has ai.chat permission", () => {
+      const groups = getFilteredNavigationGroups({
+        posComplexityLevel: "COMPLEX",
+        isMerchant: false,
+        can: (p) => p === "ai.chat" || p === "tenant.read",
+        aiAssistantEnabled: true,
+      });
+      const allHrefs = groups.flatMap((g) => g.items.map((i) => i.href));
+      expect(allHrefs).toContain("/ai-assistant");
+    });
+
+    it("places /ai-assistant under the Insights group", () => {
+      const groups = getFilteredNavigationGroups({
+        posComplexityLevel: "COMPLEX",
+        isMerchant: true,
+        can: (p) => p === "ai.chat",
+        aiAssistantEnabled: true,
+      });
+      const insightsGroup = groups.find((g) => g.label === "Insights");
+      expect(insightsGroup).toBeDefined();
+      expect(insightsGroup?.items.some((i) => i.href === "/ai-assistant")).toBe(true);
+
+      const overviewGroup = groups.find((g) => g.label === "Overview");
+      expect(overviewGroup?.items.some((i) => i.href === "/ai-assistant")).toBe(false);
+    });
+
+    it("localizes /ai-assistant nav label to nav.nanonux_ai", () => {
+      const t = (key: string, fb: string) => (key === "nav.nanonux_ai" ? "Nanonux AI" : fb);
+      expect(getLocalizedNavLabel("/ai-assistant", "Nanonux AI", t)).toBe("Nanonux AI");
     });
   });
 });

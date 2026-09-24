@@ -54,6 +54,9 @@ export type Merchant = {
   country_code?: string;
   pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
   business_central_pricing_model: BusinessCentralPricingModel;
+  ai_assistant_enabled?: boolean;
+  ai_usage_limit?: number;
+  ai_usage_count?: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -153,6 +156,9 @@ export const updateMerchant = (
     name?: string;
     legal_name?: string | null;
     country_code?: string | null;
+    ai_assistant_enabled?: boolean;
+    ai_usage_limit?: number;
+    ai_usage_count?: number;
     is_active?: boolean;
   },
 ) =>
@@ -349,3 +355,45 @@ export async function backendHealth(): Promise<boolean> {
     return false;
   }
 }
+
+export type AIDeletionLog = {
+  id: string;
+  deleted_by_identity_id?: string;
+  deleted_by_email: string;
+  deleted_by_name: string;
+  deleted_at: string;
+  messages_count: number;
+  conversations_count: number;
+  created_at: string;
+};
+
+export type AIAdminStats = {
+  total_messages: number;
+  total_conversations: number;
+  total_merchants_with_ai: number;
+  last_deletion?: AIDeletionLog | null;
+};
+
+export type AIPurgeResult = {
+  deleted_messages: number;
+  deleted_conversations: number;
+  log: AIDeletionLog;
+};
+
+export const getAIAdminStats = (token: string) =>
+  request<{ data: AIAdminStats }>("/admin/ai/stats", {}, token).then((r) => r.data);
+
+export const purgeAIChatMessages = (token: string) =>
+  request<{ data: AIPurgeResult }>(
+    "/admin/ai/purge",
+    { method: "POST" },
+    token,
+  ).then((r) => r.data);
+
+export const listAIDeletionLogs = (token: string, limit: number = 50) =>
+  request<{ data: AIDeletionLog[]; meta: { total: number } }>(
+    `/admin/ai/deletion-logs?limit=${limit}`,
+    {},
+    token,
+  ).then((r) => r.data);
+

@@ -1311,6 +1311,130 @@ BEGIN
 END $$;
 `
 
+const aiAssistant = `
+DO $$
+BEGIN
+    -- 1. Add ai_assistant_enabled to merchants
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='merchants' AND column_name='ai_assistant_enabled'
+    ) THEN
+        ALTER TABLE merchants ADD COLUMN ai_assistant_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+
+    -- 2. Insert ai.chat permission
+    INSERT INTO permissions(code, description) VALUES
+        ('ai.chat', 'Access and query Nanonux AI Assistant')
+    ON CONFLICT (code) DO NOTHING;
+
+    -- 3. Grant ai.chat permission to merchant and owner roles
+    INSERT INTO role_permissions(role_id, permission_code)
+    SELECT r.id, 'ai.chat'
+    FROM roles r
+    WHERE r.code IN ('merchant', 'owner')
+    ON CONFLICT (role_id, permission_code) DO NOTHING;
+
+    -- 4. Create AI conversations table (tenant-scoped and user-scoped)
+    CREATE TABLE IF NOT EXISTS ai_conversations (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        membership_id UUID NOT NULL REFERENCES user_memberships(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL DEFAULT 'New Conversation',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_conversations_user 
+        ON ai_conversations(merchant_id, membership_id, updated_at DESC);
+
+    -- 5. Create AI messages table
+    CREATE TABLE IF NOT EXISTS ai_messages (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        conversation_id UUID NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+        merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        membership_id UUID NOT NULL REFERENCES user_memberships(id) ON DELETE CASCADE,
+        sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('USER', 'ASSISTANT', 'SYSTEM')),
+        content TEXT NOT NULL,
+        raw_query_data JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_messages_convo 
+        ON ai_messages(conversation_id, created_at ASC);
+    CREATE INDEX IF NOT EXISTS idx_ai_messages_user 
+        ON ai_messages(merchant_id, membership_id, created_at DESC);
+END $$;
+`
+
+const aiConversationShopScope = `
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='ai_conversations' AND column_name='shop_id'
+    ) THEN
+        ALTER TABLE ai_conversations ADD COLUMN shop_id UUID REFERENCES shops(id) ON DELETE SET NULL;
+    END IF;
+
+    CREATE INDEX IF NOT EXISTS idx_ai_conversations_shop
+        ON ai_conversations(merchant_id, shop_id, updated_at DESC);
+END $$;
+`
+
+const aiChatDeletionLogs = `
+CREATE TABLE IF NOT EXISTS ai_chat_deletion_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deleted_by_identity_id UUID REFERENCES user_identities(id) ON DELETE SET NULL,
+    deleted_by_email TEXT NOT NULL,
+    deleted_by_name TEXT NOT NULL,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    messages_count INT NOT NULL DEFAULT 0,
+    conversations_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_chat_deletion_logs_date ON ai_chat_deletion_logs(deleted_at DESC);
+
+ALTER TABLE ai_chat_deletion_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS ai_chat_deletion_logs_platform_admin ON ai_chat_deletion_logs;
+CREATE POLICY ai_chat_deletion_logs_platform_admin ON ai_chat_deletion_logs
+    USING (app_is_platform_admin())
+    WITH CHECK (app_is_platform_admin());
+`
+
+const aiMerchantUsageLimit = `
+DO $$
+BEGIN
+    -- 1. Add ai_usage_limit to merchants (default 50)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='merchants' AND column_name='ai_usage_limit'
+    ) THEN
+        ALTER TABLE merchants ADD COLUMN ai_usage_limit INTEGER NOT NULL DEFAULT 50 CHECK (ai_usage_limit >= 0);
+    END IF;
+
+    -- 2. Add ai_usage_count to merchants (default 0)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='merchants' AND column_name='ai_usage_count'
+    ) THEN
+        ALTER TABLE merchants ADD COLUMN ai_usage_count INTEGER NOT NULL DEFAULT 0 CHECK (ai_usage_count >= 0);
+
+        -- Backfill usage count from existing user messages
+        UPDATE merchants m
+        SET ai_usage_count = COALESCE((
+            SELECT count(*) FROM ai_messages msg
+            WHERE msg.merchant_id = m.id AND msg.sender_type = 'USER'
+        ), 0);
+    END IF;
+END $$;
+`
+
+const optionalServiceCatalogCode = `
+ALTER TABLE service_catalog ALTER COLUMN code DROP NOT NULL;
+`
+
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -1373,6 +1497,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0041_merchant_custom_themes", sql: merchantCustomThemes},
 		{version: "0042_pos_mini_mode", sql: posMiniMode},
 		{version: "0043_business_central_pricing_model", sql: businessCentralPricingModel},
+		{version: "0044_ai_assistant", sql: aiAssistant},
+		{version: "0045_ai_conversation_shop_scope", sql: aiConversationShopScope},
+		{version: "0046_ai_chat_deletion_logs", sql: aiChatDeletionLogs},
+		{version: "0047_ai_merchant_usage_limit", sql: aiMerchantUsageLimit},
+		{version: "0048_optional_service_catalog_code", sql: optionalServiceCatalogCode},
 	}
 	for _, migration := range migrations {
 		var applied bool

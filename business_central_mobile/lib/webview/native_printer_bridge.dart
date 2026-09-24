@@ -164,8 +164,10 @@ class NativePrinterBridge {
     final runJavaScript = _runJavaScript;
     if (requestId.isEmpty || runJavaScript == null) return;
     await runJavaScript(
+      'if (window.__businessCentralNativePrinterResolve) { '
       'window.__businessCentralNativePrinterResolve('
-      '${jsonEncode(requestId)}, ${jsonEncode(result)}, ${jsonEncode(error)});',
+      '${jsonEncode(requestId)}, ${jsonEncode(result)}, ${jsonEncode(error)}); '
+      '}',
     );
   }
 

@@ -107,6 +107,12 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
     label: "Insights",
     items: [
       {
+        href: "/ai-assistant",
+        label: "Nanonux AI",
+        icon: "bot",
+        permission: "ai.chat",
+      },
+      {
         href: "/invoices",
         label: "Invoices",
         icon: "receipt",
@@ -158,6 +164,7 @@ export type NavigationFilterOptions = {
   can?: (permission: string) => boolean;
   moduleCodes?: string[];
   mapDashboardForRole?: boolean;
+  aiAssistantEnabled?: boolean;
 };
 
 export function getFilteredNavigationGroups({
@@ -166,6 +173,7 @@ export function getFilteredNavigationGroups({
   can,
   moduleCodes,
   mapDashboardForRole = true,
+  aiAssistantEnabled = true,
 }: NavigationFilterOptions): NavGroup[] {
   const isMini = posComplexityLevel === "MINI";
   const isComplex = posComplexityLevel === "COMPLEX";
@@ -175,6 +183,7 @@ export function getFilteredNavigationGroups({
     items: group.items
       .filter((item) => {
         if (item.merchantOnly && !isMerchant) return false;
+        if (item.href === "/ai-assistant" && aiAssistantEnabled === false) return false;
         if (item.permission && can && !can(item.permission)) return false;
 
         // POS complexity level rules
@@ -273,6 +282,7 @@ export function getLocalizedNavLabel(
   if (!t) return fallback;
   const map: Record<string, string> = {
     "/dashboard": "nav.today",
+    "/ai-assistant": "nav.nanonux_ai",
     "/merchant/dashboard": "nav.today",
     "/staff/dashboard": "nav.today",
     "/pos": "nav.pos",

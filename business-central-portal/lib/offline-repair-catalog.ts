@@ -8,7 +8,7 @@ import { queueDeferredMutation } from "./offline-deferred";
 
 export type OfflineRepairService = {
   id: string;
-  code: string;
+  code?: string;
   name: string;
   description?: string;
   labor_fee: string;

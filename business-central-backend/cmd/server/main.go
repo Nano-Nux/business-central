@@ -6,6 +6,9 @@ import (
 	"time"
 
 	httpadapter "business-central-backend/internal/adapters/inbound/http"
+	aigemini "business-central-backend/internal/ai/adapters/outbound/gemini"
+	aipostgres "business-central-backend/internal/ai/adapters/outbound/postgres"
+	aiapp "business-central-backend/internal/ai/application"
 	authpostgres "business-central-backend/internal/auth/adapters/outbound/postgres"
 	authapp "business-central-backend/internal/auth/application"
 	backuppostgres "business-central-backend/internal/backup/adapters/outbound/postgres"
@@ -83,7 +86,17 @@ func main() {
 	}
 	backupService := backupapp.NewService(backuppostgres.NewRepository(pool), backupsStorage)
 
+	aiLLMClient := aigemini.NewClient(aigemini.Config{
+		APIKey:                       cfg.GeminiAPIKey,
+		QueryGenerateAIModel:        cfg.QueryGenerateAIModel,
+		QueryGenerateAIModelFallback: cfg.QueryGenerateAIModelFallback,
+		HumanizerAIModel:            cfg.HumanizerAIModel,
+		HumanizerAIModelFallback:    cfg.HumanizerAIModelFallback,
+	})
+	aiService := aiapp.NewService(aipostgres.NewRepository(pool), aiLLMClient, authapp.NewService(authService))
+
 	api := httpadapter.New(pool, httpadapter.Dependencies{
+		AI:              aiService,
 		Authentication:  authapp.NewService(authService),
 		Backup:          backupService,
 		BundlesDir:      "./data/bundles",

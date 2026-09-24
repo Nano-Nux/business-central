@@ -131,6 +131,9 @@ type Merchant struct {
 	CountryCode                *string   `json:"country_code,omitempty"`
 	POSComplexityLevel         string    `json:"pos_complexity_level"`
 	BusinessCentralPricingModel string   `json:"business_central_pricing_model"`
+	AIAssistantEnabled         bool      `json:"ai_assistant_enabled"`
+	AIUsageLimit               int       `json:"ai_usage_limit"`
+	AIUsageCount               int       `json:"ai_usage_count"`
 	IsActive                   bool      `json:"is_active"`
 	CreatedAt                  time.Time `json:"created_at"`
 	UpdatedAt                  time.Time `json:"updated_at"`
@@ -144,6 +147,8 @@ type CreateMerchantAccountRequest struct {
 	CountryCode                *string `json:"country_code,omitempty"`
 	POSComplexityLevel         string  `json:"pos_complexity_level,omitempty"`
 	BusinessCentralPricingModel string `json:"business_central_pricing_model,omitempty"`
+	AIAssistantEnabled         *bool   `json:"ai_assistant_enabled,omitempty"`
+	AIUsageLimit               *int    `json:"ai_usage_limit,omitempty"`
 }
 
 type CreateMerchantUserRequest struct {
@@ -154,6 +159,8 @@ type CreateMerchantUserRequest struct {
 	MerchantCountryCode        *string `json:"merchant_country_code,omitempty"`
 	POSComplexityLevel         string  `json:"pos_complexity_level,omitempty"`
 	BusinessCentralPricingModel string `json:"business_central_pricing_model,omitempty"`
+	AIAssistantEnabled         *bool   `json:"ai_assistant_enabled,omitempty"`
+	AIUsageLimit               *int    `json:"ai_usage_limit,omitempty"`
 	Email                      string  `json:"email"`
 	Password                   string  `json:"password"`
 	DisplayName                string  `json:"display_name"`
@@ -167,6 +174,9 @@ type UpdateMerchantRequest struct {
 	CountryCode                *string `json:"country_code,omitempty"`
 	POSComplexityLevel         *string `json:"pos_complexity_level,omitempty"`
 	BusinessCentralPricingModel *string `json:"business_central_pricing_model,omitempty"`
+	AIAssistantEnabled         *bool   `json:"ai_assistant_enabled,omitempty"`
+	AIUsageLimit               *int    `json:"ai_usage_limit,omitempty"`
+	AIUsageCount               *int    `json:"ai_usage_count,omitempty"`
 	IsActive                   *bool   `json:"is_active,omitempty"`
 }
 

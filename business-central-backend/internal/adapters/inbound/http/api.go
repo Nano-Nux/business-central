@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"business-central-backend/internal/app"
+	aihttp "business-central-backend/internal/ai/adapters/inbound/http"
+	aiinbound "business-central-backend/internal/ai/ports/inbound"
 	authhttp "business-central-backend/internal/auth/adapters/inbound/http"
 	authdto "business-central-backend/internal/auth/application/dto"
 	authinbound "business-central-backend/internal/auth/ports/inbound"
@@ -40,6 +42,7 @@ import (
 type API struct {
 	app             *fiber.App
 	db              *pgxpool.Pool
+	ai              *aihttp.Handler
 	auth            *authhttp.Handler
 	backup          *backuphttp.Handler
 	bundle          *BundleHandler
@@ -53,6 +56,7 @@ type API struct {
 }
 
 type Dependencies struct {
+	AI              aiinbound.AIService
 	Authentication  authinbound.Authentication
 	Backup          backupinbound.BackupService
 	BundlesDir      string
@@ -82,6 +86,9 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 		reports:         reportshttp.NewHandler(dependencies.Reports),
 		services:        serviceshttp.NewHandler(dependencies.Services, dependencies.Authentication),
 		synchronization: synchronizationhttp.NewHandler(dependencies.Synchronization, dependencies.Authentication),
+	}
+	if dependencies.AI != nil {
+		api.ai = aihttp.NewHandler(dependencies.AI, dependencies.Authentication)
 	}
 	if dependencies.Backup != nil {
 		api.backup = backuphttp.NewHandler(dependencies.Backup, dependencies.Authentication)
@@ -117,6 +124,9 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 
 	protected := v1.Group("", api.authenticate)
 	api.auth.RegisterProtectedRoutes(protected)
+	if api.ai != nil {
+		api.ai.RegisterRoutes(protected)
+	}
 	if api.backup != nil {
 		api.backup.RegisterRoutes(protected)
 	}

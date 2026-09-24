@@ -68,9 +68,13 @@ void main() {
   });
 
   test('embedded HTTP server serves static assets and HTML fallback', () async {
-    final tempDir = await Directory.systemTemp.createTemp('portal_bundle_test_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'portal_bundle_test_',
+    );
     final indexFile = File('${tempDir.path}/index.html');
-    await indexFile.writeAsString('<!DOCTYPE html><html><body><h1>Offline Portal</h1></body></html>');
+    await indexFile.writeAsString(
+      '<!DOCTYPE html><html><body><h1>Offline Portal</h1></body></html>',
+    );
 
     final manager = PortalBundleManager(
       database: database,

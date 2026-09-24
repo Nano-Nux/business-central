@@ -28,6 +28,11 @@ type Config struct {
 	AdminPassword               string
 	PlatformAdminEmail          string
 	PlatformAdminPassword       string
+	GeminiAPIKey                string
+	QueryGenerateAIModel        string
+	QueryGenerateAIModelFallback string
+	HumanizerAIModel            string
+	HumanizerAIModelFallback    string
 }
 
 func Load() (Config, error) {
@@ -92,6 +97,11 @@ func Load() (Config, error) {
 		AdminPassword:               adminPassword,
 		PlatformAdminEmail:          platformAdminEmail,
 		PlatformAdminPassword:       platformAdminPassword,
+		GeminiAPIKey:                strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
+		QueryGenerateAIModel:        envOr("QUERY_GENERATE_AI_MODEL", "gemini-3.5-flash-lite"),
+		QueryGenerateAIModelFallback: envOr("QUERY_GENERATE_AI_MODEL_FALL_BACK", "gemini-3.1-flash-lite"),
+		HumanizerAIModel:            envOr("HUMANIZER_AI_MODEL", "gemma-4-31b"),
+		HumanizerAIModelFallback:    envOr("HUMANIZER_AI_MODEL_FALL_BACK", "gemma-4-27b"),
 	}, nil
 }
 

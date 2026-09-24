@@ -253,4 +253,15 @@
     font-size: 11px;
     margin-top: 2px;
   }
+
+  [data-layout="compact-layout"] .cart-panel:not(.mobile-open) .cart-actions,
+  [data-layout="compact-layout"] .cart-panel.mobile-open .cart-actions {
+    display: flex !important;
+  }
+
+  [data-layout="compact-layout"] .cart-actions .button {
+    height: 34px;
+    font-size: 11px;
+    padding: 0 6px;
+  }
 }

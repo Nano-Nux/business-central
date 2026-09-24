@@ -24,45 +24,70 @@ class SilentLicenseValidator {
   static const keyReason = 'bc.license_lock_reason';
 
   Future<bool> isLocked() async {
-    final row = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals(keyLocked)))
-        .getSingleOrNull();
+    final row = await (database.select(
+      database.appMetadata,
+    )..where((t) => t.key.equals(keyLocked))).getSingleOrNull();
     return row?.value == 'true';
   }
 
   Future<String> getLockReason() async {
-    final row = await (database.select(database.appMetadata)
-          ..where((t) => t.key.equals(keyReason)))
-        .getSingleOrNull();
-    return row?.value ?? 'Your merchant account has been suspended by platform administration.';
+    final row = await (database.select(
+      database.appMetadata,
+    )..where((t) => t.key.equals(keyReason))).getSingleOrNull();
+    return row?.value ??
+        'Your merchant account has been suspended by platform administration.';
   }
 
   Future<void> lock(String reason) async {
     final now = DateTime.now().toUtc().toIso8601String();
-    await database.into(database.appMetadata).insertOnConflictUpdate(
-          AppMetadataCompanion.insert(key: keyLocked, value: 'true', updatedAt: now),
+    await database
+        .into(database.appMetadata)
+        .insertOnConflictUpdate(
+          AppMetadataCompanion.insert(
+            key: keyLocked,
+            value: 'true',
+            updatedAt: now,
+          ),
         );
-    await database.into(database.appMetadata).insertOnConflictUpdate(
-          AppMetadataCompanion.insert(key: keyReason, value: reason, updatedAt: now),
+    await database
+        .into(database.appMetadata)
+        .insertOnConflictUpdate(
+          AppMetadataCompanion.insert(
+            key: keyReason,
+            value: reason,
+            updatedAt: now,
+          ),
         );
     onLockdown?.call(reason);
   }
 
   Future<void> unlock() async {
     final now = DateTime.now().toUtc().toIso8601String();
-    await database.into(database.appMetadata).insertOnConflictUpdate(
-          AppMetadataCompanion.insert(key: keyLocked, value: 'false', updatedAt: now),
+    await database
+        .into(database.appMetadata)
+        .insertOnConflictUpdate(
+          AppMetadataCompanion.insert(
+            key: keyLocked,
+            value: 'false',
+            updatedAt: now,
+          ),
         );
-    await (database.delete(database.appMetadata)..where((t) => t.key.equals(keyReason))).go();
+    await (database.delete(
+      database.appMetadata,
+    )..where((t) => t.key.equals(keyReason))).go();
   }
 
   Future<void> checkLicense({String? overrideToken}) async {
     try {
       String? token = overrideToken;
       if (token == null || token.isEmpty) {
-        final row = await (database.select(database.appMetadata)
-              ..where((t) => t.key.equals('bc.access_token') | t.key.equals('access_token')))
-            .getSingleOrNull();
+        final row =
+            await (database.select(database.appMetadata)..where(
+                  (t) =>
+                      t.key.equals('bc.access_token') |
+                      t.key.equals('access_token'),
+                ))
+                .getSingleOrNull();
         token = row?.value;
       }
 
@@ -97,7 +122,9 @@ class SilentLicenseValidator {
         final status = data['status']?.toString().toUpperCase();
 
         if (!isActive || status == 'SUSPENDED') {
-          await lock('Merchant account has been suspended by platform administration.');
+          await lock(
+            'Merchant account has been suspended by platform administration.',
+          );
         } else {
           // Successfully confirmed active
           final currentlyLocked = await isLocked();
@@ -111,9 +138,14 @@ class SilentLicenseValidator {
     }
   }
 
-  void startPeriodicHeartbeat({Duration interval = const Duration(minutes: 5)}) {
+  void startPeriodicHeartbeat({
+    Duration interval = const Duration(minutes: 5),
+  }) {
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(interval, (_) => unawaited(checkLicense()));
+    _heartbeatTimer = Timer.periodic(
+      interval,
+      (_) => unawaited(checkLicense()),
+    );
   }
 
   void stopPeriodicHeartbeat() {

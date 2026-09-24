@@ -1,9 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  usingNativeDatabaseBridge,
-  callNativeDatabase,
-  nativeDb,
-} from "./native-database";
+import { usingNativeDatabaseBridge, callNativeDatabase, nativeDb } from "./native-database";
 
 const originalWindow = globalThis.window;
 
@@ -90,5 +86,59 @@ describe("native-database bridge", () => {
     await expect(nativeDb.saveProduct({ name: "Fail" })).rejects.toThrow(
       "SQLite constraint failed",
     );
+  });
+
+  it("handles deleteProduct and getOrder", async () => {
+    const mockWin: any = {
+      BusinessCentralDatabaseChannel: {
+        postMessage: vi.fn((msg: string) => {
+          const parsed = JSON.parse(msg);
+          setTimeout(() => {
+            if (mockWin.__businessCentralNativeDatabaseResolve) {
+              if (parsed.method === "deleteProduct") {
+                mockWin.__businessCentralNativeDatabaseResolve(parsed.id, true, null);
+              } else if (parsed.method === "getOrder") {
+                mockWin.__businessCentralNativeDatabaseResolve(
+                  parsed.id,
+                  { id: parsed.payload.id, number: "ORD-99" },
+                  null,
+                );
+              }
+            }
+          }, 5);
+        }),
+      },
+    };
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: mockWin,
+    });
+
+    const deleted = await nativeDb.deleteProduct("prod-del-1");
+    expect(deleted).toBe(true);
+
+    const order = await nativeDb.getOrder("ord-99");
+    expect(order).toEqual({ id: "ord-99", number: "ORD-99" });
+  });
+
+  it("delegates to previous resolver when request ID is not in pending map", () => {
+    const prevResolver = vi.fn();
+    const mockWin: any = {
+      __businessCentralNativeDatabaseResolve: prevResolver,
+      BusinessCentralDatabaseChannel: { postMessage: vi.fn() },
+    };
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: mockWin,
+    });
+
+    // Re-initialize to chain prevResolver
+    callNativeDatabase("getProducts"); // registers handler
+
+    // Invoke resolver with an unknown ID
+    mockWin.__businessCentralNativeDatabaseResolve("unknown_req_id", { success: true }, null);
+    expect(prevResolver).toHaveBeenCalledWith("unknown_req_id", { success: true }, null);
   });
 });

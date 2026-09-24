@@ -537,81 +537,30 @@ func (s *Service) GetMovementDetail(ctx context.Context, c *authdto.Claims, id s
 const transactionHistoryBase = `WITH ctx AS(
         SELECT set_config('app.user_id',$2,true),set_config('app.merchant_id',$1,true)
     ), history AS (
-        SELECT CASE m.movement_type
-                   WHEN 'RECEIPT' THEN 'STOCK_IN'
-                   WHEN 'SALE' THEN 'STOCK_OUT'
-                   WHEN 'RETURN' THEN 'STOCK_RETURN'
-                   WHEN 'TRANSFER' THEN 'STOCK_TRANSFER'
-                   ELSE 'STOCK_ADJUSTMENT'
-               END AS event_type,
-               m.id::text,
-               COALESCE(gr.receipt_number,m.event_key) AS reference,
-               m.occurred_at AS occurred_at,
-               m.movement_type AS status,
-               ''::text AS channel,
-               NULL::text AS customer_name,
-               NULL::text AS customer_phone,
-               ''::text AS payment_method,
-               CASE WHEN m.movement_type='RECEIPT'
-                    THEN COALESCE(m.unit_cost,0)
-                    ELSE COALESCE((SELECT SUM(a.total_cost)
-                                     FROM inventory_cost_allocations a
-                                    WHERE a.merchant_id=m.merchant_id
-                                      AND a.consumption_movement_id=m.id),0)
-                END::text AS amount,
-               ''::text AS currency_code,
-               COALESCE(COALESCE(dst.shop_id,src.shop_id)::text,'') AS shop_id,
-               COALESCE(dst.name,src.name,'') AS shop_name,
-               m.quantity::text AS quantity,
-               p.name AS product_name,
-               v.name AS variant_name,
-               v.sku AS sku,
-               CASE m.movement_type
-                   WHEN 'RECEIPT' THEN 'Stock received into '||COALESCE(dst.name,'location')
-                   WHEN 'SALE' THEN 'Stock checked out from '||COALESCE(src.name,'location')
-                   ELSE initcap(lower(m.movement_type))||' at '||COALESCE(dst.name,src.name,'location')
-               END AS details
-          FROM inventory_movements m
-          JOIN product_variants v ON v.merchant_id=m.merchant_id AND v.id=m.variant_id
-          JOIN products p ON p.merchant_id=v.merchant_id AND p.id=v.product_id
-          LEFT JOIN goods_receipt_lines grl ON grl.merchant_id=m.merchant_id AND grl.id=m.receipt_line_id
-          LEFT JOIN goods_receipts gr ON gr.merchant_id=grl.merchant_id AND gr.id=grl.receipt_id
-          LEFT JOIN locations src ON src.merchant_id=m.merchant_id AND src.id=m.source_location_id
-          LEFT JOIN locations dst ON dst.merchant_id=m.merchant_id AND dst.id=m.destination_location_id
-          CROSS JOIN ctx
-         WHERE m.merchant_id=$1::uuid
-           AND ($3='' OR EXISTS(
-               SELECT 1 FROM user_memberships um
-               JOIN locations scope_location ON scope_location.merchant_id=m.merchant_id
-                AND scope_location.id IN (m.source_location_id,m.destination_location_id)
-              WHERE um.merchant_id=m.merchant_id AND um.id=NULLIF($3,'')::uuid
-                AND (um.shop_id IS NULL OR scope_location.shop_id=um.shop_id)
-           ))
-        UNION ALL
-        SELECT 'TRANSACTION',
-               o.id::text,
-               o.order_number,
-               COALESCE(o.placed_at,o.created_at),
-               o.status,
-               o.channel,
-               cu.display_name,
-               cu.phone,
+        SELECT 'TRANSACTION' AS event_type,
+               o.id::text AS id,
+               o.order_number AS reference,
+               COALESCE(o.placed_at,o.created_at) AS occurred_at,
+               o.status AS status,
+               o.channel AS channel,
+               cu.display_name AS customer_name,
+               cu.phone AS customer_phone,
                COALESCE((SELECT string_agg(DISTINCT py.method, ', ' ORDER BY py.method)
                            FROM payments py
                           WHERE py.merchant_id=o.merchant_id AND py.order_id=o.id
-                            AND py.status IN ('CAPTURED','PARTIALLY_REFUNDED','REFUNDED')),''),
-               o.grand_total::text,
-               o.currency_code::text,
-               COALESCE(COALESCE(service_scope.shop_id,l.shop_id)::text,''),
-               COALESCE(sh.name,''),
+                            AND py.status IN ('CAPTURED','PARTIALLY_REFUNDED','REFUNDED')),'') AS payment_method,
+               o.grand_total::text AS amount,
+               o.currency_code::text AS currency_code,
+               COALESCE(COALESCE(service_scope.shop_id,l.shop_id)::text,'') AS shop_id,
+               COALESCE(sh.name,'') AS shop_name,
                COALESCE((SELECT SUM(ol.quantity) FROM order_lines ol
-                          WHERE ol.merchant_id=o.merchant_id AND ol.order_id=o.id),0)::text,
-               ''::text,
-               ''::text,
-               ''::text,
+                          WHERE ol.merchant_id=o.merchant_id AND ol.order_id=o.id),0)::text AS quantity,
+               ''::text AS product_name,
+               ''::text AS variant_name,
+               ''::text AS sku,
                'Canonical '||o.channel||' order: '||COALESCE((SELECT string_agg(ol.description, ', ' ORDER BY ol.line_number)
                            FROM order_lines ol
-                          WHERE ol.merchant_id=o.merchant_id AND ol.order_id=o.id),'')
+                          WHERE ol.merchant_id=o.merchant_id AND ol.order_id=o.id),'') AS details
           FROM orders o
           LEFT JOIN customers cu ON cu.merchant_id=o.merchant_id AND cu.id=o.customer_id
           LEFT JOIN locations l ON l.merchant_id=o.merchant_id AND l.id=o.fulfillment_location_id

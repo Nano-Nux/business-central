@@ -14,7 +14,9 @@ void main() {
 
   setUp(() async {
     database = AppDatabase(executor: NativeDatabase.memory());
-    await database.into(database.merchants).insert(
+    await database
+        .into(database.merchants)
+        .insert(
           MerchantsCompanion.insert(
             id: merchantId,
             name: 'Encrypted Test Merchant',
