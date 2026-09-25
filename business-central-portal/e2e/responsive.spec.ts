@@ -87,6 +87,9 @@ async function mockWorkspace(
             default_currency_code: "USD",
             timezone: "UTC",
             pos_complexity_level: "COMPLEX",
+            ai_assistant_enabled: true,
+            ai_usage_count: 4,
+            ai_usage_limit: 50,
             is_active: true,
           },
         }),
@@ -116,6 +119,52 @@ async function mockWorkspace(
         contentType: "application/json",
         body: JSON.stringify({
           data: [{ code: "USD", name: "US Dollar", symbol: "$", decimal_places: 2 }],
+        }),
+      });
+      return;
+    }
+    if (path === "/ai/usage") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            usage_count: 4,
+            usage_limit: 50,
+            remaining: 46,
+            is_limit_reached: false,
+          },
+        }),
+      });
+      return;
+    }
+    if (path === "/ai/conversations") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: "77777777-7777-7777-7777-777777777777",
+              merchant_id: merchantID,
+              membership_id: user.membership_id,
+              shop_id: shopID,
+              shop_name: "Main Shop With A Long Mobile Name",
+              title: "Yesterday's sales summary",
+              created_at: "2026-09-25T08:00:00Z",
+              updated_at: "2026-09-25T09:00:00Z",
+            },
+          ],
+        }),
+      });
+      return;
+    }
+    if (/^\/ai\/conversations\/[^/]+\/messages$/.test(path)) {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            conversation: null,
+            messages: [],
+          },
         }),
       });
       return;
@@ -256,6 +305,29 @@ test.describe("phone interactions", () => {
     await expect(sidebar).not.toHaveClass(/open/);
   });
 
+  test("Nanonux AI conversation drawer starts closed and can be dismissed", async ({ page }) => {
+    await mockWorkspace(page);
+    await page.goto("/ai-assistant");
+
+    const conversationDrawer = page.locator("#ai-conversation-sidebar");
+    const drawerToggle = page.getByRole("button", { name: "Open conversation history" });
+    await expect(conversationDrawer).not.toBeVisible();
+
+    await drawerToggle.click();
+    await expect(conversationDrawer).toBeVisible();
+    await page.getByRole("button", { name: "Close conversation history" }).last().click();
+    await expect(conversationDrawer).not.toBeVisible();
+
+    await drawerToggle.click();
+    await page.getByText("Yesterday's sales summary").click();
+    await expect(conversationDrawer).not.toBeVisible();
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBe(0);
+  });
+
   test("POS current order expands without leaving the viewport", async ({ page }) => {
     await mockWorkspace(page);
     await page.goto("/pos");
@@ -333,6 +405,169 @@ test.describe("phone interactions", () => {
     await row.focus();
     await row.press("Enter");
     await expect(dialog).toBeVisible();
+  });
+
+  test("data tables become compact list rows without horizontal scrolling", async ({ page }) => {
+    await mockWorkspace(
+      page,
+      [],
+      [
+        {
+          id: "99999999-9999-9999-9999-999999999999",
+          number: "INV-MOBILE-001",
+          customer: "A customer name that remains readable on a narrow screen",
+          merchant_name: "Responsive Test Merchant",
+          shop_name: "Main Shop With A Long Mobile Name",
+          shop_id: shopID,
+          currency_code: "USD",
+          created_at: "2026-09-26T10:00:00Z",
+          status: "Paid",
+          kind: "pos",
+          subtotal: "1250.00",
+          discount_total: "0",
+          tax_total: "0",
+          grand_total: "1250.00",
+          items: [],
+        },
+      ],
+    );
+    await page.goto("/invoices");
+
+    const table = page.locator(".data-table");
+    const row = table.locator("tbody tr");
+    await expect(table).toHaveClass(/responsive-table-ready/);
+    await expect(row.locator("td").nth(1)).toHaveAttribute("data-mobile-label", "Customer");
+    await expect(row.locator("td").nth(5)).toHaveAttribute("data-mobile-label", "Actions");
+
+    const mobileLayout = await row.evaluate((element) => {
+      const tableRow = element as HTMLTableRowElement;
+      return {
+        display: getComputedStyle(tableRow).display,
+        height: tableRow.getBoundingClientRect().height,
+        tableWidth: tableRow.closest("table")!.getBoundingClientRect().width,
+        tableOverflow:
+          tableRow.closest("table")!.scrollWidth - tableRow.closest("table")!.clientWidth,
+        rowRight: tableRow.getBoundingClientRect().right,
+        viewportWidth: document.documentElement.clientWidth,
+        primaryKind: tableRow.cells[0].dataset.mobileKind,
+        customerCaption: getComputedStyle(tableRow.cells[1], "::before").content,
+        totalCaption: getComputedStyle(tableRow.cells[4], "::before").content,
+      };
+    });
+    expect(mobileLayout.display).toBe("grid");
+    expect(mobileLayout.height).toBeLessThan(150);
+    expect(mobileLayout.tableWidth).toBeLessThanOrEqual(mobileLayout.viewportWidth);
+    expect(mobileLayout.rowRight).toBeLessThanOrEqual(mobileLayout.viewportWidth);
+    expect(mobileLayout.tableOverflow).toBe(0);
+    expect(mobileLayout.primaryKind).toBe("primary");
+    expect(mobileLayout.customerCaption).toBe("none");
+    expect(mobileLayout.totalCaption).toContain("Total");
+  });
+
+  test("dense tables promote one title and caption only ambiguous metrics", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await mockWorkspace(page);
+    await page.route("**/api/v1/transaction-history?*", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: "transaction-mobile-row",
+              event_type: "TRANSACTION",
+              reference: "SALE-2026-0098",
+              occurred_at: "2026-09-26T10:00:00Z",
+              status: "PAID",
+              channel: "POS",
+              customer_name: "May Thu",
+              customer_phone: "+66 81 234 5678",
+              amount: "1250.00",
+              currency_code: "USD",
+              quantity: "3",
+              product_name: "Protective phone case",
+              variant_name: "Midnight blue",
+              sku: "CASE-MIDNIGHT",
+            },
+          ],
+          meta: { page_index: 0, page_size: 10, total: 1, total_pages: 1 },
+        }),
+      });
+    });
+    await page.goto("/transaction-history");
+
+    const historyRow = page.locator(".history-table tbody tr");
+    await expect(historyRow).toBeVisible();
+    const historyLayout = await historyRow.evaluate((element) => {
+      const tableRow = element as HTMLTableRowElement;
+      const cells = [...tableRow.cells];
+      return {
+        height: element.getBoundingClientRect().height,
+        primaryLabel: cells.find((cell) => cell.dataset.mobileKind === "primary")?.dataset
+          .mobileLabel,
+        metricLabels: cells
+          .filter((cell) => cell.dataset.mobileKind === "metric")
+          .map((cell) => cell.dataset.mobileLabel),
+        visibleCaptions: cells.filter(
+          (cell) => getComputedStyle(cell, "::before").content !== "none",
+        ).length,
+        overflow: tableRow.closest("table")!.scrollWidth - tableRow.closest("table")!.clientWidth,
+      };
+    });
+    expect(historyLayout.primaryLabel).toBe("Activity");
+    expect(historyLayout.metricLabels).toEqual(["Qty", "Value"]);
+    expect(historyLayout.visibleCaptions).toBe(2);
+    expect(historyLayout.height).toBeLessThan(250);
+    expect(historyLayout.overflow).toBe(0);
+
+    await page.route("**/api/v1/inventory/storage?*", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: "storage-mobile-row",
+              catalog: "Accessories → Phone cases",
+              product_name: "Protective phone case",
+              variant_name: "Midnight blue",
+              brand: "Northstar",
+              unit: "piece",
+              stock_count: "18",
+              sell_price: "25.00",
+              original_price: "14.00",
+              profit: "11.00",
+              expired_date: "2028-06-30",
+              manufacture_date: "2026-06-01",
+            },
+          ],
+          meta: { page_index: 0, page_size: 10, total: 1, total_pages: 1 },
+        }),
+      });
+    });
+    await page.goto("/storage");
+
+    const storageRow = page.locator(".storage-table tbody tr");
+    await expect(storageRow).toBeVisible();
+    const storageLayout = await storageRow.evaluate((element) => {
+      const tableRow = element as HTMLTableRowElement;
+      const cells = [...tableRow.cells];
+      const metricCells = cells.filter((cell) => cell.dataset.mobileKind === "metric");
+      return {
+        height: element.getBoundingClientRect().height,
+        cellCount: cells.length,
+        primaryLabel: cells.find((cell) => cell.dataset.mobileKind === "primary")?.dataset
+          .mobileLabel,
+        visibleCaptions: cells.filter(
+          (cell) => getComputedStyle(cell, "::before").content !== "none",
+        ).length,
+        metricCount: metricCells.length,
+        overflow: tableRow.closest("table")!.scrollWidth - tableRow.closest("table")!.clientWidth,
+      };
+    });
+    expect(storageLayout.primaryLabel).toBe("Product variant");
+    expect(storageLayout.visibleCaptions).toBe(storageLayout.metricCount);
+    expect(storageLayout.visibleCaptions).toBeLessThan(storageLayout.cellCount / 2);
+    expect(storageLayout.height).toBeLessThan(300);
+    expect(storageLayout.overflow).toBe(0);
   });
 
   test("shared create modal fits the phone viewport", async ({ page }) => {

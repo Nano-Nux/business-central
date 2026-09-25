@@ -82,6 +82,7 @@ export function AIAssistantPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   // AI Usage & Quota State
@@ -204,7 +205,30 @@ export function AIAssistantPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isProcessing]);
 
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileSidebarOpen(false);
+      }
+    };
+    const handleViewportChange = () => {
+      if (window.innerWidth > 768) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleViewportChange);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleViewportChange);
+    };
+  }, [mobileSidebarOpen]);
+
   async function handleCreateNewChat() {
+    setMobileSidebarOpen(false);
     setActiveConversationId(null);
     setMessages([]);
     setInputText("");
@@ -532,8 +556,21 @@ export function AIAssistantPage() {
 
   return (
     <div className="nanonux-ai-workspace">
+      {mobileSidebarOpen && (
+        <button
+          type="button"
+          className="ai-sidebar-backdrop"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-label="Close conversation history"
+        />
+      )}
+
       {/* LEFT SIDEBAR: Conversation History */}
-      <aside className={`ai-sidebar ${sidebarOpen ? "open" : "collapsed"}`}>
+      <aside
+        id="ai-conversation-sidebar"
+        className={`ai-sidebar ${sidebarOpen ? "open" : "collapsed"} ${mobileSidebarOpen ? "mobile-open" : ""}`}
+        aria-label="Conversation history"
+      >
         <div className="ai-sidebar-header">
           <div className="ai-brand-title">
             <div>
@@ -549,6 +586,15 @@ export function AIAssistantPage() {
           >
             <Icon name="plus" size={16} />
             <span>New Chat</span>
+          </button>
+          <button
+            type="button"
+            className="ai-sidebar-close-btn"
+            onClick={() => setMobileSidebarOpen(false)}
+            title="Close conversation history"
+            aria-label="Close conversation history"
+          >
+            <Icon name="close" size={18} />
           </button>
         </div>
 
@@ -575,6 +621,7 @@ export function AIAssistantPage() {
                     setMessages([]);
                     setActiveConversationId(c.id);
                   }
+                  setMobileSidebarOpen(false);
                 }}
               >
                 <div className="conv-content">
@@ -640,9 +687,18 @@ export function AIAssistantPage() {
         <header className="ai-chat-topbar">
           <div className="topbar-left">
             <button
+              type="button"
               className="toggle-sidebar-btn"
-              onClick={() => setSidebarOpen((prev) => !prev)}
-              title="Toggle sidebar"
+              onClick={() => {
+                if (window.matchMedia("(max-width: 768px)").matches) {
+                  setMobileSidebarOpen(true);
+                } else {
+                  setSidebarOpen((prev) => !prev);
+                }
+              }}
+              title="Open conversation history"
+              aria-label="Open conversation history"
+              aria-controls="ai-conversation-sidebar"
             >
               <Icon name="menu" size={18} />
             </button>
@@ -959,6 +1015,11 @@ export function AIAssistantPage() {
           z-index: 10;
         }
 
+        .ai-sidebar-backdrop,
+        .ai-sidebar-close-btn {
+          display: none;
+        }
+
         .ai-sidebar.collapsed {
           width: 0;
           min-width: 0;
@@ -1162,9 +1223,14 @@ export function AIAssistantPage() {
           background: none;
           border: none;
           cursor: pointer;
-          padding: 4px;
+          padding: 7px;
           color: var(--text, #0f172a);
-          border-radius: 4px;
+          border-radius: 7px;
+          flex: 0 0 auto;
+        }
+
+        .toggle-sidebar-btn:hover {
+          background: var(--hover, #f1f5f9);
         }
 
         .ai-status-indicator {
@@ -1825,21 +1891,234 @@ export function AIAssistantPage() {
         }
 
         @media (max-width: 768px) {
+          .nanonux-ai-workspace {
+            position: relative;
+          }
+
+          .ai-sidebar-backdrop {
+            display: block;
+            position: absolute;
+            inset: 0;
+            z-index: 24;
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            border: 0;
+            background: rgba(15, 23, 42, 0.46);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            cursor: default;
+          }
+
           .ai-sidebar {
             position: absolute;
             top: 0;
             left: 0;
             bottom: 0;
             height: 100%;
+            width: min(86vw, 320px) !important;
+            min-width: min(86vw, 320px) !important;
             z-index: 25;
-            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            box-shadow: 12px 0 32px rgba(15, 23, 42, 0.2);
             transform: translateX(-100%);
+            visibility: hidden;
+            transition:
+              transform 0.24s ease,
+              visibility 0.24s;
           }
-          .ai-sidebar.open {
+
+          .ai-sidebar.mobile-open {
             transform: translateX(0);
+            visibility: visible;
           }
+
+          .ai-sidebar-header {
+            gap: 8px;
+            padding: 0.875rem;
+          }
+
+          .ai-sidebar-header .action-btn {
+            margin-left: auto;
+          }
+
+          .ai-sidebar-close-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            flex: 0 0 34px;
+            padding: 0;
+            border: 1px solid var(--border, #e2e8f0);
+            border-radius: 8px;
+            background: var(--surface, #ffffff);
+            color: var(--text, #0f172a);
+            cursor: pointer;
+          }
+
+          .ai-conversation-item {
+            min-height: 48px;
+          }
+
+          .conv-delete-btn {
+            opacity: 1;
+            min-width: 36px;
+            min-height: 36px;
+          }
+
+          .ai-chat-topbar {
+            min-height: 54px;
+            gap: 8px;
+            padding: 0.625rem 0.75rem;
+          }
+
+          .topbar-left {
+            min-width: 0;
+            gap: 6px;
+          }
+
+          .ai-status-indicator {
+            min-width: 0;
+            gap: 6px;
+          }
+
+          .ai-status-indicator strong,
+          .shop-tag {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .shop-tag {
+            max-width: 110px;
+          }
+
+          .topbar-right {
+            flex: 0 0 auto;
+            gap: 6px;
+          }
+
+          .topbar-right .clear-btn {
+            display: none;
+          }
+
+          .ai-usage-pill {
+            gap: 5px;
+            padding: 4px 8px;
+          }
+
+          .ai-usage-sparkle,
+          .ai-usage-meter {
+            display: none;
+          }
+
+          .ai-message-stream {
+            padding: 1rem 0.75rem;
+          }
+
+          .ai-welcome-hero {
+            width: 100%;
+            padding: 1rem 0;
+          }
+
+          .ai-welcome-hero h1 {
+            font-size: 1.5rem;
+          }
+
+          .hero-subtitle {
+            margin-bottom: 1.25rem;
+            font-size: 13px;
+          }
+
+          .suggested-prompts-grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 8px;
+          }
+
+          .suggested-prompt-card {
+            padding: 10px 12px;
+          }
+
+          .messages-list {
+            gap: 1rem;
+          }
+
+          .message-row {
+            gap: 8px;
+          }
+
+          .message-avatar {
+            width: 28px;
+            height: 28px;
+          }
+
           .message-bubble-wrap {
-            max-width: 90%;
+            max-width: calc(100% - 36px);
+          }
+
+          .user-message-text,
+          .ai-message-html {
+            font-size: 13px;
+          }
+
+          .ai-message-html {
+            max-width: 100%;
+            padding: 12px;
+            overflow-x: auto;
+          }
+
+          .ai-message-html table {
+            min-width: 520px;
+          }
+
+          .ai-input-tray {
+            padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+          }
+
+          .input-box-wrapper {
+            gap: 4px;
+            padding: 5px 7px;
+          }
+
+          .input-hint span:first-child {
+            display: none;
+          }
+
+          .input-hint {
+            justify-content: flex-end;
+          }
+
+          .ai-limit-reached-banner {
+            align-items: flex-start;
+            padding: 8px 10px;
+            font-size: 11px;
+          }
+
+          .voice-listening-overlay {
+            bottom: 92px;
+            width: calc(100% - 24px);
+            min-width: 0;
+            max-width: none;
+            padding: 18px 16px;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .ai-status-indicator .shop-tag {
+            display: none;
+          }
+
+          .ai-status-indicator strong {
+            max-width: 118px;
+          }
+
+          .ai-usage-text {
+            font-size: 10px;
+          }
+
+          .ai-sidebar {
+            width: min(90vw, 320px) !important;
+            min-width: min(90vw, 320px) !important;
           }
         }
       `}</style>
