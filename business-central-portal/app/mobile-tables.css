@@ -1,0 +1,201 @@
+/*
+ * Mobile table-to-list transformation
+ *
+ * Desktop and tablet retain semantic tables. At the documented mobile breakpoint,
+ * each row becomes a compact list tile. One identifying value leads the row,
+ * self-explanatory metadata stays label-free, and only ambiguous metrics retain
+ * a short caption. Cell semantics and the hidden table header remain intact.
+ */
+@media (max-width: 640px) {
+  .table-card:has(.responsive-table-ready),
+  .history-table-card:has(.responsive-table-ready),
+  .report-table-scroll:has(.responsive-table-ready),
+  .transaction-detail-table:has(.responsive-table-ready) {
+    max-width: 100%;
+    margin-inline: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    touch-action: auto;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border: 0;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready tbody,
+  :is(.data-table, .report-table).responsive-table-ready tfoot {
+    display: grid;
+    width: 100%;
+    gap: 10px;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready tfoot {
+    margin-top: 10px;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready :is(tbody, tfoot) tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 7px 14px;
+    width: 100%;
+    padding: 10px 12px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface, var(--theme-white));
+    box-shadow: 0 1px 3px rgb(var(--theme-black-rgb, 0 0 0) / 0.045);
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready tfoot tr {
+    border-color: var(--accent);
+    background: var(--theme-gray-50);
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready :is(tbody, tfoot) td {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready :is(tbody, tfoot) td:last-child {
+    padding-right: 0;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    td[data-mobile-kind="metric"]::before {
+    content: attr(data-mobile-label);
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.045em;
+    line-height: 1.25;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready :is(tbody, tfoot) td > * {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    td[data-mobile-span="wide"] {
+    grid-column: 1 / -1;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    td[data-mobile-kind="primary"] {
+    order: -2;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.3;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    tr:has(td[data-mobile-action-layout="compact"])
+    td[data-mobile-kind="primary"] {
+    padding-right: 48px;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    td[data-mobile-kind="metric"] {
+    color: var(--text);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    td[data-mobile-kind="status"] {
+    align-self: center;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    td[data-mobile-kind="action"] {
+    align-items: flex-end;
+    padding-top: 2px;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    td[data-mobile-action-layout="compact"] {
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    width: auto;
+    padding: 0;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready
+    :is(tbody, tfoot)
+    td[data-mobile-action-layout="wide"] {
+    margin-top: 1px;
+    padding-top: 7px;
+    border-top: 1px solid var(--theme-gray-100);
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready .cell-main,
+  :is(.data-table, .report-table).responsive-table-ready .person-cell,
+  :is(.data-table, .report-table).responsive-table-ready .history-event-cell,
+  :is(.data-table, .report-table).responsive-table-ready .history-status-cell {
+    align-items: flex-start;
+    text-align: left;
+    white-space: normal;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready :is(.inline-form, .table-actions) {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready :is(input, select, textarea) {
+    width: min(100%, 220px);
+  }
+
+  :is(.data-table, .report-table).responsive-table-ready .storage-column-tools,
+  :is(.data-table, .report-table).responsive-table-ready .storage-column-filter {
+    display: none;
+  }
+}

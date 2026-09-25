@@ -222,18 +222,6 @@
 .history-table {
   min-width: 1060px;
 }
-.history-table th:first-child,
-.history-table td:first-child {
-  position: sticky;
-  left: 0;
-  background: var(--theme-white);
-  z-index: 2;
-  box-shadow: 2px 0 4px -2px rgb(var(--theme-black-rgb) / 0.08);
-}
-.history-table thead th:first-child {
-  background: var(--theme-gray-50);
-  z-index: 3;
-}
 .history-table td {
   vertical-align: middle;
 }
