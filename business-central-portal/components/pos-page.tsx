@@ -488,11 +488,11 @@ export function PosPage() {
       <section className="pos-catalog">
         <header className="page-header pos-header">
           <div>
-            <p className="eyebrow">{t("nav.pos", "Point of sale")}</p>
-            <h1>{t("pos.new_sale", "New sale")}</h1>
-            <p className="page-description">
+            <h1>{t("nav.pos", "Point of sale")}</h1>
+            {/* <h1>{t("pos.new_sale", "New sale")}</h1> */}
+            {/* <p className="page-description">
               {t("pos.description", "Ring up sales, scan barcodes, and process customer checkouts")}
-            </p>
+            </p> */}
           </div>
           <div className="page-actions pos-header-actions">
             <Badge tone={currentShop ? "success" : "warning"}>

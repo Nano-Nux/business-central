@@ -179,7 +179,7 @@ export function BarcodeScanner({
         playsInline
         className="barcode-video"
       />
-      {nativeReady && (
+      {/* {nativeReady && (
         <small>
           Camera scanning uses the mobile app securely, including when this portal is served over
           local HTTP.
@@ -187,7 +187,7 @@ export function BarcodeScanner({
       )}
       {hardwareReady && (
         <small>Scanner ready. Scan the code with the connected barcode scanner.</small>
-      )}
+      )} */}
       {error && <small className="form-error">{error}</small>}
     </div>
   );
