@@ -30,11 +30,13 @@ export function PageHeader({
 }) {
   return (
     <header className="page-header">
-      <div>
+      {/* they are hidden to prevent clutter in UI. */}
+      {/* <div>
         <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
+        
         <p className="page-description">{description}</p>
-      </div>
+      </div> */}
+      <h1>{title}</h1>
       {action && <div className="page-actions">{action}</div>}
     </header>
   );
