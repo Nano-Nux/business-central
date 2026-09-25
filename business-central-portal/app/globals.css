@@ -36,6 +36,8 @@
 @import "../layouts/compact-layout/index.css";
 @import "../layouts/modern-executive-layout/index.css";
 
+/* Shared responsive data presentation */
+@import "./mobile-tables.css";
+
 /* Universal Theme-Aligned Scrollbars */
 @import "./scrollbar.css";
-

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PendingOfflineChangesError, useAuth } from "@/lib/auth";
 import { Icon } from "./icons";
 import { BrandIcon } from "./brand-icon";
@@ -20,13 +20,16 @@ import {
 } from "@/lib/navigation";
 import { useTranslation } from "@/lib/i18n";
 import { QuickGuideModal } from "./quick-guide-modal";
+import { useResponsiveTables } from "./responsive-tables";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const contentRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
   const router = useRouter();
   const isPos = pathname === "/pos" || pathname.startsWith("/pos/");
   const isAi = pathname === "/ai-assistant" || pathname.startsWith("/ai-assistant/");
   const { user, merchant, merchantReady, ready, isMerchant, can, logout } = useAuth();
+  useResponsiveTables(contentRef, Boolean(ready && user && merchantReady && merchant));
   const { t, language } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -372,7 +375,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </header>
-        <main className={`content ${isPos ? "content-pos" : ""} ${isAi ? "content-ai" : ""}`}>{children}</main>
+        <main
+          ref={contentRef}
+          className={`content ${isPos ? "content-pos" : ""} ${isAi ? "content-ai" : ""}`}
+        >
+          {children}
+        </main>
       </section>
     </div>
   );
