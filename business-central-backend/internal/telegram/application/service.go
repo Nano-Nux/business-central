@@ -179,7 +179,15 @@ func (s *Service) HandleUpdate(ctx context.Context, update tdto.TelegramUpdate) 
 	if !fresh {
 		return nil
 	}
-	defer func() { _ = s.repo.CompleteUpdate(context.Background(), update.UpdateID, processingErr) }()
+	defer func() {
+		// Business rejections are handled updates. Returning a non-2xx response
+		// makes Telegram redeliver commands that cannot succeed on retry.
+		var apiErr *app.Error
+		if errors.As(processingErr, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 500 {
+			processingErr = nil
+		}
+		_ = s.repo.CompleteUpdate(context.Background(), update.UpdateID, processingErr)
+	}()
 	if update.CallbackQuery != nil {
 		return s.handleCallback(ctx, *update.CallbackQuery)
 	}
@@ -259,7 +267,17 @@ func (s *Service) connect(ctx context.Context, m tdto.Message) error {
 	}
 	g, err := s.repo.ConnectGroup(ctx, outbound.ConnectionInput{CodeHash: hash(parts[1]), ChatID: m.Chat.ID, Title: m.Chat.Title, Type: m.Chat.Type, Username: m.Chat.Username, CreatorUserID: m.From.ID, CreatorDisplayName: m.From.DisplayName(), CreatorUsername: m.From.Username, BotStatus: bot.Status, BotIsAdmin: bot.IsAdmin, BotPermissions: bot.Permissions, MemberCount: countPtr})
 	if err != nil {
-		_, _ = s.provider.SendReply(ctx, m.Chat.ID, m.MessageID, "The pairing code is invalid, expired, already used, or this group is already connected.", "", "")
+		message := "The group could not be connected because of a server error. Please try again later."
+		var apiErr *app.Error
+		if errors.As(err, &apiErr) {
+			switch apiErr.Code {
+			case "INVALID_PAIRING_CODE", "GROUP_ALREADY_CONNECTED":
+				message = apiErr.Message
+			}
+		}
+		if _, sendErr := s.provider.SendReply(ctx, m.Chat.ID, m.MessageID, message, "", ""); sendErr != nil {
+			return sendErr
+		}
 		return err
 	}
 	_, err = s.provider.SendReply(ctx, m.Chat.ID, m.MessageID, fmt.Sprintf("Connected to %s. Sellers can now use %s", g.ShopName, takeOrderUsage), "", "")
@@ -269,6 +287,11 @@ func (s *Service) connect(ctx context.Context, m tdto.Message) error {
 func (s *Service) takeOrder(ctx context.Context, updateID int64, m tdto.Message) error {
 	connection, err := s.repo.FindConnectionByChat(ctx, m.Chat.ID)
 	if err != nil {
+		var apiErr *app.Error
+		if errors.As(err, &apiErr) && apiErr.Code == "NOT_FOUND" {
+			_, sendErr := s.provider.SendReply(ctx, m.Chat.ID, m.MessageID, "This group is not connected to an enabled shop. Ask a group administrator to connect it using /connect <pairing-code>.", "", "")
+			return sendErr
+		}
 		return err
 	}
 	if connection.ConnectionStatus != "ACTIVE" {
