@@ -2,10 +2,14 @@ package database
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+//go:embed 0049_telegram_automation.sql
+var telegramAutomation string
 
 const userManagementPolicies = `
 CREATE OR REPLACE FUNCTION app_can_manage_memberships(p_merchant_id UUID) RETURNS BOOLEAN
@@ -1502,6 +1506,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0046_ai_chat_deletion_logs", sql: aiChatDeletionLogs},
 		{version: "0047_ai_merchant_usage_limit", sql: aiMerchantUsageLimit},
 		{version: "0048_optional_service_catalog_code", sql: optionalServiceCatalogCode},
+		{version: "0049_telegram_automation", sql: telegramAutomation},
 	}
 	for _, migration := range migrations {
 		var applied bool

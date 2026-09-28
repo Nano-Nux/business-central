@@ -102,3 +102,6 @@ Last reviewed: 2026-08-27
 ## Update rules
 
 Record completed work with the date, affected package/schema area, and validation performed. Do not mark a feature implemented merely because its database tables exist; distinguish schema, backend behavior, and end-to-end completion.
+# Telegram automation increment
+
+Migration `0049` and `internal/telegram` implement the Bot API adapter, secret-validated idempotent webhook, merchant/admin APIs, pairing and callback security, exact product matching, canonical TELEGRAM drafts, reservation lifecycle, locked confirm/cancel, expiry, audit, and retrying message synchronization. Live Telegram/PostgreSQL integration requires deployment credentials and was not exercised by unit tests.

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"business-central-backend/internal/app"
 	aihttp "business-central-backend/internal/ai/adapters/inbound/http"
 	aiinbound "business-central-backend/internal/ai/ports/inbound"
+	"business-central-backend/internal/app"
 	authhttp "business-central-backend/internal/auth/adapters/inbound/http"
 	authdto "business-central-backend/internal/auth/application/dto"
 	authinbound "business-central-backend/internal/auth/ports/inbound"
@@ -30,6 +30,8 @@ import (
 	servicesinbound "business-central-backend/internal/services/ports/inbound"
 	synchronizationhttp "business-central-backend/internal/synchronization/adapters/inbound/http"
 	synchronizationinbound "business-central-backend/internal/synchronization/ports/inbound"
+	telegramhttp "business-central-backend/internal/telegram/adapters/inbound/http"
+	telegraminbound "business-central-backend/internal/telegram/ports/inbound"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/logger"
@@ -53,6 +55,7 @@ type API struct {
 	reports         *reportshttp.Handler
 	services        *serviceshttp.Handler
 	synchronization *synchronizationhttp.Handler
+	telegram        *telegramhttp.Handler
 }
 
 type Dependencies struct {
@@ -67,6 +70,7 @@ type Dependencies struct {
 	Reports         reportsinbound.Reports
 	Services        servicesinbound.Services
 	Synchronization synchronizationinbound.Synchronization
+	Telegram        telegraminbound.Telegram
 	CORSOrigin      string
 }
 
@@ -86,6 +90,7 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 		reports:         reportshttp.NewHandler(dependencies.Reports),
 		services:        serviceshttp.NewHandler(dependencies.Services, dependencies.Authentication),
 		synchronization: synchronizationhttp.NewHandler(dependencies.Synchronization, dependencies.Authentication),
+		telegram:        telegramhttp.NewHandler(dependencies.Telegram, dependencies.Authentication),
 	}
 	if dependencies.AI != nil {
 		api.ai = aihttp.NewHandler(dependencies.AI, dependencies.Authentication)
@@ -120,6 +125,7 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 
 	v1 := api.app.Group("/api/v1")
 	api.auth.RegisterPublicRoutes(v1)
+	api.telegram.RegisterPublicRoutes(v1)
 	api.bundle.RegisterRoutes(v1)
 
 	protected := v1.Group("", api.authenticate)
@@ -137,6 +143,7 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 	api.reports.RegisterRoutes(protected)
 	api.services.RegisterRoutes(protected)
 	api.synchronization.RegisterRoutes(protected)
+	api.telegram.RegisterRoutes(protected)
 	return api
 }
 

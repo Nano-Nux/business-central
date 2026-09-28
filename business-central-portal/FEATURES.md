@@ -1,5 +1,7 @@
 # Portal Features
 
+| Automations / Telegram | Implemented for portal scope | Automations cards, Facebook/WhatsApp placeholders, shop-scoped multi-group pairing, health, observed users, seller revocation, pending/final orders, and website confirm/cancel. Mobile is out of scope. |
+
 Last reviewed: 2026-08-16
 
 | Feature                                    | Status                                     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |

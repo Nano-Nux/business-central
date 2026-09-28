@@ -1,5 +1,25 @@
 # API Contract
 
+## Telegram automation
+
+`GET /api/v1/admin/telegram/webhook` and `POST /api/v1/admin/telegram/webhook` require an authenticated platform administrator. GET reads Telegram's current webhook; POST accepts `{"url":"https://your-backend-domain/api/v1/webhooks/telegram"}`, registers it with the backend's bot token and webhook secret, then reads the status. Both return `{"data":{"url":"","pending_update_count":0,"bot_username":"NanonuxBusinessCentralBot","token_configured":true,"secret_configured":true,"suggested_url":""},"meta":{}}`, with optional `last_error_date` (Unix seconds), `last_error_message`, and `allowed_updates`. Empty `url` means not registered. Configuration booleans expose readiness only; credentials are never returned. `suggested_url` is derived from a valid public HTTPS `PUBLIC_BASE_URL`.
+
+POST requires public HTTPS, the exact path `/api/v1/webhooks/telegram`, no URL credentials/query/fragment, and a Telegram-supported port (443, 80, 88, or 8443). Local/private literal addresses are rejected. The backend secret must have 32–256 characters from `A-Z`, `a-z`, `0-9`, `_`, or `-`. Errors: 400 `VALIDATION_ERROR` or `TELEGRAM_NOT_CONFIGURED`, 401 unauthenticated, 403 `FORBIDDEN`, 502 `TELEGRAM_API_ERROR`. Registration replaces the shared bot's webhook, requests `message`, `callback_query`, and `my_chat_member`, and preserves pending updates. If registration succeeds but the follow-up status read fails, the 502 message instructs the administrator to refresh status before retrying. No database schema or tenant pairing contract changes.
+
+`GET /api/v1/telegram/bot` requires authentication and `tenant.read`. It returns
+`{"data":{"username":"NanonuxBusinessCentralBot"},"meta":{}}`, using the
+backend's `TELEGRAM_BOT_NAME` without a leading `@`. An unset name returns an
+empty username; the portal disables pairing-code creation and shows a setup
+message rather than displaying a placeholder command. Bot tokens and webhook
+secrets are never included in this response. Existing pairing responses remain
+unchanged.
+
+`POST /api/v1/webhooks/telegram` requires Telegram's `X-Telegram-Bot-Api-Secret-Token` and deduplicates `update_id`. Authenticated merchant routes under `/api/v1/telegram` cover shop pairing codes, groups, metadata refresh, status/disconnect, observed users/seller revocation, and Telegram order listing/confirmation/cancellation. Platform administrators use protected `/api/v1/admin/telegram` equivalents for global access.
+
+`/takeorder[@BotUsername] [product name] quantity=<positive number> [SKU]` requires exactly one positive, finite quantity and at least one of product name or SKU. Put the name before `quantity=` and the SKU after it. Name-only commands use exact normalized product/variant matching; SKU-only commands use exact case-insensitive SKU matching. When both are supplied, both must match the same variant. Matching remains scoped to the group's merchant and shop inventory location. Add an SKU when a name is ambiguous.
+
+Examples: `/takeorder electric wheelchair quantity=2`, `/takeorder quantity=2 WC-002`, and `/takeorder electric wheelchair quantity=2 WC-002`. `/takeorder quantity=2` is rejected. `/connect`, `/help`, and `/cancelorder <order number>` are also supported. Website and Telegram actions invoke the same canonical draft transition use cases.
+
 This document defines the contract between `business-central-backend` and the admin, portal, and mobile clients. The backend is the authority for business behavior, validation, permissions, merchant modules, and state transitions.
 
 ## Current status
