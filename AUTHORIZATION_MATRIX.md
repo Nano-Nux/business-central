@@ -56,6 +56,8 @@ The current portal uses the implemented baseline codes `tenant.read`, `tenant.wr
 
 ## Enforcement rules
 
+- Shared Telegram webhook status and registration (`GET/POST /api/v1/admin/telegram/webhook`) require `claims.PlatformAdmin`; merchant permissions do not grant access. Registration applies to the shared bot across all merchants, while group/order operations retain their existing tenant scope.
+
 - Every permission check must include merchant scope.
 - Module permissions are ineffective when the merchant module is disabled.
 - A user must have an active identity, active membership, and applicable role assignment.

@@ -35,3 +35,8 @@ Last reviewed: 2026-08-04
 
 - Run `npm run lint` and `npm run build` for admin changes.
 - Run backend `go test ./...` when admin work changes or depends on backend contracts.
+# Telegram automation increment
+
+`/telegram-groups` provides backend-authorized global visibility and controls for merchant/shop ownership, chat identity, creator snapshots, bot health, member counts, known users, authorized sellers, order activity, errors, and timestamps. Backend audit events remain authoritative.
+
+The Telegram webhook panel reads Telegram's current registration and explicitly registers a public HTTPS backend URL. Backend-only credentials, configuration readiness, pending updates, last delivery errors, and manual status refresh are supported. Registration is restricted to platform administrators and preserves pending updates. Status reads never register automatically.

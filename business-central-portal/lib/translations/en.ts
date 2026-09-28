@@ -574,6 +574,36 @@ export const en = {
     no_staff_accounts: "No staff accounts",
     no_staff_desc: "Create an account for a cashier or repair technician.",
   },
+  telegram_setup: {
+    seller_commands: "Seller commands",
+    order_rules:
+      "Quantity is required. Use a product name, an SKU, or both. Put the name before quantity= and the SKU after it. If you supply both, they must match the same variant. Add an SKU if a name matches multiple variants. Prices come from Business Central.",
+    title: "Set up Telegram in 5 steps",
+    intro: "Follow these steps to connect a Telegram group to a shop.",
+    before_start_title: "Before you start",
+    before_start:
+      "Ask your Business Central administrator to enable Telegram automation for your merchant and share the official bot username. The bot must already be set up on your Business Central server.",
+    choose_shop_title: "Choose the shop",
+    choose_shop_body: "Use the Shop menu on this page to select the shop for this Telegram group.",
+    create_code_title: "Create a pairing code",
+    create_code_body:
+      "Click Connect Telegram group and copy the code. It can be used once and expires after 15 minutes.",
+    add_bot_title: "Add the bot to your group",
+    add_bot_body:
+      "Open the Telegram group and add the official bot as an administrator. Turn on its Manage Chat permission.",
+    connect_group_title: "Connect the group",
+    connect_group_body:
+      "A Telegram group administrator must send this command in the group. Replace CODE with your pairing code:",
+    verify_title: "Check the connection",
+    verify_body:
+      "Return to this page. The group should appear in the list automatically. Keep the bot as a group administrator.",
+    after_connect_title: "After connection",
+    after_connect_body:
+      "Send /help in the group to see available commands. An authorized seller can create an order with this command. Telegram orders appear here as drafts for you to review:",
+    troubleshooting_title: "If the group does not connect",
+    troubleshooting_body:
+      "Check that you selected the right shop, the person sending the command is a group administrator, the bot is an administrator with Manage Chat permission, and the code has not expired.",
+  },
   auth: {
     sign_in_title: "Sign in to Business Central",
     sign_in_subtitle: "Enter your workstation credentials to access your shop workspace.",

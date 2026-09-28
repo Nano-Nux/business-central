@@ -187,16 +187,16 @@ describe("navigation engine", () => {
       expect(allHrefs).toContain("/ai-assistant");
     });
 
-    it("places /ai-assistant under the Insights group", () => {
+    it("places /ai-assistant under the AI group", () => {
       const groups = getFilteredNavigationGroups({
         posComplexityLevel: "COMPLEX",
         isMerchant: true,
         can: (p) => p === "ai.chat",
         aiAssistantEnabled: true,
       });
-      const insightsGroup = groups.find((g) => g.label === "Insights");
-      expect(insightsGroup).toBeDefined();
-      expect(insightsGroup?.items.some((i) => i.href === "/ai-assistant")).toBe(true);
+      const aiGroup = groups.find((g) => g.label === "AI");
+      expect(aiGroup).toBeDefined();
+      expect(aiGroup?.items.some((i) => i.href === "/ai-assistant")).toBe(true);
 
       const overviewGroup = groups.find((g) => g.label === "Overview");
       expect(overviewGroup?.items.some((i) => i.href === "/ai-assistant")).toBe(false);
@@ -206,5 +206,19 @@ describe("navigation engine", () => {
       const t = (key: string, fb: string) => (key === "nav.nanonux_ai" ? "Nanonux AI" : fb);
       expect(getLocalizedNavLabel("/ai-assistant", "Nanonux AI", t)).toBe("Nanonux AI");
     });
+  });
+
+  it("groups Nanonux AI and Automations under AI for merchants", () => {
+    const groups = getFilteredNavigationGroups({
+      posComplexityLevel: "SIMPLE",
+      isMerchant: true,
+      can: (permission) => permission === "tenant.read" || permission === "ai.chat",
+    });
+    expect(groups.find((group) => group.label === "AI")?.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ href: "/ai-assistant" }),
+        expect.objectContaining({ href: "/automations" }),
+      ]),
+    );
   });
 });

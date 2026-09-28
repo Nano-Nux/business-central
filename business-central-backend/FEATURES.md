@@ -1,5 +1,7 @@
 # Backend Features
 
+| Shared Telegram shop-group automation | Implemented for web/backend scope | One shared bot, shop-scoped multi-group pairing, secure webhook/callbacks, canonical drafts, reservations, shared confirm/cancel transitions, audit, expiry, and outbox retry; mobile is out of scope |
+
 This file records backend capabilities and their implementation status. Update it whenever an API, domain capability, schema, or synchronization contract changes.
 
 | Feature | Status | Source of truth / notes |

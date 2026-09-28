@@ -1,5 +1,13 @@
 # Business Central Canonical Architecture
 
+## Telegram shop-group automation
+
+Telegram is an adapter over the canonical order aggregate, not a separate commerce system. `internal/telegram` owns parsing, pairing, provider calls, group/user observations, draft lifecycle use cases, and outbox delivery. A group resolves exactly one merchant, shop, and shop inventory location. `/takeorder` creates a canonical `orders` row with `channel = TELEGRAM`, an order line, an active inventory reservation, and trace metadata.
+
+Portal and Telegram confirmation/cancellation call the same locked application transitions. Confirmation consumes the reservation and creates the idempotent `SALE` movement; cancellation or expiry releases it. Both record accounting, audit, and outbox events. PostgreSQL remains authoritative, and a failed Telegram edit is retried without reversing the database transition.
+
+Bot credentials remain backend environment secrets. Pairing codes and callback tokens are stored as hashes. Telegram chat and user IDs are external identity keys; titles, names, and usernames are snapshots.
+
 This is a fresh-build commerce architecture. The project has no production data or compatibility obligations, so the schema intentionally removes legacy duplicate models.
 
 ## Canonical ownership

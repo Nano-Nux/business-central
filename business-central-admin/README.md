@@ -8,6 +8,7 @@ Next.js progressive web application for the platform administrator.
 - Manage merchant roles and their backend permission grants.
 - Manage platform currency reference data.
 - Manage shops within a selected merchant tenant.
+- Register the shared Telegram bot webhook and inspect delivery status at `/telegram-groups`. Platform administrators enter the deployed backend's public HTTPS webhook URL; the backend keeps the bot token and webhook secret private.
 
 The current admin navigation has no standalone merchant page. Merchant
 creation is available from the Add User form when the Merchant role is
