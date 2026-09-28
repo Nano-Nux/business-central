@@ -14,6 +14,8 @@ import (
 type updateRepository struct {
 	outbound.Repository
 	connectErr, lookupErr, completedErr error
+	draftErr                            error
+	draftInput                          outbound.DraftInput
 	seen                                bool
 	connectCalls, completeCalls         int
 }
@@ -34,7 +36,15 @@ func (r *updateRepository) ConnectGroup(context.Context, outbound.ConnectionInpu
 	return tdto.Group{ShopName: "Test shop"}, r.connectErr
 }
 func (r *updateRepository) FindConnectionByChat(context.Context, int64) (tdto.Group, error) {
-	return tdto.Group{}, r.lookupErr
+	return tdto.Group{ID: "connection", ConnectionStatus: "ACTIVE"}, r.lookupErr
+}
+
+func (r *updateRepository) ObserveUser(context.Context, string, tdto.User, string) (bool, error) {
+	return true, nil
+}
+func (r *updateRepository) CreateDraft(_ context.Context, in outbound.DraftInput) (outbound.DraftResult, error) {
+	r.draftInput = in
+	return outbound.DraftResult{}, r.draftErr
 }
 
 type updateProvider struct {
@@ -106,5 +116,36 @@ func TestPairingReplyFailureRemainsWebhookFailure(t *testing.T) {
 	update := tdto.TelegramUpdate{UpdateID: 125, Message: &tdto.Message{From: &tdto.User{ID: 42}, Chat: tdto.Chat{ID: -100, Type: "supergroup"}, Text: "/connect code"}}
 	if err := s.HandleUpdate(context.Background(), update); !errors.Is(err, provider.sendErr) || !errors.Is(repo.completedErr, provider.sendErr) {
 		t.Fatalf("reply failure was acknowledged: %v", err)
+	}
+}
+
+func TestTakeOrderDoesNotReportDatabaseFailuresAsMissingProducts(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		err         error
+		want        string
+		wantFailure bool
+	}{
+		{"missing", app.NewError("PRODUCT_NOT_FOUND", "The product was not found.", 404), "The product was not found", false},
+		{"database", app.Internal(errors.New("cannot insert multiple commands into a prepared statement")), "server error", true},
+		{"location", app.NewError("NO_LOCATION", "The shop has no active inventory location.", 409), "no active inventory location", false},
+		{"stock", app.NewError("NO_STOCK", "There is no more stock for this product.", 409), "no more stock", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &updateRepository{draftErr: tc.err}
+			provider := &updateProvider{}
+			s := NewService(repo, provider, "secret", "bot")
+			update := tdto.TelegramUpdate{UpdateID: 126, Message: &tdto.Message{From: &tdto.User{ID: 42}, Chat: tdto.Chat{ID: -100, Type: "supergroup"}, Text: "/takeorder wo phone quantity=1"}}
+			err := s.HandleUpdate(context.Background(), update)
+			if (err != nil) != tc.wantFailure {
+				t.Fatalf("incorrect webhook result: %v", err)
+			}
+			if repo.draftInput.ProductName != "wo phone" || repo.draftInput.Quantity != 1 {
+				t.Fatalf("incorrect command: %+v", repo.draftInput)
+			}
+			if len(provider.replies) != 1 || !strings.Contains(provider.replies[0], tc.want) || strings.Contains(provider.replies[0], "prepared statement") {
+				t.Fatalf("incorrect reply: %v", provider.replies)
+			}
+		})
 	}
 }

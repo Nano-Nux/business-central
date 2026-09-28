@@ -315,15 +315,17 @@ func (s *Service) takeOrder(ctx context.Context, updateID int64, m tdto.Message)
 	cancelRaw, _ := randomToken(18)
 	result, err := s.repo.CreateDraft(ctx, outbound.DraftInput{ConnectionID: connection.ID, ChatID: m.Chat.ID, MessageID: m.MessageID, UserID: m.From.ID, UpdateID: updateID, ProductName: domain.NormalizeName(parsed.ProductName), SKU: parsed.SKU, OriginalCommand: m.Text, Quantity: parsed.Quantity, ExpiresAt: time.Now().UTC().Add(draftTTL), ConfirmTokenHash: hash(confirmRaw), CancelTokenHash: hash(cancelRaw)})
 	if err != nil {
-		message := "The product was not found.\nPlease check the product name or SKU (both must match when supplied), send the order again, and remove the previous incorrect message."
+		message := "The order could not be created because of a server error. Please try again later."
 		var apiErr *app.Error
 		if errors.As(err, &apiErr) {
 			switch apiErr.Code {
+			case "PRODUCT_NOT_FOUND":
+				message = "The product was not found.\nPlease check the product name or SKU (both must match when supplied), send the order again, and remove the previous incorrect message."
 			case "AMBIGUOUS_PRODUCT":
 				message = "Multiple products were found.\nPlease add the SKU to distinguish between them, send a new order, and remove the previous message."
 			case "NO_STOCK":
 				message = "There is no more stock for this product."
-			case "INSUFFICIENT_STOCK":
+			case "INSUFFICIENT_STOCK", "NO_LOCATION":
 				message = apiErr.Message
 			}
 		}
