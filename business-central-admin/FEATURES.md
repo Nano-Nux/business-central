@@ -1,5 +1,7 @@
 # Admin Features
 
+| Global Telegram automation management | Implemented | Platform-admin shared-bot webhook registration/status, global group search/filter, health, metadata, observed users, seller revocation, pairing rotation, pause/resume/disconnect, and order activity |
+
 | Feature | Status | Notes |
 |---|---|---|
 | Next.js application shell | Implemented | Business Central admin shell with backend-backed dashboard |

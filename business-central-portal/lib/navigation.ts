@@ -107,12 +107,6 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
     label: "Insights",
     items: [
       {
-        href: "/ai-assistant",
-        label: "Nanonux AI",
-        icon: "bot",
-        permission: "ai.chat",
-      },
-      {
         href: "/invoices",
         label: "Invoices",
         icon: "receipt",
@@ -130,6 +124,24 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
         label: "Promotions",
         icon: "tag",
         permission: "tenant.write",
+        merchantOnly: true,
+      },
+    ],
+  },
+  {
+    label: "AI",
+    items: [
+      {
+        href: "/ai-assistant",
+        label: "Nanonux AI",
+        icon: "bot",
+        permission: "ai.chat",
+      },
+      {
+        href: "/automations",
+        label: "Automations",
+        icon: "bot",
+        permission: "tenant.read",
         merchantOnly: true,
       },
     ],
@@ -305,6 +317,7 @@ export function getLocalizedNavLabel(
     "/accounts": "nav.staff_accounts",
     "/settings": "nav.settings",
     "/guide": "nav.guide",
+    "/automations": "nav.automations",
   };
   const key = map[href];
   return key ? t(key, fallback) : fallback;
@@ -320,6 +333,7 @@ export function getLocalizedGroupLabel(
     Operations: "nav.operations",
     Insights: "nav.insights",
     Manage: "nav.manage",
+    Automations: "nav.automations",
   };
   const key = map[label];
   return key ? t(key, label) : label;

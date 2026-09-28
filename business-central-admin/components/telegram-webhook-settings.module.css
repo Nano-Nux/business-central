@@ -1,0 +1,126 @@
+.card {
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  min-width: 0;
+}
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.description,
+.help {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.description {
+  margin: 10px 0 0;
+}
+.badge {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.registered {
+  color: var(--green);
+  background: var(--mint);
+}
+.unregistered {
+  color: #825914;
+  background: #fff3d7;
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px 40px;
+  padding: 20px 0;
+  margin-top: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.facts div {
+  display: grid;
+  gap: 6px;
+}
+.facts span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.facts strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.address {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 16px 0 0;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+  margin-top: 20px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.actions button {
+  white-space: nowrap;
+}
+.actions .secondary {
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.help {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+.warning,
+.notice {
+  padding: 12px 14px;
+  margin: 16px 0 0;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.warning {
+  color: #825914;
+  background: #fff6df;
+  border: 1px solid #eddbb3;
+}
+.notice {
+  color: var(--green);
+  background: var(--mint);
+}
+@media (max-width: 1100px) {
+  .form {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .card {
+    padding: 18px;
+  }
+  .heading {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .actions {
+    flex-wrap: wrap;
+  }
+  .actions button {
+    flex: 1;
+  }
+}

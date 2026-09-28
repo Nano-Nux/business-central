@@ -1,5 +1,20 @@
 # Business Central Core ERD
 
+## Telegram extension
+
+```mermaid
+erDiagram
+    merchants ||--o{ telegram_group_connections : owns
+    shops ||--o{ telegram_group_connections : connects
+    telegram_group_connections ||--o{ telegram_group_users : observes
+    shops ||--o{ telegram_pairing_codes : pairs
+    orders ||--|| telegram_order_sources : traces
+    telegram_group_connections ||--o{ telegram_order_sources : creates
+    orders ||--o{ telegram_callback_tokens : protects
+```
+
+`telegram_group_connections.telegram_chat_id` is globally unique. Tenant-owned extension rows carry `merchant_id` and tenant-safe foreign keys. Source records preserve history after a soft disconnect; pairing and callback secrets are stored only as hashes.
+
 ```mermaid
 erDiagram
     merchants ||--o{ user_memberships : owns

@@ -42,7 +42,161 @@ tags:
     description: Repair devices, repair lifecycle, diagnostics, parts, approvals, and warranties.
   - name: Synchronization
     description: Online mobile synchronization and conflict handling.
+  - name: Telegram
+    description: Shared-bot shop-group pairing and canonical Telegram draft orders.
 paths:
+  /api/v1/admin/telegram/webhook:
+    get:
+      tags: [Telegram]
+      summary: Inspect shared-bot webhook status
+      description: Platform administrator only. Reads Telegram status without registering. Credentials remain on the backend.
+      operationId: getTelegramWebhookStatus
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Webhook status and backend configuration readiness
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TelegramWebhookEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { description: TELEGRAM_API_ERROR - Telegram status could not be read }
+    post:
+      tags: [Telegram]
+      summary: Register the shared bot webhook
+      description: Platform administrator only. Replaces the shared webhook using backend credentials, preserves pending updates, and subscribes to message, callback_query, and my_chat_member. Returns status after registration. If the follow-up read fails, refresh status before retrying.
+      operationId: registerTelegramWebhook
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: Public HTTPS URL ending in /api/v1/webhooks/telegram, without credentials, query, or fragment; ports 443, 80, 88, or 8443.
+                  example: https://backend.example.com/api/v1/webhooks/telegram
+      responses:
+        '200':
+          description: Registration accepted and current status fetched
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TelegramWebhookEnvelope' }
+        '400': { description: VALIDATION_ERROR or TELEGRAM_NOT_CONFIGURED }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { description: TELEGRAM_API_ERROR - registration or follow-up status read failed }
+  /api/v1/telegram/bot:
+    get:
+      tags: [Telegram]
+      summary: Get the configured shared Telegram bot username
+      description: Requires tenant.read. Returns TELEGRAM_BOT_NAME without a leading @; an unconfigured name is an empty string. No credentials are returned.
+      operationId: getTelegramBotInfo
+      responses:
+        '200':
+          description: Configured bot username
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: object
+                    required: [username]
+                    properties:
+                      username: { type: string, example: NanonuxBusinessCentralBot }
+                  meta: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/webhooks/telegram:
+    post:
+      tags: [Telegram]
+      summary: Receive an authenticated Telegram Bot API update
+      description: >-
+        Order messages use /takeorder [product name] quantity=<positive number> [SKU].
+        Quantity is required and must be positive and finite. At least a product name
+        or SKU is required. Put the name before quantity= and the SKU after it.
+        When both are supplied, both must match the same merchant-scoped variant.
+      operationId: telegramWebhook
+      security: []
+      parameters:
+        - in: header
+          name: X-Telegram-Bot-Api-Secret-Token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { description: Update accepted or already processed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/telegram/groups:
+    get:
+      tags: [Telegram]
+      summary: List merchant-scoped Telegram group connections
+      operationId: listTelegramGroups
+      responses:
+        '200': { description: Telegram group connections }
+  /api/v1/telegram/shops/{shopId}/pairing-codes:
+    post:
+      tags: [Telegram]
+      summary: Create a one-time shop pairing code
+      operationId: createTelegramPairingCode
+      parameters:
+        - in: path
+          name: shopId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '201': { description: Pairing code and expiration }
+  /api/v1/telegram/orders:
+    get:
+      tags: [Telegram]
+      summary: List merchant-scoped Telegram orders including drafts
+      operationId: listTelegramOrders
+      responses:
+        '200': { description: Telegram order projections }
+  /api/v1/telegram/orders/{orderId}/confirm:
+    post:
+      tags: [Telegram]
+      summary: Confirm a canonical Telegram draft order
+      operationId: confirmTelegramOrder
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Confirmed canonical order }
+        '409': { description: Order already processed or reservation invalid }
+  /api/v1/telegram/orders/{orderId}/cancel:
+    post:
+      tags: [Telegram]
+      summary: Cancel a canonical Telegram draft order
+      operationId: cancelTelegramOrder
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Cancelled canonical order }
+        '409': { description: Order already processed }
+  /api/v1/admin/telegram/groups:
+    get:
+      tags: [Telegram]
+      summary: List all Telegram connections for platform administration
+      operationId: adminListTelegramGroups
+      responses:
+        '200': { description: Global Telegram group connections }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /health:
     get:
       tags: [System]
@@ -2188,6 +2342,24 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    TelegramWebhookEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        meta: { type: object }
+        data:
+          type: object
+          required: [url, pending_update_count, bot_username, token_configured, secret_configured, suggested_url]
+          properties:
+            url: { type: string, description: Empty when no webhook is registered }
+            pending_update_count: { type: integer }
+            last_error_date: { type: integer, format: int64, description: Unix seconds }
+            last_error_message: { type: string }
+            allowed_updates: { type: array, items: { type: string } }
+            bot_username: { type: string }
+            token_configured: { type: boolean }
+            secret_configured: { type: boolean, description: Secret meets backend length and Telegram character requirements }
+            suggested_url: { type: string, description: Valid public HTTPS address derived from PUBLIC_BASE_URL or empty }
     PaymentTypeRequest:
       type: object
       required: [name, category_code]

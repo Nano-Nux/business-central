@@ -159,3 +159,27 @@ authenticated to the Aiven target, and `RUN_DB_TESTS=1
 RUN_API_DB_TESTS=1 go test ./...` passed, including migration and HTTP API
 integration coverage. Long-duration offline, storage-eviction, and multi-tab
 browser drills remain manual follow-ups.
+# Telegram automation increment
+
+The Automations overview separates available integrations from planned channels.
+Telegram has a prominent card and a Manage Telegram action; Facebook and WhatsApp
+use muted, dashed cards labelled Coming soon and Not available yet.
+
+The portal exposes `/automations`, `/automations/facebook`, `/automations/telegram`, and `/automations/whatsapp`. Telegram uses authenticated backend APIs for pairing, health, users, seller permissions, pending drafts, and canonical order actions, and polls for Telegram-side changes. It explicitly states the creation-date and complete-member-list limitations.
+
+The Telegram page uses a theme-aware responsive workspace with Groups, Orders,
+and Setup guide views. Shop summaries show connected groups, pending drafts,
+and bot access issues. Selectable group cards expose health, seller access, and
+expandable connection details; order cards use status filters instead of three
+stacked tables. Pairing and seller commands can be copied, and changing shops
+clears the previous shop's group selection and pairing code. Browser coverage
+checks all three views at phone, tablet, and desktop widths, empty/error states,
+and the existing pairing, group, seller, and order action endpoints.
+
+Telegram groups, orders, and the selected group's known users refresh every
+3 minutes. User actions still reload the affected workspace immediately.
+
+The page reads the shared bot username from authenticated `/telegram/bot`
+metadata, sourced from the backend's `TELEGRAM_BOT_NAME`. Setup instructions,
+displayed pairing commands, and copied commands use that username. Missing
+configuration shows an explicit message and disables pairing creation/rotation.

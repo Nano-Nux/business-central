@@ -66,6 +66,8 @@ preset administration remains a parity follow-up.
 
 ## Shared design source
 
+| Telegram shop-group automation | Portal provides AI navigation, pairing, group health/users, pending drafts, and confirm/cancel through canonical backend APIs. The responsive workspace separates Groups, Orders, and Setup guide views, with shop-scoped summaries and group details. Order commands require quantity and at least a name or SKU; the multilingual guide shows all three identifier forms. | Not implemented; explicitly excluded from this increment | Portal Telegram page is the current web design reference. A future Mobile ONLINE workflow must use the same terms, identifier requirements, and transitions; FULLY_OFFLINE must never connect to Telegram or the backend. | Backend command/lifecycle security tests and portal route/build checks; responsive Telegram browser interaction checks; mobile acceptance pending | Partial |
+
 Before substantial UI work begins, define a shared design reference containing:
 
 - color, typography, spacing, elevation, and icon rules;

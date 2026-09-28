@@ -10,29 +10,32 @@ import (
 )
 
 type Config struct {
-	DatabaseURL                 string
-	Host                        string
-	Port                        string
-	PublicBaseURL               string
-	CORSOrigin                  string
-	SeaweedFSFilerURL           string
-	SeaweedFSFilerAuthorization string
-	JWTSecret                   []byte
-	AccessTokenTTL              time.Duration
-	RefreshTokenTTL             time.Duration
-	Environment                 string
-	AutoMigrate                 bool
-	AutoInitSchema              bool
-	PasswordCost                int
-	AdminEmail                  string
-	AdminPassword               string
-	PlatformAdminEmail          string
-	PlatformAdminPassword       string
-	GeminiAPIKey                string
-	QueryGenerateAIModel        string
+	DatabaseURL                  string
+	Host                         string
+	Port                         string
+	PublicBaseURL                string
+	CORSOrigin                   string
+	SeaweedFSFilerURL            string
+	SeaweedFSFilerAuthorization  string
+	JWTSecret                    []byte
+	AccessTokenTTL               time.Duration
+	RefreshTokenTTL              time.Duration
+	Environment                  string
+	AutoMigrate                  bool
+	AutoInitSchema               bool
+	PasswordCost                 int
+	AdminEmail                   string
+	AdminPassword                string
+	PlatformAdminEmail           string
+	PlatformAdminPassword        string
+	GeminiAPIKey                 string
+	QueryGenerateAIModel         string
 	QueryGenerateAIModelFallback string
-	HumanizerAIModel            string
-	HumanizerAIModelFallback    string
+	HumanizerAIModel             string
+	HumanizerAIModelFallback     string
+	TelegramBotToken             string
+	TelegramBotName              string
+	TelegramWebhookSecret        string
 }
 
 func Load() (Config, error) {
@@ -73,35 +76,43 @@ func Load() (Config, error) {
 	if cost < 10 || cost > 15 {
 		return Config{}, errors.New("BCRYPT_COST must be between 10 and 15")
 	}
+	telegramToken := strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN"))
+	telegramWebhookSecret := strings.TrimSpace(os.Getenv("TELEGRAM_WEBHOOK_SECRET"))
+	if telegramToken != "" && len(telegramWebhookSecret) < 32 {
+		return Config{}, errors.New("TELEGRAM_WEBHOOK_SECRET must be at least 32 characters when TELEGRAM_BOT_TOKEN is configured")
+	}
 
 	port := envOr("PORT", "8080")
 	environment := envOr("APP_ENV", "development")
 	publicBaseURL := envOr("PUBLIC_BASE_URL", fmt.Sprintf("http://localhost:%s", port))
 	corsOrigin := envOr("CORS_ORIGIN", "*")
 	return Config{
-		DatabaseURL:                 databaseURL,
-		Host:                        envOr("HOST", "0.0.0.0"),
-		Port:                        port,
-		PublicBaseURL:               strings.TrimRight(publicBaseURL, "/"),
-		CORSOrigin:                  corsOrigin,
-		SeaweedFSFilerURL:           envOr("SEAWEEDFS_FILER_URL", "http://localhost:8888"),
-		SeaweedFSFilerAuthorization: strings.TrimSpace(os.Getenv("SEAWEEDFS_FILER_AUTHORIZATION")),
-		JWTSecret:                   []byte(secret),
-		AccessTokenTTL:              accessTTL,
-		RefreshTokenTTL:             refreshTTL,
-		Environment:                 environment,
-		AutoMigrate:                 boolEnv("AUTO_MIGRATE", true),
-		AutoInitSchema:              boolEnv("AUTO_INIT_SCHEMA", false),
-		PasswordCost:                cost,
-		AdminEmail:                  adminEmail,
-		AdminPassword:               adminPassword,
-		PlatformAdminEmail:          platformAdminEmail,
-		PlatformAdminPassword:       platformAdminPassword,
-		GeminiAPIKey:                strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
-		QueryGenerateAIModel:        envOr("QUERY_GENERATE_AI_MODEL", "gemini-3.5-flash-lite"),
+		DatabaseURL:                  databaseURL,
+		Host:                         envOr("HOST", "0.0.0.0"),
+		Port:                         port,
+		PublicBaseURL:                strings.TrimRight(publicBaseURL, "/"),
+		CORSOrigin:                   corsOrigin,
+		SeaweedFSFilerURL:            envOr("SEAWEEDFS_FILER_URL", "http://localhost:8888"),
+		SeaweedFSFilerAuthorization:  strings.TrimSpace(os.Getenv("SEAWEEDFS_FILER_AUTHORIZATION")),
+		JWTSecret:                    []byte(secret),
+		AccessTokenTTL:               accessTTL,
+		RefreshTokenTTL:              refreshTTL,
+		Environment:                  environment,
+		AutoMigrate:                  boolEnv("AUTO_MIGRATE", true),
+		AutoInitSchema:               boolEnv("AUTO_INIT_SCHEMA", false),
+		PasswordCost:                 cost,
+		AdminEmail:                   adminEmail,
+		AdminPassword:                adminPassword,
+		PlatformAdminEmail:           platformAdminEmail,
+		PlatformAdminPassword:        platformAdminPassword,
+		GeminiAPIKey:                 strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
+		QueryGenerateAIModel:         envOr("QUERY_GENERATE_AI_MODEL", "gemini-3.5-flash-lite"),
 		QueryGenerateAIModelFallback: envOr("QUERY_GENERATE_AI_MODEL_FALL_BACK", "gemini-3.1-flash-lite"),
-		HumanizerAIModel:            envOr("HUMANIZER_AI_MODEL", "gemma-4-31b"),
-		HumanizerAIModelFallback:    envOr("HUMANIZER_AI_MODEL_FALL_BACK", "gemma-4-27b"),
+		HumanizerAIModel:             envOr("HUMANIZER_AI_MODEL", "gemma-4-31b"),
+		HumanizerAIModelFallback:     envOr("HUMANIZER_AI_MODEL_FALL_BACK", "gemma-4-27b"),
+		TelegramBotToken:             telegramToken,
+		TelegramBotName:              strings.TrimPrefix(strings.TrimSpace(os.Getenv("TELEGRAM_BOT_NAME")), "@"),
+		TelegramWebhookSecret:        telegramWebhookSecret,
 	}, nil
 }
 

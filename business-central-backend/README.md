@@ -1,5 +1,21 @@
 # Business Central Backend
 
+## Telegram automation
+
+Set `TELEGRAM_BOT_TOKEN` and a random `TELEGRAM_WEBHOOK_SECRET` of 32–256 letters, numbers, underscores, or hyphens only in the backend environment. Never use `NEXT_PUBLIC_*` for either value.
+
+After deploying the backend with public HTTPS, open **Admin → Telegram groups → Telegram webhook**, enter `https://your-backend-domain/api/v1/webhooks/telegram`, and click **Register webhook**. The backend calls Telegram using its configured token and secret; neither credential is sent to the browser. **Refresh status** shows the registered URL, pending updates, and the last delivery error. Registration replaces the shared bot's previous webhook and preserves pending updates. It subscribes to `message`, `callback_query`, and `my_chat_member` updates. Register again when the URL or secret changes; ordinary deployments do not require re-registration. A public HTTPS `PUBLIC_BASE_URL` pre-fills the form when no webhook is registered; otherwise enter the address manually. Localhost cannot receive Telegram webhook deliveries.
+
+Set `TELEGRAM_BOT_NAME` to the bot's Telegram username, for example
+`TELEGRAM_BOT_NAME=NanonuxBusinessCentralBot` (an optional leading `@` is
+removed). Restart the backend after changing its environment. The authenticated
+`GET /api/v1/telegram/bot` endpoint exposes only this username to the portal,
+which uses it for setup instructions and complete, copyable pairing commands.
+
+Orders use `/takeorder [product name] quantity=<positive number> [SKU]`. Quantity is required, and at least a name or SKU must be supplied. For SKU-only orders, use `/takeorder quantity=2 WC-002`. When both a name and SKU are supplied, both must identify the same variant.
+
+Migration `0049_telegram_automation` adds the `TELEGRAM` order channel, shop-group connections, hashed one-time pairing codes, observed users, source metadata, callback tokens, update deduplication, tenant constraints, and RLS. Final message edits use `outbox_events` retry. Telegram does not expose an exact group creation date or a complete member list; only connected/first-seen dates, counts, administrators, and observed users are shown when available.
+
 The Go Fiber backend is the only main backend for Business Central. All client APIs, authentication, authorization, merchant-module rules, domain behavior, persistence, and mobile synchronization protocols belong here.
 
 The architecture is Hexagonal Architecture combined with Domain-Driven Design. Keep domain logic independent from HTTP and database adapters.

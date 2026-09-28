@@ -30,6 +30,9 @@ import (
 	servicesapp "business-central-backend/internal/services/application"
 	synchronizationpostgres "business-central-backend/internal/synchronization/adapters/outbound/postgres"
 	synchronizationapp "business-central-backend/internal/synchronization/application"
+	telegramhttp "business-central-backend/internal/telegram/adapters/outbound/botapi"
+	telegrampostgres "business-central-backend/internal/telegram/adapters/outbound/postgres"
+	telegramapp "business-central-backend/internal/telegram/application"
 )
 
 func main() {
@@ -88,12 +91,14 @@ func main() {
 
 	aiLLMClient := aigemini.NewClient(aigemini.Config{
 		APIKey:                       cfg.GeminiAPIKey,
-		QueryGenerateAIModel:        cfg.QueryGenerateAIModel,
+		QueryGenerateAIModel:         cfg.QueryGenerateAIModel,
 		QueryGenerateAIModelFallback: cfg.QueryGenerateAIModelFallback,
-		HumanizerAIModel:            cfg.HumanizerAIModel,
-		HumanizerAIModelFallback:    cfg.HumanizerAIModelFallback,
+		HumanizerAIModel:             cfg.HumanizerAIModel,
+		HumanizerAIModelFallback:     cfg.HumanizerAIModelFallback,
 	})
 	aiService := aiapp.NewService(aipostgres.NewRepository(pool), aiLLMClient, authapp.NewService(authService))
+	telegramService := telegramapp.NewService(telegrampostgres.NewRepository(pool), telegramhttp.New(cfg.TelegramBotToken), cfg.TelegramWebhookSecret, cfg.TelegramBotName, cfg.PublicBaseURL)
+	go telegramService.RunOutbox(context.Background())
 
 	api := httpadapter.New(pool, httpadapter.Dependencies{
 		AI:              aiService,
@@ -107,6 +112,7 @@ func main() {
 		Reports:         reportsapp.NewService(reportspostgres.NewRepository(pool)),
 		Services:        servicesapp.NewService(servicespostgres.NewRepository(pool)),
 		Synchronization: synchronizationapp.NewService(synchronizationpostgres.NewRepository(pool)),
+		Telegram:        telegramService,
 		CORSOrigin:      cfg.CORSOrigin,
 	})
 	baseURL := cfg.PublicBaseURL
