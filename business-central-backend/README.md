@@ -16,6 +16,23 @@ Orders use `/takeorder [product name] quantity=<positive number> [SKU]`. Quantit
 
 Migration `0049_telegram_automation` adds the `TELEGRAM` order channel, shop-group connections, hashed one-time pairing codes, observed users, source metadata, callback tokens, update deduplication, tenant constraints, and RLS. Final message edits use `outbox_events` retry. Telegram does not expose an exact group creation date or a complete member list; only connected/first-seen dates, counts, administrators, and observed users are shown when available.
 
+Webhook troubleshooting: a delivery error with `SQLSTATE 42P08` or `commit
+unexpectedly resulted in rollback` indicates a backend database failure, not an
+incorrect webhook URL. Pairing replies distinguish invalid/expired/used codes,
+an already connected group, and server failures. Failed pairing transactions
+leave the code unconsumed. After deploying a fix, generate a fresh pairing code
+and send a new `/connect` command; previously seen update IDs are deduplicated.
+Orders sent in unconnected groups receive setup instructions. Handled business
+rejections acknowledge the webhook with HTTP 200; server/provider failures still
+return an error. Telegram's last delivery error is historical and can remain
+visible after successful deliveries.
+
+The PostgreSQL pairing/membership regression test requires an initialized test
+database with the Telegram schema: set `RUN_DB_TESTS=1` and `DATABASE_URL`, then
+run `go test ./internal/telegram/...`. It checks successful pairing, one-time
+code consumption, duplicate groups, database error classification, rollback,
+and bot membership events.
+
 The Go Fiber backend is the only main backend for Business Central. All client APIs, authentication, authorization, merchant-module rules, domain behavior, persistence, and mobile synchronization protocols belong here.
 
 The architecture is Hexagonal Architecture combined with Domain-Driven Design. Keep domain logic independent from HTTP and database adapters.
