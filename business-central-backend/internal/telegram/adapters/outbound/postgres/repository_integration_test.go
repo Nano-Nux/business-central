@@ -10,6 +10,7 @@ import (
 
 	"business-central-backend/internal/app"
 	authdto "business-central-backend/internal/auth/application/dto"
+	tdto "business-central-backend/internal/telegram/application/dto"
 	"business-central-backend/internal/telegram/ports/outbound"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -70,6 +71,7 @@ func TestConfiguredDatabaseTelegramPairingAndMembership(t *testing.T) {
 	if g.MerchantID != claims.MerchantID || g.ShopID != shopID || g.ConnectionStatus != "ACTIVE" {
 		t.Fatalf("incorrect connection: %+v", g)
 	}
+	t.Run("order lifecycle", func(t *testing.T) { testTelegramOrderLifecycle(t, ctx, pool, repo, g) })
 	var status, consumedBy string
 	if err := pool.QueryRow(ctx, `SELECT status,consumed_by_connection_id FROM telegram_pairing_codes WHERE id=$1::uuid`, code.ID).Scan(&status, &consumedBy); err != nil || status != "CONSUMED" || consumedBy != g.ID {
 		t.Fatalf("pairing consumption: %s %s %v", status, consumedBy, err)
@@ -122,5 +124,107 @@ func TestConfiguredDatabaseTelegramPairingAndMembership(t *testing.T) {
 	}
 	if err := repo.UpdateConnectionHealth(ctx, in.ChatID-1, "MEMBER", false, nil, ""); err != nil {
 		t.Fatalf("unpaired membership should be ignored: %v", err)
+	}
+}
+
+func testTelegramOrderLifecycle(t *testing.T, ctx context.Context, pool *pgxpool.Pool, repo *Repository, g tdto.Group) {
+	t.Helper()
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, query, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	locationID, productID, variantID, unitID, priceListID := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
+	defer func() {
+		for _, query := range []string{
+			`DELETE FROM telegram_callback_tokens WHERE merchant_id=$1::uuid`,
+			`DELETE FROM telegram_order_sources WHERE merchant_id=$1::uuid`,
+			`DELETE FROM accounting_events WHERE merchant_id=$1::uuid`,
+			`DELETE FROM orders WHERE merchant_id=$1::uuid`,
+			`DELETE FROM product_prices WHERE merchant_id=$1::uuid`,
+			`DELETE FROM product_variants WHERE merchant_id=$1::uuid`,
+			`DELETE FROM products WHERE merchant_id=$1::uuid`,
+			`DELETE FROM unit_definitions WHERE merchant_id=$1::uuid`,
+			`DELETE FROM price_lists WHERE merchant_id=$1::uuid`,
+			`DELETE FROM locations WHERE merchant_id=$1::uuid`,
+		} {
+			if _, err := pool.Exec(context.Background(), query, g.MerchantID); err != nil {
+				t.Error(err)
+			}
+		}
+	}()
+	exec(`INSERT INTO locations(id,merchant_id,shop_id,code,name,location_type) VALUES($1,$2,$3,'SHOP','Test stock','SHOP')`, locationID, g.MerchantID, g.ShopID)
+	exec(`INSERT INTO unit_definitions(id,merchant_id,code,name) VALUES($1,$2,'EA','Each')`, unitID, g.MerchantID)
+	exec(`INSERT INTO products(id,merchant_id,name) VALUES($1,$2,'wo phone')`, productID, g.MerchantID)
+	exec(`INSERT INTO product_variants(id,merchant_id,product_id,sku,name,base_unit_id,is_stock_tracked) VALUES($1,$2,$3,'WO-001','Standard',$4,false)`, variantID, g.MerchantID, productID, unitID)
+	exec(`INSERT INTO price_lists(id,merchant_id,code,currency_code,is_default) VALUES($1,$2,'DEFAULT','USD',true)`, priceListID, g.MerchantID)
+	exec(`INSERT INTO product_prices(merchant_id,price_list_id,variant_id,amount) VALUES($1,$2,$3,800000)`, g.MerchantID, priceListID, variantID)
+	makeInput := func() outbound.DraftInput {
+		return outbound.DraftInput{ConnectionID: g.ID, ChatID: g.TelegramChatID, MessageID: time.Now().UnixNano(), UpdateID: time.Now().UnixNano(), UserID: 42, ProductName: "wo phone", Quantity: 1, OriginalCommand: "/takeorder wo phone quantity=1", ExpiresAt: time.Now().Add(30 * time.Minute), ConfirmTokenHash: strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", ""), CancelTokenHash: strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", "")}
+	}
+	for _, action := range []string{"CONFIRM", "CANCEL"} {
+		in := makeInput()
+		if action == "CANCEL" {
+			in.ProductName, in.SKU = "", "WO-001"
+		}
+		draft, err := repo.CreateDraft(ctx, in)
+		if err != nil {
+			t.Fatalf("create draft by name/SKU: %v", err)
+		}
+		if draft.Order.Description != "wo phone" || draft.Order.GrandTotal != "800000.00" {
+			t.Fatalf("incorrect draft: %+v", draft.Order)
+		}
+		if err := repo.StoreBotResponse(ctx, draft.Order.ID, 1234); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := repo.ResolveCallback(ctx, in.ConfirmTokenHash, g.TelegramChatID, 42); err != nil {
+			t.Fatalf("resolve draft callback: %v", err)
+		}
+		order, err := repo.TransitionOrder(ctx, nil, draft.Order.ID, action, "TELEGRAM", 42, true)
+		if err != nil {
+			t.Fatalf("transition %s: %v", action, err)
+		}
+		wantStatus := "CONFIRMED"
+		if action == "CANCEL" {
+			wantStatus = "CANCELLED"
+		}
+		if order.Status != wantStatus || order.BotResponseMessageID != 1234 {
+			t.Fatalf("incorrect transition: %+v", order)
+		}
+		if _, err := repo.TransitionOrder(ctx, nil, draft.Order.ID, action, "TELEGRAM", 42, true); err == nil {
+			t.Fatal("repeated transition accepted")
+		}
+		var consumed int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM telegram_callback_tokens WHERE order_id=$1::uuid AND consumed_at IS NOT NULL`, draft.Order.ID).Scan(&consumed); err != nil || consumed != 2 {
+			t.Fatalf("callbacks not consumed: %d %v", consumed, err)
+		}
+		var eventID string
+		if err := pool.QueryRow(ctx, `SELECT id FROM outbox_events WHERE merchant_id=$1::uuid AND aggregate_id=$2::uuid AND event_type=$3`, g.MerchantID, draft.Order.ID, "TELEGRAM_ORDER_"+wantStatus).Scan(&eventID); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.FinishOutboxDelivery(ctx, eventID, errors.New("temporary provider error")); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.FinishOutboxDelivery(ctx, eventID, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A later write failure must roll back the order and line already inserted.
+	invalid := makeInput()
+	invalid.CancelTokenHash = invalid.ConfirmTokenHash
+	if _, err := repo.CreateDraft(ctx, invalid); err == nil {
+		t.Fatal("duplicate callback hash accepted")
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM orders WHERE merchant_id=$1::uuid`, g.MerchantID).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("failed draft left partial order: %d %v", count, err)
+	}
+	missing := makeInput()
+	missing.ProductName = "missing product"
+	_, err := repo.CreateDraft(ctx, missing)
+	var apiErr *app.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "PRODUCT_NOT_FOUND" {
+		t.Fatalf("incorrect missing product error: %v", err)
 	}
 }

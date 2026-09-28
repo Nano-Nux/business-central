@@ -26,6 +26,15 @@ connection and observed administrator, and records audit/outbox events in one
 transaction; any failed write rolls those changes back. Previously seen update
 IDs remain deduplicated, so retry pairing with a new command after a server fix.
 
+`/takeorder wo phone quantity=1` resolves the active product/variant by normalized
+name and its current default price. The bot reports `PRODUCT_NOT_FOUND` only for
+an actual lookup miss; database failures during draft creation receive a generic
+server-error reply and remain webhook errors. Draft creation commits the canonical
+order, order line, stock reservation (when tracked), Telegram source, callback
+tokens, audit, and outbox records atomically. Confirmation/cancellation likewise
+keeps stock, order state, callback consumption, and audit/outbox writes in one
+transaction even though each SQL statement executes separately.
+
 `/takeorder[@BotUsername] [product name] quantity=<positive number> [SKU]` requires exactly one positive, finite quantity and at least one of product name or SKU. Put the name before `quantity=` and the SKU after it. Name-only commands use exact normalized product/variant matching; SKU-only commands use exact case-insensitive SKU matching. When both are supplied, both must match the same variant. Matching remains scoped to the group's merchant and shop inventory location. Add an SKU when a name is ambiguous.
 
 Examples: `/takeorder electric wheelchair quantity=2`, `/takeorder quantity=2 WC-002`, and `/takeorder electric wheelchair quantity=2 WC-002`. `/takeorder quantity=2` is rejected. `/connect`, `/help`, and `/cancelorder <order number>` are also supported. Website and Telegram actions invoke the same canonical draft transition use cases.

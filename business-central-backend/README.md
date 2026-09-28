@@ -14,6 +14,14 @@ which uses it for setup instructions and complete, copyable pairing commands.
 
 Orders use `/takeorder [product name] quantity=<positive number> [SKU]`. Quantity is required, and at least a name or SKU must be supplied. For SKU-only orders, use `/takeorder quantity=2 WC-002`. When both a name and SKU are supplied, both must identify the same variant.
 
+For example, `/takeorder wo phone quantity=1` matches the active product named
+`wo phone` using its current default-list price. A server failure during order
+creation is reported as a server error, not as a missing product. A webhook log
+with `SQLSTATE 42601` and `cannot insert multiple commands into a prepared
+statement` indicates an order-write failure after product lookup. Order creation,
+confirmation/cancellation, and outbox delivery updates execute separate
+parameterized statements within their existing transactions.
+
 Migration `0049_telegram_automation` adds the `TELEGRAM` order channel, shop-group connections, hashed one-time pairing codes, observed users, source metadata, callback tokens, update deduplication, tenant constraints, and RLS. Final message edits use `outbox_events` retry. Telegram does not expose an exact group creation date or a complete member list; only connected/first-seen dates, counts, administrators, and observed users are shown when available.
 
 Webhook troubleshooting: a delivery error with `SQLSTATE 42P08` or `commit
@@ -31,7 +39,9 @@ The PostgreSQL pairing/membership regression test requires an initialized test
 database with the Telegram schema: set `RUN_DB_TESTS=1` and `DATABASE_URL`, then
 run `go test ./internal/telegram/...`. It checks successful pairing, one-time
 code consumption, duplicate groups, database error classification, rollback,
-and bot membership events.
+and bot membership events. It also verifies ordering by name and SKU,
+confirmation/cancellation, callback consumption, outbox delivery updates, and
+rollback when a later draft write fails.
 
 The Go Fiber backend is the only main backend for Business Central. All client APIs, authentication, authorization, merchant-module rules, domain behavior, persistence, and mobile synchronization protocols belong here.
 
