@@ -14,6 +14,7 @@ import (
 	"business-central-backend/internal/telegram/ports/outbound"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -267,11 +268,16 @@ func (r *Repository) ConnectGroup(ctx context.Context, in outbound.ConnectionInp
 		return tdto.Group{}, app.Internal(err)
 	}
 	defer tx.Rollback(ctx)
-	_, _ = tx.Exec(ctx, `SELECT set_config('app.telegram_service','on',true)`)
+	if err = setService(ctx, tx, "", ""); err != nil {
+		return tdto.Group{}, app.Internal(err)
+	}
 	var codeID, merchantID, shopID, membershipID, identityID string
 	err = tx.QueryRow(ctx, `SELECT pc.id,pc.merchant_id,pc.shop_id,pc.created_by,um.identity_id FROM telegram_pairing_codes pc JOIN user_memberships um ON um.merchant_id=pc.merchant_id AND um.id=pc.created_by WHERE pc.code_hash=$1 AND pc.status='ACTIVE' AND pc.expires_at>now() AND um.is_active FOR UPDATE OF pc`, in.CodeHash).Scan(&codeID, &merchantID, &shopID, &membershipID, &identityID)
 	if err != nil {
-		return tdto.Group{}, app.NewError("INVALID_PAIRING_CODE", "The pairing code is invalid, expired, or already used.", 400)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return tdto.Group{}, app.NewError("INVALID_PAIRING_CODE", "The pairing code is invalid, expired, or already used.", 400)
+		}
+		return tdto.Group{}, app.Internal(err)
 	}
 	if err = setService(ctx, tx, merchantID, identityID); err != nil {
 		return tdto.Group{}, app.Internal(err)
@@ -280,15 +286,28 @@ func (r *Repository) ConnectGroup(ctx context.Context, in outbound.ConnectionInp
 	var connectionID string
 	err = tx.QueryRow(ctx, `INSERT INTO telegram_group_connections(merchant_id,shop_id,telegram_chat_id,group_title,group_type,group_username,creator_telegram_user_id,creator_display_name_snapshot,creator_username_snapshot,connected_by,connection_status,bot_membership_status,bot_admin_status,bot_permission_snapshot,member_count,connected_at,last_refreshed_at,last_successful_api_call_at) VALUES($1,$2,$3,$4,$5,NULLIF($6,''),$7,NULLIF($8,''),NULLIF($9,''),$10,'ACTIVE',$11,$12,$13,$14,now(),now(),now()) RETURNING id`, merchantID, shopID, in.ChatID, in.Title, in.Type, in.Username, in.CreatorUserID, in.CreatorDisplayName, in.CreatorUsername, membershipID, in.BotStatus, in.BotIsAdmin, permissions, in.MemberCount).Scan(&connectionID)
 	if err != nil {
-		return tdto.Group{}, app.NewError("GROUP_ALREADY_CONNECTED", "This Telegram group is already connected to a shop.", 409)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "telegram_group_connections_telegram_chat_id_key" {
+			return tdto.Group{}, app.NewError("GROUP_ALREADY_CONNECTED", "This Telegram group is already connected to a shop.", 409)
+		}
+		return tdto.Group{}, app.Internal(err)
 	}
 	_, err = tx.Exec(ctx, `UPDATE telegram_pairing_codes SET status='CONSUMED',consumed_at=now(),consumed_by_connection_id=$2 WHERE id=$1`, codeID, connectionID)
 	if err != nil {
 		return tdto.Group{}, app.Internal(err)
 	}
-	_, _ = tx.Exec(ctx, `INSERT INTO telegram_group_users(merchant_id,connection_id,telegram_user_id,display_name_snapshot,username_snapshot,telegram_role,can_create_orders) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),'ADMINISTRATOR',TRUE) ON CONFLICT(merchant_id,connection_id,telegram_user_id) DO UPDATE SET last_seen_at=now(),telegram_role='ADMINISTRATOR'`, merchantID, connectionID, in.CreatorUserID, in.CreatorDisplayName, in.CreatorUsername)
-	_, _ = tx.Exec(ctx, `INSERT INTO outbox_events(merchant_id,event_type,aggregate_type,aggregate_id,event_key,payload) VALUES($1,'TELEGRAM_GROUP_CONNECTED','TELEGRAM_GROUP',$2,'telegram-group-connected:'||$2::text,jsonb_build_object('shop_id',$3::text,'chat_id',$4))`, merchantID, connectionID, shopID, in.ChatID)
-	_, _ = tx.Exec(ctx, `INSERT INTO audit_events(merchant_id,actor_membership_id,action,entity_type,entity_id,after_data) VALUES($1,$2,'TELEGRAM_GROUP_CONNECTED','TELEGRAM_GROUP',$3,jsonb_build_object('shop_id',$4::text,'chat_id',$5))`, merchantID, membershipID, connectionID, shopID, in.ChatID)
+	_, err = tx.Exec(ctx, `INSERT INTO telegram_group_users(merchant_id,connection_id,telegram_user_id,display_name_snapshot,username_snapshot,telegram_role,can_create_orders) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),'ADMINISTRATOR',TRUE) ON CONFLICT(merchant_id,connection_id,telegram_user_id) DO UPDATE SET last_seen_at=now(),telegram_role='ADMINISTRATOR'`, merchantID, connectionID, in.CreatorUserID, in.CreatorDisplayName, in.CreatorUsername)
+	if err != nil {
+		return tdto.Group{}, app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO outbox_events(merchant_id,event_type,aggregate_type,aggregate_id,event_key,payload) VALUES($1::uuid,'TELEGRAM_GROUP_CONNECTED','TELEGRAM_GROUP',$2::uuid,'telegram-group-connected:'||($2::uuid)::text,jsonb_build_object('shop_id',$3::text,'chat_id',$4::bigint))`, merchantID, connectionID, shopID, in.ChatID)
+	if err != nil {
+		return tdto.Group{}, app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO audit_events(merchant_id,actor_membership_id,action,entity_type,entity_id,after_data) VALUES($1::uuid,$2::uuid,'TELEGRAM_GROUP_CONNECTED','TELEGRAM_GROUP',$3::uuid,jsonb_build_object('shop_id',$4::text,'chat_id',$5::bigint))`, merchantID, membershipID, connectionID, shopID, in.ChatID)
+	if err != nil {
+		return tdto.Group{}, app.Internal(err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return tdto.Group{}, app.Internal(err)
 	}
@@ -359,7 +378,10 @@ func (r *Repository) CreateDraft(ctx context.Context, in outbound.DraftInput) (o
 	var locationID string
 	err = tx.QueryRow(ctx, `SELECT id FROM locations WHERE merchant_id=$1::uuid AND shop_id=$2::uuid AND is_active ORDER BY CASE location_type WHEN 'SHOP' THEN 0 ELSE 1 END,id LIMIT 1`, g.MerchantID, g.ShopID).Scan(&locationID)
 	if err != nil {
-		return outbound.DraftResult{}, app.NewError("NO_LOCATION", "The shop has no active inventory location.", 409)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return outbound.DraftResult{}, app.NewError("NO_LOCATION", "The shop has no active inventory location.", 409)
+		}
+		return outbound.DraftResult{}, app.Internal(err)
 	}
 	type match struct {
 		id, productName, variantName, sku, unitID, currency, price string
@@ -391,6 +413,9 @@ func (r *Repository) CreateDraft(ctx context.Context, in outbound.DraftInput) (o
 		matches = append(matches, m)
 	}
 	rows.Close()
+	if err = rows.Err(); err != nil {
+		return outbound.DraftResult{}, app.Internal(err)
+	}
 	if len(matches) == 0 {
 		return outbound.DraftResult{}, app.NewError("PRODUCT_NOT_FOUND", "The product was not found.", 404)
 	}
@@ -417,7 +442,11 @@ func (r *Repository) CreateDraft(ctx context.Context, in outbound.DraftInput) (o
 	if err != nil {
 		return outbound.DraftResult{}, app.Internal(err)
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO orders(id,merchant_id,fulfillment_location_id,order_number,channel,status,currency_code,subtotal,grand_total,placed_at) VALUES($1,$2,$3,$4,'TELEGRAM','DRAFT',$5,$6,$6,now()); INSERT INTO order_lines(id,merchant_id,order_id,line_number,variant_id,unit_id,description,quantity,unit_price,line_total) VALUES($7,$2,$1,1,$8,$9,$10,$11,$12,$6)`, orderID, g.MerchantID, locationID, orderNumber, m.currency, total, lineID, m.id, m.unitID, m.productName, in.Quantity, priceFloat)
+	_, err = tx.Exec(ctx, `INSERT INTO orders(id,merchant_id,fulfillment_location_id,order_number,channel,status,currency_code,subtotal,grand_total,placed_at) VALUES($1,$2,$3,$4,'TELEGRAM','DRAFT',$5,$6,$6,now())`, orderID, g.MerchantID, locationID, orderNumber, m.currency, total)
+	if err != nil {
+		return outbound.DraftResult{}, app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO order_lines(id,merchant_id,order_id,line_number,variant_id,unit_id,description,quantity,unit_price,line_total) VALUES($1,$2,$3,1,$4,$5,$6,$7,$8,$9)`, lineID, g.MerchantID, orderID, m.id, m.unitID, m.productName, in.Quantity, priceFloat, total)
 	if err != nil {
 		return outbound.DraftResult{}, app.Internal(err)
 	}
@@ -428,11 +457,22 @@ func (r *Repository) CreateDraft(ctx context.Context, in outbound.DraftInput) (o
 		}
 	}
 	confirmID, cancelID := uuid.NewString(), uuid.NewString()
-	_, err = tx.Exec(ctx, `INSERT INTO telegram_order_sources(merchant_id,shop_id,order_id,telegram_group_connection_id,telegram_chat_id,telegram_message_id,telegram_user_id,telegram_update_id,confirmation_callback_id,cancellation_callback_id,original_command,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12); INSERT INTO telegram_callback_tokens(id,merchant_id,connection_id,order_id,action,token_hash,expires_at) VALUES($9,$1,$4,$3,'CONFIRM',$13,$12),($10,$1,$4,$3,'CANCEL',$14,$12)`, g.MerchantID, g.ShopID, orderID, g.ID, in.ChatID, in.MessageID, in.UserID, in.UpdateID, confirmID, cancelID, in.OriginalCommand, in.ExpiresAt, in.ConfirmTokenHash, in.CancelTokenHash)
+	_, err = tx.Exec(ctx, `INSERT INTO telegram_order_sources(merchant_id,shop_id,order_id,telegram_group_connection_id,telegram_chat_id,telegram_message_id,telegram_user_id,telegram_update_id,confirmation_callback_id,cancellation_callback_id,original_command,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, g.MerchantID, g.ShopID, orderID, g.ID, in.ChatID, in.MessageID, in.UserID, in.UpdateID, confirmID, cancelID, in.OriginalCommand, in.ExpiresAt)
 	if err != nil {
 		return outbound.DraftResult{}, app.Internal(err)
 	}
-	_, _ = tx.Exec(ctx, `INSERT INTO outbox_events(merchant_id,event_type,aggregate_type,aggregate_id,event_key,payload) VALUES($1,'TELEGRAM_ORDER_CREATED','ORDER',$2,'telegram-order-created:'||$2::text,jsonb_build_object('connection_id',$3::text)); INSERT INTO audit_events(merchant_id,action,entity_type,entity_id,after_data) VALUES($1,'TELEGRAM_DRAFT_ORDER_CREATED','ORDER',$2,jsonb_build_object('connection_id',$3::text,'telegram_user_id',$4))`, g.MerchantID, orderID, g.ID, in.UserID)
+	_, err = tx.Exec(ctx, `INSERT INTO telegram_callback_tokens(id,merchant_id,connection_id,order_id,action,token_hash,expires_at) VALUES($1,$2,$3,$4,'CONFIRM',$5,$6),($7,$2,$3,$4,'CANCEL',$8,$6)`, confirmID, g.MerchantID, g.ID, orderID, in.ConfirmTokenHash, in.ExpiresAt, cancelID, in.CancelTokenHash)
+	if err != nil {
+		return outbound.DraftResult{}, app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO outbox_events(merchant_id,event_type,aggregate_type,aggregate_id,event_key,payload) VALUES($1::uuid,'TELEGRAM_ORDER_CREATED','ORDER',$2::uuid,'telegram-order-created:'||($2::uuid)::text,jsonb_build_object('connection_id',$3::text))`, g.MerchantID, orderID, g.ID)
+	if err != nil {
+		return outbound.DraftResult{}, app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO audit_events(merchant_id,action,entity_type,entity_id,after_data) VALUES($1::uuid,'TELEGRAM_DRAFT_ORDER_CREATED','ORDER',$2::uuid,jsonb_build_object('connection_id',$3::text,'telegram_user_id',$4::bigint))`, g.MerchantID, orderID, g.ID, in.UserID)
+	if err != nil {
+		return outbound.DraftResult{}, app.Internal(err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return outbound.DraftResult{}, app.Internal(err)
 	}
@@ -534,14 +574,18 @@ func (r *Repository) TransitionOrder(ctx context.Context, c *authdto.Claims, ord
 			if reservationStatus != "ACTIVE" {
 				return tdto.Order{}, app.NewError("RESERVATION_INACTIVE", "The inventory reservation is no longer active.", 409)
 			}
-			_, err = tx.Exec(ctx, `UPDATE inventory_reservations SET status='CONSUMED',released_at=now() WHERE id=$1::uuid; INSERT INTO inventory_movements(merchant_id,variant_id,movement_type,source_location_id,quantity,order_line_id,event_key) VALUES($2,$3,'SALE',$4,$5,$6,'telegram-sale:'||$7)`, reservationID, merchantID, variantID, locationID, reservationQuantity, lineID, orderID)
+			_, err = tx.Exec(ctx, `UPDATE inventory_reservations SET status='CONSUMED',released_at=now() WHERE id=$1::uuid`, reservationID)
+			if err != nil {
+				return tdto.Order{}, app.Internal(err)
+			}
+			_, err = tx.Exec(ctx, `INSERT INTO inventory_movements(merchant_id,variant_id,movement_type,source_location_id,quantity,order_line_id,event_key) VALUES($1,$2,'SALE',$3,$4,$5,'telegram-sale:'||$6::text)`, merchantID, variantID, locationID, reservationQuantity, lineID, orderID)
 			if err != nil {
 				return tdto.Order{}, app.NewError("INSUFFICIENT_STOCK", "Stock could not be confirmed for this order.", 409)
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return tdto.Order{}, app.Internal(err)
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO accounting_events(merchant_id,event_type,source_order_id,event_key) VALUES($1,'ORDER_CONFIRMED',$2,'telegram-order-confirmed:'||$2::text) ON CONFLICT(merchant_id,event_key) DO NOTHING`, merchantID, orderID)
+		_, err = tx.Exec(ctx, `INSERT INTO accounting_events(merchant_id,event_type,source_order_id,event_key) VALUES($1::uuid,'ORDER_CONFIRMED',$2::uuid,'telegram-order-confirmed:'||($2::uuid)::text) ON CONFLICT(merchant_id,event_key) DO NOTHING`, merchantID, orderID)
 		if err != nil {
 			return tdto.Order{}, app.Internal(err)
 		}
@@ -551,7 +595,15 @@ func (r *Repository) TransitionOrder(ctx context.Context, c *authdto.Claims, ord
 			return tdto.Order{}, app.Internal(err)
 		}
 	}
-	_, err = tx.Exec(ctx, `UPDATE orders SET status=$2 WHERE id=$1::uuid; UPDATE telegram_order_sources SET confirmed_at=CASE WHEN $2='CONFIRMED' THEN now() ELSE confirmed_at END,cancelled_at=CASE WHEN $2='CANCELLED' THEN now() ELSE cancelled_at END WHERE order_id=$1::uuid; UPDATE telegram_callback_tokens SET consumed_at=now(),consumed_by_telegram_user_id=NULLIF($3,0) WHERE order_id=$1::uuid AND consumed_at IS NULL`, orderID, newStatus, telegramUserID)
+	_, err = tx.Exec(ctx, `UPDATE orders SET status=$2 WHERE id=$1::uuid`, orderID, newStatus)
+	if err != nil {
+		return tdto.Order{}, app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `UPDATE telegram_order_sources SET confirmed_at=CASE WHEN $2::text='CONFIRMED' THEN now() ELSE confirmed_at END,cancelled_at=CASE WHEN $2::text='CANCELLED' THEN now() ELSE cancelled_at END WHERE order_id=$1::uuid`, orderID, newStatus)
+	if err != nil {
+		return tdto.Order{}, app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `UPDATE telegram_callback_tokens SET consumed_at=now(),consumed_by_telegram_user_id=NULLIF($2::bigint,0) WHERE order_id=$1::uuid AND consumed_at IS NULL`, orderID, telegramUserID)
 	if err != nil {
 		return tdto.Order{}, app.Internal(err)
 	}
@@ -559,7 +611,14 @@ func (r *Repository) TransitionOrder(ctx context.Context, c *authdto.Claims, ord
 	if c != nil && c.MembershipID != "" {
 		actor = c.MembershipID
 	}
-	_, _ = tx.Exec(ctx, `INSERT INTO audit_events(merchant_id,actor_membership_id,action,entity_type,entity_id,after_data) VALUES($1,$2,$3,'ORDER',$4,jsonb_build_object('source',$5,'telegram_user_id',NULLIF($6,0))); INSERT INTO outbox_events(merchant_id,event_type,aggregate_type,aggregate_id,event_key,payload) VALUES($1,$7,'ORDER',$4,lower($7)||':'||$4::text,jsonb_build_object('connection_id',$8::text,'chat_id',$9)) ON CONFLICT(merchant_id,event_key) DO NOTHING`, merchantID, actor, auditAction, orderID, source, telegramUserID, eventType, connectionID, chatID)
+	_, err = tx.Exec(ctx, `INSERT INTO audit_events(merchant_id,actor_membership_id,action,entity_type,entity_id,after_data) VALUES($1::uuid,$2::uuid,$3::text,'ORDER',$4::uuid,jsonb_build_object('source',$5::text,'telegram_user_id',NULLIF($6::bigint,0)))`, merchantID, actor, auditAction, orderID, source, telegramUserID)
+	if err != nil {
+		return tdto.Order{}, app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO outbox_events(merchant_id,event_type,aggregate_type,aggregate_id,event_key,payload) VALUES($1::uuid,$2::text,'ORDER',$3::uuid,lower($2::text)||':'||($3::uuid)::text,jsonb_build_object('connection_id',$4::text,'chat_id',$5::bigint)) ON CONFLICT(merchant_id,event_key) DO NOTHING`, merchantID, eventType, orderID, connectionID, chatID)
+	if err != nil {
+		return tdto.Order{}, app.Internal(err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return tdto.Order{}, app.Internal(err)
 	}
@@ -602,10 +661,12 @@ func (r *Repository) UpdateConnectionHealth(ctx context.Context, chatID int64, s
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, _ = tx.Exec(ctx, `SELECT set_config('app.telegram_service','on',true)`)
+	if err = setService(ctx, tx, "", ""); err != nil {
+		return app.Internal(err)
+	}
 	payload, _ := json.Marshal(permissions)
 	var merchantID, connectionID string
-	err = tx.QueryRow(ctx, `UPDATE telegram_group_connections SET bot_membership_status=$2,bot_admin_status=$3,bot_permission_snapshot=$4,last_webhook_at=now(),last_seen_at=now(),last_error=NULLIF($5,''),connection_status=CASE WHEN lower($2) IN ('left','kicked') THEN 'ERROR' WHEN NOT $3 THEN 'ERROR' ELSE connection_status END WHERE telegram_chat_id=$1 RETURNING merchant_id,id`, chatID, status, admin, payload, lastError).Scan(&merchantID, &connectionID)
+	err = tx.QueryRow(ctx, `UPDATE telegram_group_connections SET bot_membership_status=$2::text,bot_admin_status=$3,bot_permission_snapshot=$4,last_webhook_at=now(),last_seen_at=now(),last_error=NULLIF($5,''),connection_status=CASE WHEN lower($2::text) IN ('left','kicked') THEN 'ERROR' WHEN NOT $3 THEN 'ERROR' ELSE connection_status END WHERE telegram_chat_id=$1 RETURNING merchant_id,id`, chatID, status, admin, payload, lastError).Scan(&merchantID, &connectionID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -617,7 +678,14 @@ func (r *Repository) UpdateConnectionHealth(ctx context.Context, chatID int64, s
 	if strings.EqualFold(status, "left") || strings.EqualFold(status, "kicked") {
 		audit = "TELEGRAM_BOT_REMOVED"
 	}
-	_, _ = tx.Exec(ctx, `INSERT INTO outbox_events(merchant_id,event_type,aggregate_type,aggregate_id,event_key,payload) VALUES($1,$2,'TELEGRAM_GROUP',$3,$2||':'||$3::text||':'||extract(epoch from now())::bigint,jsonb_build_object('bot_status',$4,'bot_admin',$5)); INSERT INTO audit_events(merchant_id,action,entity_type,entity_id,after_data) VALUES($1,$6,'TELEGRAM_GROUP',$3,jsonb_build_object('bot_status',$4,'bot_admin',$5))`, merchantID, event, connectionID, status, admin, audit)
+	_, err = tx.Exec(ctx, `INSERT INTO outbox_events(merchant_id,event_type,aggregate_type,aggregate_id,event_key,payload) VALUES($1::uuid,$2::text,'TELEGRAM_GROUP',$3::uuid,$6::text,jsonb_build_object('bot_status',$4::text,'bot_admin',$5::boolean))`, merchantID, event, connectionID, status, admin, "telegram-group-health:"+uuid.NewString())
+	if err != nil {
+		return app.Internal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO audit_events(merchant_id,action,entity_type,entity_id,after_data) VALUES($1::uuid,$2::text,'TELEGRAM_GROUP',$3::uuid,jsonb_build_object('bot_status',$4::text,'bot_admin',$5::boolean))`, merchantID, audit, connectionID, status, admin)
+	if err != nil {
+		return app.Internal(err)
+	}
 	return tx.Commit(ctx)
 }
 func (r *Repository) RefreshConnection(ctx context.Context, c *authdto.Claims, id string, adminAccess bool, title, status string, admin bool, permissions map[string]any, count *int, refreshErr error) (tdto.Group, error) {
@@ -691,8 +759,11 @@ func (r *Repository) FinishOutboxDelivery(ctx context.Context, id string, delive
 		}
 		lastError = message
 	}
-	_, err = tx.Exec(ctx, `UPDATE outbox_events SET status=$2,last_error=$3,published_at=CASE WHEN $2='PUBLISHED' THEN now() ELSE published_at END,next_attempt_at=CASE WHEN $2='FAILED' THEN now()+(LEAST(attempts,10)||' minutes')::interval ELSE next_attempt_at END WHERE id=$1::uuid;
-	UPDATE telegram_group_connections g SET last_error=$3,last_successful_api_call_at=CASE WHEN $2='PUBLISHED' THEN now() ELSE last_successful_api_call_at END FROM outbox_events e JOIN telegram_order_sources s ON s.merchant_id=e.merchant_id AND s.order_id=e.aggregate_id WHERE e.id=$1::uuid AND g.merchant_id=s.merchant_id AND g.id=s.telegram_group_connection_id`, id, status, lastError)
+	_, err = tx.Exec(ctx, `UPDATE outbox_events SET status=$2::text,last_error=$3,published_at=CASE WHEN $2::text='PUBLISHED' THEN now() ELSE published_at END,next_attempt_at=CASE WHEN $2::text='FAILED' THEN now()+(LEAST(attempts,10)||' minutes')::interval ELSE next_attempt_at END WHERE id=$1::uuid`, id, status, lastError)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE telegram_group_connections g SET last_error=$3,last_successful_api_call_at=CASE WHEN $2::text='PUBLISHED' THEN now() ELSE last_successful_api_call_at END FROM outbox_events e JOIN telegram_order_sources s ON s.merchant_id=e.merchant_id AND s.order_id=e.aggregate_id WHERE e.id=$1::uuid AND g.merchant_id=s.merchant_id AND g.id=s.telegram_group_connection_id`, id, status, lastError)
 	if err != nil {
 		return err
 	}
