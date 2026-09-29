@@ -27,6 +27,7 @@ const group = {
   group_type: "supergroup",
   group_username: "downtown_orders",
   connection_status: "ACTIVE",
+  auto_confirm_orders: false,
   bot_membership_status: "administrator",
   bot_admin_status: true,
   bot_permission_snapshot: { can_manage_chat: true, can_send_messages: true },
@@ -47,6 +48,28 @@ const makeOrder = (id: string, status = "DRAFT") => ({
   quantity: "2",
   unit_price: "450.00",
   grand_total: "900.00",
+  customer_name: id === "1002" ? null : "Ma Hnin",
+  payment_status: status === "CONFIRMED" ? "Paid" : status === "DRAFT" ? "Pending" : "Cancelled",
+  items: [
+    {
+      line_number: 1,
+      variant_id: "variant-1",
+      sku: "WC-002",
+      description: "Electric wheelchair — compact folding model",
+      quantity: "1",
+      unit_price: "450.00",
+      line_total: "450.00",
+    },
+    {
+      line_number: 2,
+      variant_id: "variant-2",
+      sku: "WO-001",
+      description: "wo phone",
+      quantity: "1",
+      unit_price: "450.00",
+      line_total: "450.00",
+    },
+  ],
   currency_code: "USD",
   created_at: "2026-09-29T10:00:00Z",
   expires_at: "2099-09-29T10:15:00Z",
@@ -54,8 +77,22 @@ const makeOrder = (id: string, status = "DRAFT") => ({
 
 async function mockTelegram(
   page: Page,
-  { empty = false, failPairing = false, botName = "NanonuxBusinessCentralBot" } = {},
+  {
+    empty = false,
+    failPairing = false,
+    failAutoConfirm = false,
+    readOnly = false,
+    botName = "NanonuxBusinessCentralBot",
+  } = {},
 ) {
+  const mockUser = readOnly
+    ? {
+        ...user,
+        roles: [
+          { ...user.roles[0], code: "staff", name: "Staff", permission_codes: ["tenant.read"] },
+        ],
+      }
+    : user;
   let groups = empty
     ? []
     : [
@@ -82,7 +119,33 @@ async function mockTelegram(
     const path = new URL(route.request().url()).pathname.replace("/api/v1", "");
     const method = route.request().method();
     let data: unknown = [];
-    if (path === "/auth/me") data = user;
+    if (path === "/auth/me") data = mockUser;
+    else if (path === "/invoices")
+      data = orders
+        .filter((order) => !["CANCELLED", "EXPIRED"].includes(order.status))
+        .map((order) => ({
+          id: order.id,
+          number: order.order_number,
+          customer: order.customer_name,
+          channel: "TELEGRAM",
+          merchant_name: "Test merchant",
+          shop_name: "Downtown",
+          shop_id: shopID,
+          currency_code: "USD",
+          created_at: order.created_at,
+          status: order.payment_status,
+          kind: "pos",
+          subtotal: "900.00",
+          discount_total: "0.00",
+          tax_total: "0.00",
+          grand_total: "900.00",
+          payment_type: "Telegram",
+          items: order.items.map((item) => ({
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+          })),
+        }));
     else if (path === "/telegram/bot") data = { username: botName };
     else if (path === "/sync/handshake")
       data = {
@@ -159,6 +222,25 @@ async function mockTelegram(
           expires_at: "2099-09-29T10:15:00Z",
         };
       }
+      if (path.endsWith("/auto-confirm")) {
+        if (failAutoConfirm) {
+          await route.fulfill({
+            status: 503,
+            json: {
+              error: {
+                code: "UNAVAILABLE",
+                message: "Automatic confirmation setting could not be saved.",
+              },
+            },
+          });
+          return;
+        }
+        groups = groups.map((g) =>
+          path.includes(g.id)
+            ? { ...g, auto_confirm_orders: route.request().postDataJSON().auto_confirm_orders }
+            : g,
+        );
+      }
       if (path.endsWith("/status"))
         groups = groups.map((g) =>
           g.id === group.id
@@ -169,7 +251,10 @@ async function mockTelegram(
       if (path.endsWith("/revoke")) authorized = false;
       if (path.endsWith("/confirm") || path.endsWith("/cancel")) {
         const order = orders.find((o) => path.includes(o.id));
-        if (order) order.status = path.endsWith("/confirm") ? "CONFIRMED" : "CANCELLED";
+        if (order) {
+          order.status = path.endsWith("/confirm") ? "CONFIRMED" : "CANCELLED";
+          order.payment_status = path.endsWith("/confirm") ? "Paid" : "Cancelled";
+        }
       }
     }
     await route.fulfill({ json: { data } });
@@ -188,7 +273,7 @@ async function mockTelegram(
       );
       localStorage.setItem("bc.current-shop", shopID);
     },
-    { user, shopID },
+    { user: mockUser, shopID },
   );
   return calls;
 }
@@ -255,6 +340,15 @@ for (const width of [320, 768, 1440]) {
     await page.screenshot({ path: testInfo.outputPath("groups.png"), fullPage: true });
     await page.getByRole("button", { name: /^Orders/ }).click();
     await expect(page.getByText("TG-1001", { exact: true })).toBeVisible();
+    const orderCard = page.locator("article").filter({ hasText: "TG-1001" });
+    await expect(orderCard.getByRole("heading", { name: "Customer: Ma Hnin" })).toBeVisible();
+    await expect(orderCard.getByText("wo phone", { exact: true })).toBeVisible();
+    await expect(
+      orderCard.getByText("Electric wheelchair — compact folding model", { exact: true }),
+    ).toBeVisible();
+    await expect(orderCard.getByRole("button", { name: "Confirm order", exact: true })).toHaveCount(
+      1,
+    );
     await expectNoOverflow(page);
     await page.screenshot({ path: testInfo.outputPath("orders.png"), fullPage: true });
     await page.getByRole("button", { name: /^Cancelled & expired/ }).click();
@@ -262,6 +356,7 @@ for (const width of [320, 768, 1440]) {
     await page.getByRole("button", { name: "Setup guide", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Set up Telegram in 5 steps" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Seller commands" })).toBeVisible();
+    await expect(page.getByText("Customer and multiple products", { exact: true })).toBeVisible();
     await expectNoOverflow(page);
     await page.screenshot({ path: testInfo.outputPath("guide.png"), fullPage: true });
   });
@@ -394,4 +489,72 @@ test("Telegram supports dark themes, compact layout, and copying commands", asyn
   );
   await expectNoOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("dark-guide.png"), fullPage: true });
+});
+
+test("Telegram invoices keep unnamed customers blank and become Paid after confirmation", async ({
+  page,
+}) => {
+  await mockTelegram(page);
+  await page.goto("/invoices");
+  const named = page.getByRole("row", { name: "Open TG-1001", exact: true });
+  const unnamed = page.getByRole("row", { name: "Open TG-1002", exact: true });
+  await expect(named).toContainText("Ma Hnin");
+  await expect(named).toContainText("Pending");
+  await expect(unnamed.getByRole("cell").nth(1)).toHaveText("");
+  await expect(unnamed).not.toContainText("Walk-in customer");
+  await expect(unnamed).not.toContainText("Online-Telegram-Customer");
+  await page.goto("/automations/telegram");
+  await page.getByRole("button", { name: /^Orders/ }).click();
+  await expect(page.locator("article").filter({ hasText: "TG-1001" })).toContainText(
+    "Payment: Pending",
+  );
+  await page.getByRole("button", { name: "Confirm order", exact: true }).first().click();
+  await page.goto("/invoices");
+  await expect(named).toContainText("Paid");
+  await expect(named).toContainText("Ma Hnin");
+  await expect(unnamed.getByRole("cell").nth(1)).toHaveText("");
+});
+
+test("Automatic confirmation defaults OFF, persists, and leaves old drafts pending", async ({
+  page,
+}) => {
+  const calls = await mockTelegram(page);
+  await page.goto("/automations/telegram");
+  const toggle = page.getByRole("switch", { name: "Automatically Confirm Order" });
+  await expect(toggle).not.toBeChecked();
+  await toggle.focus();
+  await toggle.press("Space");
+  await expect(toggle).toBeChecked();
+  await page.reload();
+  await expect(toggle).toBeChecked();
+  await page.getByRole("button", { name: /^Orders/ }).click();
+  await expect(page.getByText("TG-1001", { exact: true })).toBeVisible();
+  await expect(page.getByText("Payment: Pending").first()).toBeVisible();
+  await page.getByRole("button", { name: /^Groups/ }).click();
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  await page.reload();
+  await expect(toggle).not.toBeChecked();
+  expect(
+    calls.filter((call) => call === "PATCH /telegram/groups/group-main/auto-confirm"),
+  ).toHaveLength(2);
+});
+
+test("Automatic confirmation errors keep the saved switch state", async ({ page }) => {
+  await mockTelegram(page, { failAutoConfirm: true });
+  await page.goto("/automations/telegram");
+  const toggle = page.getByRole("switch", { name: "Automatically Confirm Order" });
+  await toggle.click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Automatic confirmation setting could not be saved." }),
+  ).toBeVisible();
+  await expect(toggle).not.toBeChecked();
+});
+
+test("Read-only users cannot change automatic confirmation", async ({ page }) => {
+  await mockTelegram(page, { readOnly: true });
+  await page.goto("/automations/telegram");
+  await expect(page.getByRole("switch", { name: "Automatically Confirm Order" })).toBeDisabled();
 });

@@ -6,6 +6,7 @@ import (
 
 	authdto "business-central-backend/internal/auth/application/dto"
 	tdto "business-central-backend/internal/telegram/application/dto"
+	"business-central-backend/internal/telegram/domain"
 )
 
 type ConnectionInput struct {
@@ -23,8 +24,8 @@ type ConnectionInput struct {
 type DraftInput struct {
 	ConnectionID                        string
 	ChatID, MessageID, UserID, UpdateID int64
-	ProductName, SKU, OriginalCommand   string
-	Quantity                            float64
+	OriginalCommand, CustomerName       string
+	Items                               []domain.TakeOrderItem
 	ExpiresAt                           time.Time
 	ConfirmTokenHash, CancelTokenHash   string
 }
@@ -40,14 +41,17 @@ type CallbackResolution struct {
 	ChatID, BotResponseMessageID                             int64
 }
 type OutboxDelivery struct {
+	ReplyToMessageID             int64
 	EventID, OrderNumber, Status string
 	ChatID, MessageID            int64
+	Order                        tdto.Order
 }
 
 type Repository interface {
 	CreatePairingCode(context.Context, *authdto.Claims, string, string, time.Time) (tdto.PairingCode, error)
 	ListGroups(context.Context, *authdto.Claims, string, bool) ([]tdto.Group, error)
 	GetGroup(context.Context, *authdto.Claims, string, bool) (tdto.Group, error)
+	SetAutoConfirm(context.Context, *authdto.Claims, string, bool, bool) (tdto.Group, error)
 	UpdateGroupStatus(context.Context, *authdto.Claims, string, string, bool) (tdto.Group, error)
 	DisconnectGroup(context.Context, *authdto.Claims, string, bool) error
 	ListUsers(context.Context, *authdto.Claims, string, bool) ([]tdto.GroupUser, error)

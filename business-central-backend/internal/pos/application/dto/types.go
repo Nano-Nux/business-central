@@ -238,7 +238,8 @@ type InvoiceWorkItem struct {
 type Invoice struct {
 	ID               string            `json:"id"`
 	Number           string            `json:"number"`
-	Customer         string            `json:"customer"`
+	Customer         *string           `json:"customer"`
+	Channel          string            `json:"channel"`
 	CustomerPhone    *string           `json:"customer_phone,omitempty"`
 	MerchantName     string            `json:"merchant_name"`
 	ShopName         *string           `json:"shop_name,omitempty"`

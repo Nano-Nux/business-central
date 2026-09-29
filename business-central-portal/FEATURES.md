@@ -1,6 +1,6 @@
 # Portal Features
 
-| Automations / Telegram | Implemented for portal scope | Automations cards, Facebook/WhatsApp placeholders, shop-scoped multi-group pairing, health, observed users, seller revocation, pending/final orders, and website confirm/cancel. Mobile is out of scope. |
+| Automations / Telegram | Implemented for portal scope | Automations cards, Facebook/WhatsApp placeholders, shop-scoped pairing, health, users, seller revocation, customer-name and complete multi-product order review, one whole-order confirm/cancel action, and multilingual multiline-command guidance. Native mobile is out of scope. |
 
 Last reviewed: 2026-08-16
 
@@ -33,3 +33,19 @@ Last reviewed: 2026-08-16
 | Bluetooth printer settings                 | Implemented                                | Availability check, secure device chooser, selected-device list, explicit connection, common thermal-paper width selection, pixel font-size control, image-first ESC/POS output, and automatic native Flutter transport in the embedded mobile WebView                                                                                                                                                                                                                                                                                    |
 | Operational settings sub-pages             | Implemented for portal scope               | Application, shop-scoped tax/receipt notes, staff, and repair specification sub-pages; language settings intentionally excluded                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Portal/mobile parity                       | Partial                                    | Portal workflows are implemented; matching mobile implementation remains a separate release gate                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.

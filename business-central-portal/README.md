@@ -13,6 +13,13 @@ recorded in `../TEMPORARY_OFFLINE_CAPABILITY_MATRIX.md`.
 
 Track paired implementation in the repository-level `PORTAL_MOBILE_PARITY.md` and follow the shared design rules in `UI_UX_PARITY.md`.
 
+Telegram order review and its Setup guide support one message with an optional
+`customer=<name>` line followed by up to 20 product lines. Every item and the
+customer name appear under one order total and one Confirm/Cancel action set.
+Existing single-product commands still work. Each order links a guest customer and preserves its entered name. Omitted
+names stay blank/null. Invoices are Pending until merchant confirmation records
+full payment and makes them Paid. Telegram remains online-only.
+
 ## Run locally
 
 Create `.env` (or override it with `.env.local`) and point the portal at the canonical backend:
@@ -255,3 +262,19 @@ An early UUID compatibility fallback supports older system WebViews that expose
 Web Crypto without `crypto.randomUUID()`. IndexedDB-backed temporary-offline
 work also remains available when a WebView omits the optional Storage Manager
 quota and persistence-reporting API.
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.

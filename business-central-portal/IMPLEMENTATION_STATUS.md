@@ -161,6 +161,14 @@ integration coverage. Long-duration offline, storage-eviction, and multi-tab
 browser drills remain manual follow-ups.
 # Telegram automation increment
 
+The order review displays an optional customer name, every product with its
+quantity/price/line total, and one whole-order total and action set. The guide
+includes a copyable multiline example in addition to existing single-product
+commands; English, Burmese, and Thai rules describe customer snapshots, up to
+20 product lines, duplicate aggregation, and atomic failure behavior. Responsive
+browser checks cover populated multi-product review at 320/768/1440 pixels.
+Native mobile Telegram remains outside this increment, as recorded in parity.
+
 The Automations overview separates available integrations from planned channels.
 Telegram has a prominent card and a Manage Telegram action; Facebook and WhatsApp
 use muted, dashed cards labelled Coming soon and Not available yet.
@@ -183,3 +191,26 @@ The page reads the shared bot username from authenticated `/telegram/bot`
 metadata, sourced from the backend's `TELEGRAM_BOT_NAME`. Setup instructions,
 displayed pairing commands, and copied commands use that username. Missing
 configuration shows an explicit message and disables pairing creation/rotation.
+
+Telegram customer/payment behavior: each order links a canonical guest customer;
+omitted names stay blank/null and `Online-Telegram-Customer` is source metadata.
+Invoices are Pending until merchant confirmation atomically captures payment,
+then Paid. Cancellation/expiry void pending payment. Migration 0050 preserves
+existing ledgers and backfills Telegram orders without payments. Native Telegram
+remains online-only and outside the native mobile increment.
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.

@@ -36,7 +36,8 @@ import { repairPaymentLabel } from "@/lib/repair-invoice";
 type ApiInvoice = {
   id: string;
   number: string;
-  customer: string;
+  customer: string | null;
+  channel?: string;
   customer_phone?: string;
   merchant_name: string;
   shop_name?: string;
@@ -107,7 +108,8 @@ function mapInvoice(item: ApiInvoice): Invoice {
   return {
     id: item.id,
     number: item.number,
-    customer: item.customer,
+    customer: item.customer ?? "",
+    channel: item.channel,
     customerPhone: item.customer_phone,
     merchantName: item.merchant_name,
     currencyCode: item.currency_code,
@@ -337,11 +339,7 @@ export function InvoicesPage() {
           <EmptyState
             icon="receipt"
             title={t("invoices.no_invoices_found")}
-            message={
-              query
-                ? "No invoice matches this search."
-                : t("invoices.no_invoices_desc")
-            }
+            message={query ? "No invoice matches this search." : t("invoices.no_invoices_desc")}
           />
         ) : (
           <table className="data-table">

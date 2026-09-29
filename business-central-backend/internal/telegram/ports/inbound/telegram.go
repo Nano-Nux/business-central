@@ -18,6 +18,7 @@ type Telegram interface {
 	ListGroups(context.Context, *authdto.Claims, string, bool) ([]tdto.Group, error)
 	GetGroup(context.Context, *authdto.Claims, string, bool) (tdto.Group, error)
 	RefreshGroup(context.Context, *authdto.Claims, string, bool) (tdto.Group, error)
+	SetAutoConfirm(context.Context, *authdto.Claims, string, bool, bool) (tdto.Group, error)
 	SetGroupStatus(context.Context, *authdto.Claims, string, string, bool) (tdto.Group, error)
 	DisconnectGroup(context.Context, *authdto.Claims, string, bool) error
 	ListUsers(context.Context, *authdto.Claims, string, bool) ([]tdto.GroupUser, error)

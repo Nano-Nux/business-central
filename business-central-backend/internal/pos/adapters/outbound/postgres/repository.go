@@ -129,11 +129,11 @@ func (s *Service) ListInvoices(ctx context.Context, c *authdto.Claims) ([]Invoic
 	if err = ctxSQL(ctx, tx, c); err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `SELECT o.id,o.order_number,COALESCE(cu.display_name,'Walk-in customer'),cu.phone,m.name,s.name,s.id,NULLIF(s.address->>'logo_url',''),COALESCE(NULLIF(s.address->>'show_logo_in_printed_invoice','')::boolean,TRUE),o.currency_code,o.created_at,
-		CASE WHEN o.status='REFUNDED' THEN 'Refunded' WHEN EXISTS(SELECT 1 FROM payments p WHERE p.merchant_id=o.merchant_id AND p.order_id=o.id AND p.status='CAPTURED') THEN 'Paid' ELSE 'Pending' END,
+	rows, err := tx.Query(ctx, `SELECT o.id,o.order_number,CASE WHEN o.channel='TELEGRAM' THEN COALESCE(NULLIF(o.billing_address->>'name',''),NULLIF(cu.display_name,'')) ELSE COALESCE(cu.display_name,'Walk-in customer') END,cu.phone,m.name,s.name,s.id,NULLIF(s.address->>'logo_url',''),COALESCE(NULLIF(s.address->>'show_logo_in_printed_invoice','')::boolean,TRUE),o.currency_code,o.created_at,
+		CASE WHEN o.status='REFUNDED' THEN 'Refunded' WHEN EXISTS(SELECT 1 FROM payments p WHERE p.merchant_id=o.merchant_id AND p.order_id=o.id AND p.status='CAPTURED') OR (o.channel='TELEGRAM' AND o.grand_total=0 AND o.status<>'DRAFT') THEN 'Paid' ELSE 'Pending' END,
 		CASE WHEN ro_repair.id IS NOT NULL THEN 'repair' WHEN so_service.id IS NOT NULL THEN 'service' ELSE 'pos' END,
 		ro_repair.status,ro_repair.payment_status,
-		o.subtotal::text,o.discount_total::text,o.tax_total::text,o.grand_total::text,o.delivery_name,o.shipping_total::text,o.delivery_contact,COALESCE(ro_repair.note,o.note),o.payment_type,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,'')
+		o.subtotal::text,o.discount_total::text,o.tax_total::text,o.grand_total::text,o.delivery_name,o.shipping_total::text,o.delivery_contact,COALESCE(ro_repair.note,o.note),o.payment_type,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,''),o.channel
 		FROM orders o JOIN merchants m ON m.id=o.merchant_id
 		LEFT JOIN customers cu ON cu.merchant_id=o.merchant_id AND cu.id=o.customer_id
 		LEFT JOIN locations l ON l.merchant_id=o.merchant_id AND l.id=o.fulfillment_location_id
@@ -141,7 +141,8 @@ func (s *Service) ListInvoices(ctx context.Context, c *authdto.Claims) ([]Invoic
 		LEFT JOIN payment_settings ps ON ps.merchant_id=o.merchant_id AND ps.shop_id=s.id
 		LEFT JOIN service_orders so_service ON so_service.merchant_id=o.merchant_id AND so_service.order_id=o.id
 		LEFT JOIN repair_orders ro_repair ON ro_repair.merchant_id=so_service.merchant_id AND ro_repair.service_order_id=so_service.id
-		WHERE o.merchant_id=$1::uuid AND o.status<>'DRAFT'
+		WHERE o.merchant_id=$1::uuid AND (o.status<>'DRAFT' OR o.channel='TELEGRAM')
+		AND NOT (o.channel='TELEGRAM' AND o.status='CANCELLED')
 		AND ((SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($2,'')::uuid) IS NULL OR l.shop_id=(SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($2,'')::uuid))
 		ORDER BY o.created_at DESC LIMIT 500`, c.MerchantID, c.MembershipID)
 	if err != nil {
@@ -150,7 +151,7 @@ func (s *Service) ListInvoices(ctx context.Context, c *authdto.Claims) ([]Invoic
 	invoices := []Invoice{}
 	for rows.Next() {
 		var invoice Invoice
-		if err = rows.Scan(&invoice.ID, &invoice.Number, &invoice.Customer, &invoice.CustomerPhone, &invoice.MerchantName, &invoice.ShopName, &invoice.ShopID, &invoice.ShopLogoURL, &invoice.ShowShopLogo, &invoice.CurrencyCode, &invoice.CreatedAt, &invoice.Status, &invoice.Kind, &invoice.TicketStatus, &invoice.PaymentStatus, &invoice.Subtotal, &invoice.DiscountTotal, &invoice.TaxTotal, &invoice.GrandTotal, &invoice.DeliveryName, &invoice.DeliveryFee, &invoice.DeliveryContact, &invoice.Note, &invoice.PaymentType, &invoice.TaxLabel, &invoice.ReceiptNote, &invoice.FooterNote); err != nil {
+		if err = rows.Scan(&invoice.ID, &invoice.Number, &invoice.Customer, &invoice.CustomerPhone, &invoice.MerchantName, &invoice.ShopName, &invoice.ShopID, &invoice.ShopLogoURL, &invoice.ShowShopLogo, &invoice.CurrencyCode, &invoice.CreatedAt, &invoice.Status, &invoice.Kind, &invoice.TicketStatus, &invoice.PaymentStatus, &invoice.Subtotal, &invoice.DiscountTotal, &invoice.TaxTotal, &invoice.GrandTotal, &invoice.DeliveryName, &invoice.DeliveryFee, &invoice.DeliveryContact, &invoice.Note, &invoice.PaymentType, &invoice.TaxLabel, &invoice.ReceiptNote, &invoice.FooterNote, &invoice.Channel); err != nil {
 			rows.Close()
 			return nil, err
 		}

@@ -15,6 +15,7 @@ type PairingCode struct {
 }
 
 type Group struct {
+	AutoConfirmOrders       bool           `json:"auto_confirm_orders"`
 	ID                      string         `json:"id"`
 	MerchantID              string         `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name,omitempty"`
@@ -53,25 +54,39 @@ type GroupUser struct {
 	LastSeenAt      time.Time `json:"last_seen_at"`
 }
 
+type OrderItem struct {
+	LineNumber  int    `json:"line_number"`
+	VariantID   string `json:"variant_id"`
+	SKU         string `json:"sku"`
+	Description string `json:"description"`
+	Quantity    string `json:"quantity"`
+	UnitPrice   string `json:"unit_price"`
+	LineTotal   string `json:"line_total"`
+}
+
 type Order struct {
-	ID                   string    `json:"id"`
-	MerchantID           string    `json:"merchant_id"`
-	ShopID               string    `json:"shop_id"`
-	ConnectionID         string    `json:"telegram_group_connection_id"`
-	GroupTitle           string    `json:"group_title"`
-	OrderNumber          string    `json:"order_number"`
-	Status               string    `json:"status"`
-	CurrencyCode         string    `json:"currency_code"`
-	GrandTotal           string    `json:"grand_total"`
-	Description          string    `json:"description"`
-	Quantity             string    `json:"quantity"`
-	UnitPrice            string    `json:"unit_price"`
-	TelegramUserID       int64     `json:"telegram_user_id"`
-	CreatedAt            time.Time `json:"created_at"`
-	ExpiresAt            time.Time `json:"expires_at"`
-	LastError            *string   `json:"last_error,omitempty"`
-	TelegramChatID       int64     `json:"-"`
-	BotResponseMessageID int64     `json:"-"`
+	AutoConfirmed        bool        `json:"auto_confirmed"`
+	ID                   string      `json:"id"`
+	MerchantID           string      `json:"merchant_id"`
+	ShopID               string      `json:"shop_id"`
+	ConnectionID         string      `json:"telegram_group_connection_id"`
+	GroupTitle           string      `json:"group_title"`
+	OrderNumber          string      `json:"order_number"`
+	Status               string      `json:"status"`
+	PaymentStatus        string      `json:"payment_status"`
+	CurrencyCode         string      `json:"currency_code"`
+	GrandTotal           string      `json:"grand_total"`
+	CustomerName         *string     `json:"customer_name"`
+	Items                []OrderItem `json:"items"`
+	Description          string      `json:"description"`
+	Quantity             string      `json:"quantity"`
+	UnitPrice            string      `json:"unit_price"`
+	TelegramUserID       int64       `json:"telegram_user_id"`
+	CreatedAt            time.Time   `json:"created_at"`
+	ExpiresAt            time.Time   `json:"expires_at"`
+	LastError            *string     `json:"last_error,omitempty"`
+	TelegramChatID       int64       `json:"-"`
+	BotResponseMessageID int64       `json:"-"`
 }
 
 type StatusRequest struct {
@@ -143,4 +158,8 @@ type ChatMemberUpdated struct {
 	From          User       `json:"from"`
 	OldChatMember ChatMember `json:"old_chat_member"`
 	NewChatMember ChatMember `json:"new_chat_member"`
+}
+
+type AutoConfirmRequest struct {
+	AutoConfirmOrders *bool `json:"auto_confirm_orders"`
 }

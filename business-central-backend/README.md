@@ -14,6 +14,30 @@ which uses it for setup instructions and complete, copyable pairing commands.
 
 Orders use `/takeorder [product name] quantity=<positive number> [SKU]`. Quantity is required, and at least a name or SKU must be supplied. For SKU-only orders, use `/takeorder quantity=2 WC-002`. When both a name and SKU are supplied, both must identify the same variant.
 
+For a customer and multiple products, send one message:
+
+```text
+/takeorder
+customer=Ma Hnin
+wo phone quantity=1
+travel-mate-p214 quantity=2
+```
+
+The customer line is optional and appears before products. Its name is saved on
+the order and links a new guest in the shared customer table. Missing names stay
+blank/null; customer metadata records `Online-Telegram-Customer` as the source
+label. Guest records are never merged by name. Up to 20 product lines become
+one draft, one total, and one Confirm/Cancel action. Each line requires quantity
+and a name or SKU; repeated variants combine quantities. A failure on any item
+rejects the whole order. Confirmation, cancellation, expiry, and message retries
+preserve the full order. Existing single-product commands continue to work.
+The API adds `customer_name` and `items[]`, using the existing canonical order,
+order-line, customer, payment, and billing snapshot columns. Migration `0050`
+backfills existing Telegram customer links and orders without payments. Draft
+invoices are Pending; merchant confirmation captures the full amount and makes
+them Paid. Cancellation/expiry void pending payment. No payment gateway is called;
+confirmation is the merchant acknowledgment of payment.
+
 For example, `/takeorder wo phone quantity=1` matches the active product named
 `wo phone` using its current default-list price. A server failure during order
 creation is reported as a server error, not as a missing product. A webhook log
@@ -42,6 +66,13 @@ code consumption, duplicate groups, database error classification, rollback,
 and bot membership events. It also verifies ordering by name and SKU,
 confirmation/cancellation, callback consumption, outbox delivery updates, and
 rollback when a later draft write fails.
+
+`TestConfiguredDatabaseTelegramMultiProductStock` creates a private schema from
+`schema.sql`, so its test database account must permit creating/dropping schemas.
+It exercises real reservation/FIFO triggers for several products, duplicate-line
+aggregation, customer links/names, Pending/Paid invoices, payment capture/void, tenant isolation, full confirmation/cancellation,
+expiry, outbox details, and rollback of partial draft/confirmation writes. It
+drops only its generated test schema and never disables ledger protections.
 
 The Go Fiber backend is the only main backend for Business Central. All client APIs, authentication, authorization, merchant-module rules, domain behavior, persistence, and mobile synchronization protocols belong here.
 
@@ -132,3 +163,19 @@ blocked.
 
 `PLATFORM_ADMIN_EMAIL` and `PLATFORM_ADMIN_PASSWORD` remain supported as a
 legacy explicit bootstrap when the `ADMIN_*` variables are not set.
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.

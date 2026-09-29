@@ -1,6 +1,6 @@
 # Backend Features
 
-| Shared Telegram shop-group automation | Implemented for web/backend scope | One shared bot, shop-scoped multi-group pairing, secure webhook/callbacks, canonical drafts, reservations, shared confirm/cancel transitions, audit, expiry, and outbox retry; mobile is out of scope |
+| Shared Telegram shop-group automation | Implemented for web/backend scope | One shared bot, shop-scoped pairing, secure webhook/callbacks, canonical multi-product drafts with optional customer links and name snapshots, per-line stock reservations and sales, atomic confirm/cancel/expiry, audit, and outbox retry preserving every item; native mobile is out of scope |
 
 This file records backend capabilities and their implementation status. Update it whenever an API, domain capability, schema, or synchronization contract changes.
 
@@ -36,3 +36,26 @@ This file records backend capabilities and their implementation status. Update i
 | Shared collection query contract | Implemented | `query`, `filter`, zero-based `page_index`, legacy `page`, and bounded `page_size` are supported across listing endpoints |
 | Public API handlers and use cases | Implemented for current scope | HTTP handlers depend on injected application ports for auth, catalog, POS, pricing, promotion, inventory, reports, services, and repairs |
 | Client temporary-offline synchronization API | Partial | Authenticated handshake/push/pull/conflict routes provide idempotent typed operations, hashes, dependencies, replay results, versions, shop-filtered ordered changes, persisted checkpoints, and migrations through 0027. Settings, delivery, product metadata, product variant attributes/options, price-list/product-price lifecycle, repair aggregates/children/payments, and append-only provisional `POS_CHECKOUT` are enabled. Cash checkout reuses canonical POS/FIFO rules atomically; external payment intents require authorization. Refund, receiving/transfer/adjustment, promotion, permission/module, and remaining lifecycle policies are still rejected. |
+
+Telegram customer/payment behavior: each order links a canonical guest customer;
+omitted names stay blank/null and `Online-Telegram-Customer` is source metadata.
+Invoices are Pending until merchant confirmation atomically captures payment,
+then Paid. Cancellation/expiry void pending payment. Migration 0050 preserves
+existing ledgers and backfills Telegram orders without payments. Native Telegram
+remains online-only and outside the native mobile increment.
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.
