@@ -13,7 +13,10 @@ erDiagram
     orders ||--o{ telegram_callback_tokens : protects
 ```
 
-`telegram_group_connections.telegram_chat_id` is globally unique. Tenant-owned extension rows carry `merchant_id` and tenant-safe foreign keys. Source records preserve history after a soft disconnect; pairing and callback secrets are stored only as hashes.
+`telegram_group_connections.telegram_chat_id` is globally unique. Tenant-owned extension rows carry `merchant_id` and tenant-safe foreign keys. Connections store `auto_confirm_orders` (default false); source records store
+`auto_confirmed` (default false), preserving confirmation history after switches
+change. Migration 0051 adds both flags without changing existing order states.
+Source records preserve history after a soft disconnect; pairing and callback secrets are stored only as hashes.
 
 ```mermaid
 erDiagram

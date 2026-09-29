@@ -2,9 +2,9 @@
 
 ## Telegram shop-group automation
 
-Telegram is an adapter over the canonical order aggregate, not a separate commerce system. `internal/telegram` owns parsing, pairing, provider calls, group/user observations, draft lifecycle use cases, and outbox delivery. A group resolves exactly one merchant, shop, and shop inventory location. `/takeorder` creates a canonical `orders` row with `channel = TELEGRAM`, an order line, an active inventory reservation, and trace metadata.
+Telegram is an adapter over the canonical order aggregate, not a separate commerce system. `internal/telegram` owns parsing, pairing, provider calls, group/user observations, draft lifecycle use cases, and outbox delivery. A group resolves exactly one merchant, shop, and shop inventory location. `/takeorder` creates one canonical `orders` row with `channel = TELEGRAM`, up to 20 requested product lines, reservations for every stock-tracked variant, and trace metadata. Repeated variants are combined before checking availability. Each order links a new canonical guest customer through `orders.customer_id`, retaining the optional `customer=<name>` in `orders.billing_address.name`. Names are never used to merge customers. Customer metadata stores the source label `Online-Telegram-Customer`; omitted names remain blank/null rather than using that label as a person's name. Prices and rounded line totals come from PostgreSQL, and the order total is the sum of all lines.
 
-Portal and Telegram confirmation/cancellation call the same locked application transitions. Confirmation consumes the reservation and creates the idempotent `SALE` movement; cancellation or expiry releases it. Both record accounting, audit, and outbox events. PostgreSQL remains authoritative, and a failed Telegram edit is retried without reversing the database transition.
+Portal and Telegram confirmation/cancellation call the same locked application transitions. Merchant confirmation also acknowledges payment, captures the pending canonical Telegram payment, and emits one idempotent payment-capture accounting event. Confirmation consumes every line's reservation and creates a separate idempotent `SALE` movement per reserved line; cancellation or expiry releases every active reservation and voids the pending payment. A failure on any line rolls the complete transition back. Both record accounting, audit, and outbox events. PostgreSQL remains authoritative, and a failed Telegram edit is retried without reversing the database transition. Initial and final messages, outbox retries, and merchant/admin reads preserve the customer name, all items, and the order total.
 
 Bot credentials remain backend environment secrets. Pairing codes and callback tokens are stored as hashes. Telegram chat and user IDs are external identity keys; titles, names, and usernames are snapshots.
 
@@ -182,3 +182,19 @@ commands. Tenant context remains an application concern and is enforced again
 by PostgreSQL RLS and tenant-safe foreign keys. Root package DTO aliases remain
 only as a compatibility seam for existing clients and tests; canonical DTOs
 live inside their bounded context's `application/dto` package.
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.

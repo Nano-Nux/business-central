@@ -16,8 +16,11 @@ type updateRepository struct {
 	connectErr, lookupErr, completedErr error
 	draftErr                            error
 	draftInput                          outbound.DraftInput
+	draftResult                         outbound.DraftResult
 	seen                                bool
+	storedMessageID                     int64
 	connectCalls, completeCalls         int
+	draftCalls                          int
 }
 
 func (r *updateRepository) ExpireDrafts(context.Context) error { return nil }
@@ -43,8 +46,14 @@ func (r *updateRepository) ObserveUser(context.Context, string, tdto.User, strin
 	return true, nil
 }
 func (r *updateRepository) CreateDraft(_ context.Context, in outbound.DraftInput) (outbound.DraftResult, error) {
+	r.draftCalls++
 	r.draftInput = in
-	return outbound.DraftResult{}, r.draftErr
+	return r.draftResult, r.draftErr
+}
+
+func (r *updateRepository) StoreBotResponse(_ context.Context, _ string, id int64) error {
+	r.storedMessageID = id
+	return nil
 }
 
 type updateProvider struct {
@@ -62,7 +71,7 @@ func (p *updateProvider) GetBotMember(context.Context, int64) (outbound.MemberIn
 func (p *updateProvider) GetMemberCount(context.Context, int64) (int, error) { return 2, nil }
 func (p *updateProvider) SendReply(_ context.Context, _, _ int64, text, _, _ string) (outbound.SentMessage, error) {
 	p.replies = append(p.replies, text)
-	return outbound.SentMessage{}, p.sendErr
+	return outbound.SentMessage{MessageID: 123}, p.sendErr
 }
 
 func TestPairingUpdateDistinguishesBusinessAndServerErrors(t *testing.T) {
@@ -140,12 +149,116 @@ func TestTakeOrderDoesNotReportDatabaseFailuresAsMissingProducts(t *testing.T) {
 			if (err != nil) != tc.wantFailure {
 				t.Fatalf("incorrect webhook result: %v", err)
 			}
-			if repo.draftInput.ProductName != "wo phone" || repo.draftInput.Quantity != 1 {
+			if len(repo.draftInput.Items) != 1 || repo.draftInput.Items[0].ProductName != "wo phone" || repo.draftInput.Items[0].Quantity != 1 {
 				t.Fatalf("incorrect command: %+v", repo.draftInput)
 			}
 			if len(provider.replies) != 1 || !strings.Contains(provider.replies[0], tc.want) || strings.Contains(provider.replies[0], "prepared statement") {
 				t.Fatalf("incorrect reply: %v", provider.replies)
 			}
 		})
+	}
+}
+
+func TestMultiProductCustomerOrderReply(t *testing.T) {
+	order := tdto.Order{OrderNumber: "TG-123", Status: "DRAFT", PaymentStatus: "Pending", CustomerName: testName("Ma Hnin"), CurrencyCode: "USD", GrandTotal: "2800000.00", Items: []tdto.OrderItem{{Description: "wo phone", Quantity: "1", UnitPrice: "800000.00", LineTotal: "800000.00"}, {Description: "travel-mate-p214", Quantity: "2", UnitPrice: "1000000.00", LineTotal: "2000000.00"}}}
+	repo := &updateRepository{draftResult: outbound.DraftResult{Order: order}}
+	provider := &updateProvider{}
+	service := NewService(repo, provider, "secret", "bot")
+	update := tdto.TelegramUpdate{UpdateID: 127, Message: &tdto.Message{From: &tdto.User{ID: 42}, Chat: tdto.Chat{ID: -100, Type: "supergroup"}, Text: "/takeorder\ncustomer=Ma Hnin\nwo phone quantity=1\ntravel-mate-p214 quantity=2"}}
+	if err := service.HandleUpdate(context.Background(), update); err != nil {
+		t.Fatal(err)
+	}
+	if repo.draftInput.CustomerName != "Ma Hnin" || len(repo.draftInput.Items) != 2 || len(provider.replies) != 1 {
+		t.Fatalf("incorrect draft request: %+v replies %v", repo.draftInput, provider.replies)
+	}
+	for _, text := range []string{"Payment: Pending", "Customer: Ma Hnin", "wo phone", "travel-mate-p214", "Total: 2800000.00 USD"} {
+		if !strings.Contains(provider.replies[0], text) {
+			t.Fatalf("reply missing %s: %s", text, provider.replies[0])
+		}
+	}
+	order.Status = "CONFIRMED"
+	order.PaymentStatus = "Paid"
+	if text := orderMessage(order); !strings.Contains(text, "Customer: Ma Hnin") || !strings.Contains(text, "travel-mate-p214") || strings.Contains(text, "Awaiting administrator") {
+		t.Fatalf("final edit lost order: %s", text)
+	}
+}
+
+func TestTwentyItemMessageFitsTelegramLimit(t *testing.T) {
+	order := tdto.Order{OrderNumber: "TG-20260929-0001", Status: "CONFIRMED", PaymentStatus: "Paid", CustomerName: testName(strings.Repeat("က", 255)), CurrencyCode: "MMK", GrandTotal: "9999999999999.99"}
+	for i := 0; i < 20; i++ {
+		order.Items = append(order.Items, tdto.OrderItem{Description: strings.Repeat("က", 255), Quantity: "99999999999999.999999", UnitPrice: "9999999999999.99", LineTotal: "9999999999999.99"})
+	}
+	if text := orderMessage(order); len([]rune(text)) > 4096 {
+		t.Fatalf("order message exceeds Telegram limit: %d", len([]rune(text)))
+	}
+}
+
+func testName(value string) *string { return &value }
+
+func TestAutomaticOrderReturnsWithoutManualButtons(t *testing.T) {
+	repo := &updateRepository{draftResult: outbound.DraftResult{Order: tdto.Order{Status: "CONFIRMED", PaymentStatus: "Paid", AutoConfirmed: true}}}
+	provider := &updateProvider{}
+	service := NewService(repo, provider, "secret", "bot")
+	update := tdto.TelegramUpdate{UpdateID: 999, Message: &tdto.Message{From: &tdto.User{ID: 42}, Chat: tdto.Chat{ID: -100, Type: "supergroup"}, Text: "/takeorder wo phone quantity=1"}}
+	if err := service.HandleUpdate(context.Background(), update); err != nil {
+		t.Fatal(err)
+	}
+	if len(provider.replies) != 0 || repo.draftCalls != 1 {
+		t.Fatalf("automatic receipt bypassed durable delivery: %+v", provider.replies)
+	}
+	if text := orderMessage(repo.draftResult.Order); !strings.Contains(text, "Automatically confirmed") || !strings.Contains(text, "Payment: Paid") || strings.Contains(text, "Awaiting administrator") {
+		t.Fatal(text)
+	}
+}
+
+func TestFailedAutomaticOrderIsNotRetried(t *testing.T) {
+	repo := &updateRepository{draftErr: app.NewError("INSUFFICIENT_STOCK", "Only 1 is available.", 409)}
+	provider := &updateProvider{}
+	service := NewService(repo, provider, "secret", "bot")
+	update := tdto.TelegramUpdate{UpdateID: 1000, Message: &tdto.Message{From: &tdto.User{ID: 42}, Chat: tdto.Chat{ID: -100, Type: "supergroup"}, Text: "/takeorder wo phone quantity=2"}}
+	if err := service.HandleUpdate(context.Background(), update); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.HandleUpdate(context.Background(), update); err != nil {
+		t.Fatal(err)
+	}
+	if repo.draftCalls != 1 || len(provider.replies) != 1 || !strings.Contains(provider.replies[0], "Only 1 is available.") {
+		t.Fatalf("failed order retried or error missing: %d %v", repo.draftCalls, provider.replies)
+	}
+}
+
+func TestAutomaticReceiptDeliveryDoesNotRetryTheOrder(t *testing.T) {
+	repo := &updateRepository{}
+	provider := &updateProvider{sendErr: errors.New("provider unavailable")}
+	service := NewService(repo, provider, "secret", "bot")
+	delivery := outbound.OutboxDelivery{Order: tdto.Order{ID: "order", OrderNumber: "TG-1", Status: "CONFIRMED", PaymentStatus: "Paid", AutoConfirmed: true}}
+	if err := service.deliverOrderNotification(context.Background(), delivery); err == nil {
+		t.Fatal("provider error hidden")
+	}
+	if repo.draftCalls != 0 || repo.storedMessageID != 0 {
+		t.Fatal("notification failure recreated order or recorded missing reply")
+	}
+	provider.sendErr = nil
+	if err := service.deliverOrderNotification(context.Background(), delivery); err != nil {
+		t.Fatal(err)
+	}
+	if repo.draftCalls != 0 || repo.storedMessageID != 123 || !strings.Contains(provider.replies[1], "Payment: Paid") {
+		t.Fatal("receipt delivery repeated commerce or lost payment status")
+	}
+}
+
+func TestServerFailedOrderReturnsErrorWithoutRetry(t *testing.T) {
+	repo := &updateRepository{draftErr: app.Internal(errors.New("database unavailable"))}
+	provider := &updateProvider{}
+	service := NewService(repo, provider, "secret", "bot")
+	update := tdto.TelegramUpdate{UpdateID: 1001, Message: &tdto.Message{From: &tdto.User{ID: 42}, Chat: tdto.Chat{ID: -100, Type: "supergroup"}, Text: "/takeorder wo phone quantity=1"}}
+	if err := service.HandleUpdate(context.Background(), update); err == nil {
+		t.Fatal("server error hidden")
+	}
+	if err := service.HandleUpdate(context.Background(), update); err != nil {
+		t.Fatal(err)
+	}
+	if repo.draftCalls != 1 || len(provider.replies) != 1 || !strings.Contains(provider.replies[0], "No order was created.") {
+		t.Fatal("failed order retried or error missing")
 	}
 }

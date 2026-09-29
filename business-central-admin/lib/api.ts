@@ -108,6 +108,16 @@ export type TelegramOrder = {
   status: string;
   currency_code: string;
   grand_total: string;
+  customer_name?: string | null;
+  payment_status?: string;
+  items?: {
+    line_number: number;
+    description: string;
+    sku: string;
+    quantity: string;
+    unit_price: string;
+    line_total: string;
+  }[];
   description: string;
   quantity: string;
   created_at: string;

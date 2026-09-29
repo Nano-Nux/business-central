@@ -16,6 +16,21 @@ The backend remains authoritative; hiding a view in a client is not a security b
 
 ## POS and order flow
 
+Telegram sellers can create one order with an optional customer name and several
+products in a single message. Send `/takeorder`, an optional `customer=<name>`
+line, then one product per line using `[name] quantity=<positive number> [SKU]`.
+Each order links a new guest in the shared customer table and preserves the
+optional name on the order. Missing names remain blank/null; the source label
+`Online-Telegram-Customer` is metadata, not a customer name. Duplicate names are
+allowed and are not merged. Every item is resolved and priced within the connected
+merchant; repeated variants are combined. All stock checks, reservations, and
+order writes succeed together or none commit. One administrator action confirms
+or cancels the entire draft. Its invoice is Pending initially; confirmation
+acknowledges payment and atomically captures the full amount, making it Paid.
+Cancellation/expiry void pending payment and remove the Telegram invoice from
+the invoice list. Expiry releases all lines. Bot and web review show
+the same customer, items, total, and status.
+
 ```text
 Select customer or guest
 → select products/variants
@@ -137,3 +152,19 @@ App mode is FULLY_OFFLINE from .env
 ```
 
 `FULLY_OFFLINE` is a deployment/runtime mode, not a temporary connectivity state. It must not transition into synchronization automatically.
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.

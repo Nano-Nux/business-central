@@ -33,6 +33,7 @@ func (h *Handler) RegisterRoutes(r fiber.Router) {
 	r.Get("/telegram/groups/:id", h.getGroup)
 	r.Post("/telegram/groups/:id/refresh", h.refresh)
 	r.Patch("/telegram/groups/:id/status", h.status)
+	r.Patch("/telegram/groups/:id/auto-confirm", h.autoConfirm)
 	r.Post("/telegram/groups/:id/rotate-pairing-code", h.rotate)
 	r.Delete("/telegram/groups/:id", h.disconnect)
 	r.Get("/telegram/groups/:id/users", h.users)
@@ -45,6 +46,7 @@ func (h *Handler) RegisterRoutes(r fiber.Router) {
 	r.Post("/admin/telegram/groups/:id/refresh", h.adminRefresh)
 	r.Post("/admin/telegram/groups/:id/refresh-members", h.adminRefresh)
 	r.Patch("/admin/telegram/groups/:id/status", h.adminStatus)
+	r.Patch("/admin/telegram/groups/:id/auto-confirm", h.adminAutoConfirm)
 	r.Post("/admin/telegram/groups/:id/rotate-pairing-code", h.adminRotate)
 	r.Delete("/admin/telegram/groups/:id", h.adminDisconnect)
 	r.Get("/admin/telegram/groups/:id/users", h.adminUsers)
@@ -344,3 +346,26 @@ func (h *Handler) adminConfirm(c fiber.Ctx) error { return h.transition(c, true,
 func (h *Handler) adminCancel(c fiber.Ctx) error  { return h.transition(c, true, false) }
 
 var _ = tapp.ParseTelegramUserID
+
+func (h *Handler) doAutoConfirm(c fiber.Ctx, a bool) error {
+	if a {
+		if err := admin(c); err != nil {
+			return err
+		}
+	} else if err := h.permission(c, "tenant.write"); err != nil {
+		return err
+	}
+	var q tdto.AutoConfirmRequest
+	if err := c.Bind().JSON(&q); err != nil || q.AutoConfirmOrders == nil {
+		return app.NewError("VALIDATION_ERROR", "auto_confirm_orders must be a boolean.", 400)
+	}
+	ctx, cancel := timeout(c)
+	defer cancel()
+	g, err := h.Telegram.SetAutoConfirm(ctx, claims(c), c.Params("id"), *q.AutoConfirmOrders, a)
+	if err != nil {
+		return err
+	}
+	return envelope(c, g)
+}
+func (h *Handler) autoConfirm(c fiber.Ctx) error      { return h.doAutoConfirm(c, false) }
+func (h *Handler) adminAutoConfirm(c fiber.Ctx) error { return h.doAutoConfirm(c, true) }

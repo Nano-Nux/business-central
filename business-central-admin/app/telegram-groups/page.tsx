@@ -183,7 +183,8 @@ export default function TelegramGroupsPage() {
             {filtered.map((g) => (
               <button
                 key={g.id}
-                className={`merchant-row ${selected === g.id ? "selected" : ""}`}
+                className={`merchant-row ${selected === g.id ? "selected" : ""}
+                      {o.payment_status && <span> ? Payment: {o.payment_status}</span>}`}
                 onClick={() => setSelected(g.id)}
               >
                 <span className="merchant-icon">TG</span>
@@ -370,8 +371,31 @@ export default function TelegramGroupsPage() {
                       {o.order_number} · {o.status}
                     </strong>
                     <small>
-                      {o.description} × {o.quantity} · {o.grand_total}{" "}
-                      {o.currency_code} · {when(o.created_at)}
+                      {o.customer_name ? `Customer: ${o.customer_name}` : ""}
+                      {o.payment_status && (
+                        <span> Payment: {o.payment_status}</span>
+                      )}
+                    </small>
+                    {(o.items?.length
+                      ? o.items
+                      : [
+                          {
+                            line_number: 1,
+                            description: o.description,
+                            sku: "",
+                            quantity: o.quantity,
+                            line_total: o.grand_total,
+                          },
+                        ]
+                    ).map((item) => (
+                      <small key={item.line_number}>
+                        {item.description} {item.sku && `(${item.sku})`} ×{" "}
+                        {item.quantity} · {item.line_total} {o.currency_code}
+                      </small>
+                    ))}
+                    <small>
+                      Total {o.grand_total} {o.currency_code} ·{" "}
+                      {when(o.created_at)}
                     </small>
                   </span>
                 </div>

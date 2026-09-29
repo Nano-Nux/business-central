@@ -105,3 +105,36 @@ Record completed work with the date, affected package/schema area, and validatio
 # Telegram automation increment
 
 Migration `0049` and `internal/telegram` implement the Bot API adapter, secret-validated idempotent webhook, merchant/admin APIs, pairing and callback security, exact product matching, canonical TELEGRAM drafts, reservation lifecycle, locked confirm/cancel, expiry, audit, and retrying message synchronization. Live Telegram/PostgreSQL integration requires deployment credentials and was not exercised by unit tests.
+
+The Telegram aggregate now accepts an optional customer name and a linked guest and up to
+20 product lines per message. Repeated variants combine quantities; PostgreSQL
+prices/rounds each line and derives the order total. Draft, confirmation,
+cancellation, and expiry process the whole aggregate. Merchant/admin reads,
+bot replies, and outbox retries include every item and the customer snapshot.
+Canonical guest customers and payments are reused; migration 0050 backfills existing Telegram records. Tests now exercise the actual
+canonical PostgreSQL schema, including reservations, FIFO sales, duplicate-line
+aggregation, tenant isolation, expiry, and rollback after later write/transition
+failures; live Telegram delivery still requires deployment validation.
+
+Telegram customer/payment behavior: each order links a canonical guest customer;
+omitted names stay blank/null and `Online-Telegram-Customer` is source metadata.
+Invoices are Pending until merchant confirmation atomically captures payment,
+then Paid. Cancellation/expiry void pending payment. Migration 0050 preserves
+existing ledgers and backfills Telegram orders without payments. Native Telegram
+remains online-only and outside the native mobile increment.
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.
