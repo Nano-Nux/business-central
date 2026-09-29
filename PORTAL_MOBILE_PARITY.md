@@ -66,7 +66,7 @@ preset administration remains a parity follow-up.
 
 ## Shared design source
 
-| Telegram shop-group automation | Portal provides AI navigation, pairing, group health/users, pending drafts, and confirm/cancel through canonical backend APIs. The responsive workspace separates Groups, Orders, and Setup guide views, with shop-scoped summaries and group details. Order commands require quantity and at least a name or SKU; the multilingual guide shows all three identifier forms. | Not implemented; explicitly excluded from this increment | Portal Telegram page is the current web design reference. A future Mobile ONLINE workflow must use the same terms, identifier requirements, and transitions; FULLY_OFFLINE must never connect to Telegram or the backend. | Backend command/lifecycle security tests and portal route/build checks; responsive Telegram browser interaction checks; mobile acceptance pending | Partial |
+| Telegram shop-group automation | Portal provides AI navigation, pairing, group health/users, pending drafts, and confirm/cancel through canonical backend APIs. Orders support an optional customer name and a linked guest and up to 20 product lines in one message; review shows every line and one total. The multilingual guide documents the shared multiline syntax. | Native Telegram workflow not implemented; explicitly excluded from this increment. The portal view remains the design reference. | One order, all lines, customer snapshot, one confirm/cancel action, and atomic stock transitions. A future Mobile ONLINE workflow must use the same terms and transitions; FULLY_OFFLINE must never connect to Telegram or the backend. | Backend multiline parsing, aggregate lifecycle/stock/rollback tests and portal responsive review/guide browser checks; native mobile acceptance pending | Partial |
 
 Before substantial UI work begins, define a shared design reference containing:
 
@@ -91,3 +91,17 @@ Before marking a feature complete:
 5. Any platform difference is recorded in `UI_UX_PARITY.md`.
 6. Shared acceptance scenarios pass in both clients.
 7. Online, temporary-offline, and `FULLY_OFFLINE` behavior is recorded where applicable.
+
+Telegram customer/payment behavior: each order links a canonical guest customer;
+omitted names stay blank/null and `Online-Telegram-Customer` is source metadata.
+Invoices are Pending until merchant confirmation atomically captures payment,
+then Paid. Cancellation/expiry void pending payment. Migration 0050 preserves
+existing ledgers and backfills Telegram orders without payments. Native Telegram
+remains online-only and outside the native mobile increment.
+
+Telegram automatic confirmation: portal group switch defaults OFF and applies only
+to new valid orders, recording Paid invoices and stock sales atomically. Existing
+pending orders stay pending. The portal is the design reference; native Telegram
+remains outside this increment, and FULLY_OFFLINE never contacts the backend.
+Shared acceptance: backend toggle/scope/stock/payment/rollback and responsive
+portal switch tests; native mobile acceptance remains pending.

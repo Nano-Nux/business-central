@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, patch, post, remove } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useTranslation } from "@/lib/i18n";
 import { useResource } from "@/lib/use-resource";
 import type { Shop } from "@/lib/types";
@@ -10,6 +11,7 @@ import { Badge, EmptyState, StatusBadge } from "./ui";
 import styles from "./telegram-automation-manager.module.css";
 
 type Group = {
+  auto_confirm_orders?: boolean;
   id: string;
   shop_id: string;
   telegram_chat_id: number;
@@ -32,6 +34,7 @@ type Group = {
 };
 type Pairing = { id: string; shop_id: string; code: string; status: string; expires_at: string };
 type TelegramOrder = {
+  auto_confirmed?: boolean;
   id: string;
   telegram_group_connection_id: string;
   group_title: string;
@@ -39,6 +42,17 @@ type TelegramOrder = {
   status: string;
   currency_code: string;
   grand_total: string;
+  customer_name?: string | null;
+  payment_status?: string;
+  items?: {
+    line_number: number;
+    variant_id: string;
+    sku: string;
+    description: string;
+    quantity: string;
+    unit_price: string;
+    line_total: string;
+  }[];
   description: string;
   quantity: string;
   unit_price: string;
@@ -221,6 +235,7 @@ function TelegramWorkspace({
   botError: string;
 }) {
   const { t } = useTranslation();
+  const { can } = useAuth();
   const groups = useResource<Group>(shopID ? `/telegram/shops/${shopID}/groups` : "");
   const orders = useResource<TelegramOrder>(shopID ? "/telegram/orders" : "");
   const [selectedGroup, setSelectedGroup] = useState("");
@@ -565,6 +580,40 @@ function TelegramWorkspace({
                       {selected.last_error}
                     </div>
                   )}
+                  <div className={styles.autoConfirm}>
+                    <div>
+                      <strong id={`auto-confirm-label-${selected.id}`}>
+                        Automatically Confirm Order
+                      </strong>
+                      <p id={`auto-confirm-help-${selected.id}`}>
+                        New valid orders are confirmed, recorded as Paid, and deducted from stock.
+                        Existing pending orders stay pending.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={selected.auto_confirm_orders === true}
+                      aria-labelledby={`auto-confirm-label-${selected.id}`}
+                      aria-describedby={`auto-confirm-help-${selected.id}`}
+                      className={styles.autoConfirmSwitch}
+                      disabled={
+                        !!busy || !can("tenant.write") || selected.connection_status === "REVOKED"
+                      }
+                      onClick={() =>
+                        action(`auto-confirm-${selected.id}`, () =>
+                          patch(`/telegram/groups/${selected.id}/auto-confirm`, {
+                            auto_confirm_orders: !selected.auto_confirm_orders,
+                          }),
+                        )
+                      }
+                    >
+                      <span className={styles.switchTrack} aria-hidden="true">
+                        <span />
+                      </span>
+                      <span>{selected.auto_confirm_orders ? "On" : "Off"}</span>
+                    </button>
+                  </div>
                   <div className={styles.groupActions}>
                     <button
                       className="button button-secondary"
@@ -762,10 +811,34 @@ function TelegramWorkspace({
                   </div>
                   <div className={styles.orderBody}>
                     <div>
-                      <h3>{o.description}</h3>
-                      <p>
-                        Quantity {o.quantity} · Unit price {o.unit_price} {o.currency_code}
-                      </p>
+                      <h3>{o.customer_name ? `Customer: ${o.customer_name}` : ""}</h3>
+                      {o.payment_status && <p>Payment: {o.payment_status}</p>}
+                      {o.auto_confirmed && <p>Automatically confirmed</p>}
+                      {(o.items?.length
+                        ? o.items
+                        : [
+                            {
+                              line_number: 1,
+                              variant_id: "",
+                              sku: "",
+                              description: o.description,
+                              quantity: o.quantity,
+                              unit_price: o.unit_price,
+                              line_total: o.grand_total,
+                            },
+                          ]
+                      ).map((item) => (
+                        <div className={styles.orderItem} key={item.line_number}>
+                          <strong>{item.description}</strong>
+                          <p>
+                            {item.sku && `${item.sku} · `}Quantity {item.quantity} · Unit price{" "}
+                            {item.unit_price} {o.currency_code}
+                          </p>
+                          <small>
+                            Line total {item.line_total} {o.currency_code}
+                          </small>
+                        </div>
+                      ))}
                       {o.status === "DRAFT" && (
                         <small>Reservation expires {date(o.expires_at)}</small>
                       )}
@@ -876,6 +949,10 @@ function TelegramWorkspace({
                 ["By product name", "/takeorder electric wheelchair quantity=2"],
                 ["By SKU", "/takeorder quantity=2 WC-002"],
                 ["By name and SKU", "/takeorder electric wheelchair quantity=2 WC-002"],
+                [
+                  "Customer and multiple products",
+                  "/takeorder\ncustomer=Ma Hnin\nwo phone quantity=1\ntravel-mate-p214 quantity=2",
+                ],
                 ["Cancel a draft", "/cancelorder TG-20260927-0001"],
               ].map(([label, command]) => (
                 <div key={command}>

@@ -14,6 +14,7 @@ function paymentStatus(invoice: Invoice) {
   if (invoice.paymentStatus) return invoice.paymentStatus;
   if (invoice.status === "Paid") return "Paid";
   if (invoice.status === "Refunded") return "Refunded";
+  if (invoice.status === "Pending") return "Pending";
   return "Unpaid";
 }
 
@@ -254,11 +255,16 @@ function drawPosInvoice(painter: ReceiptPainter, invoice: Invoice, logo: HTMLIma
   drawHeader(painter, invoice, "Sales invoice", logo);
   painter.row("Invoice", invoice.number, { bold: true });
   painter.row("Date", formatShopDateTime(invoice.createdAt, invoice.shopTimezone));
-  painter.row("Customer", invoice.customer || "Walk-in customer", { bold: true });
+  painter.row(
+    "Customer",
+    invoice.customer || (invoice.channel === "TELEGRAM" ? "" : "Walk-in customer"),
+    { bold: true },
+  );
   if (invoice.customerPhone) painter.row("Customer phone", invoice.customerPhone);
   if (invoice.deliveryName) painter.row("Delivery", invoice.deliveryName, { bold: true });
   if (invoice.deliveryContact) painter.row("Delivery contact", invoice.deliveryContact);
   if (invoice.paymentType) painter.row("Payment", invoice.paymentType.replaceAll("_", " "));
+  if (invoice.channel === "TELEGRAM") painter.row("Payment status", paymentStatus(invoice));
   painter.rule();
   painter.heading("Items");
   for (const item of invoice.items) {
@@ -309,11 +315,7 @@ function formatWaitingTime(
     if (startDate) return formatDateOnly(startDate);
   }
   const count =
-    days !== undefined
-      ? days
-      : startDate && endDate
-        ? dateOnlyDaysBetween(startDate, endDate)
-        : 0;
+    days !== undefined ? days : startDate && endDate ? dateOnlyDaysBetween(startDate, endDate) : 0;
   return `${count} - days`;
 }
 
@@ -355,10 +357,7 @@ function drawRepairInvoice(
           }
           painter.row("Model", modelValue, { bold: true });
         } else {
-          const deviceHeading = [
-            ...(invoice.showDeviceType ? [item.device_type] : []),
-            modelValue,
-          ]
+          const deviceHeading = [...(invoice.showDeviceType ? [item.device_type] : []), modelValue]
             .filter(Boolean)
             .join(" · ");
           painter.text(`${index + 1}. ${deviceHeading || "Work item"}`, { bold: true, size: 13 });
@@ -459,11 +458,7 @@ function drawRepairInvoice(
     );
   }
   painter.rule();
-  if (
-    invoice.waitingStartDate ||
-    invoice.waitingEndDate ||
-    invoice.waitingDays !== undefined
-  ) {
+  if (invoice.waitingStartDate || invoice.waitingEndDate || invoice.waitingDays !== undefined) {
     painter.row(
       "Ticket waiting period",
       formatWaitingTime(

@@ -23,7 +23,7 @@ import (
 const (
 	pairingTTL     = 15 * time.Minute
 	draftTTL       = 30 * time.Minute
-	takeOrderUsage = "/takeorder [product name] quantity=<positive number> [SKU]. Product name or SKU (or both) is required. Put the name before quantity and the SKU after it. Example: /takeorder quantity=2 WC-002"
+	takeOrderUsage = "/takeorder [product name] quantity=<positive number> [SKU]. For multiple products, put each on its own line. Add an optional customer=<name> line before the products. Maximum 20 product lines. Example:\n/takeorder\ncustomer=Ma Hnin\nwo phone quantity=1\nquantity=2 WC-002"
 )
 
 type Service struct {
@@ -48,13 +48,7 @@ func (s *Service) RunOutbox(ctx context.Context) {
 				continue
 			}
 			for _, item := range items {
-				var deliveryErr error
-				if item.MessageID == 0 {
-					deliveryErr = errors.New("Telegram response message has not been recorded")
-				} else {
-					deliveryErr = s.provider.EditOrderMessage(ctx, item.ChatID, item.MessageID, fmt.Sprintf("Order %s\n\nOrder No: %s\nStatus: %s", strings.ToLower(item.Status), item.OrderNumber, item.Status))
-				}
-				_ = s.repo.FinishOutboxDelivery(ctx, item.EventID, deliveryErr)
+				_ = s.repo.FinishOutboxDelivery(ctx, item.EventID, s.deliverOrderNotification(ctx, item))
 			}
 		}
 	}
@@ -311,23 +305,32 @@ func (s *Service) takeOrder(ctx context.Context, updateID int64, m tdto.Message)
 		_, e := s.provider.SendReply(ctx, m.Chat.ID, m.MessageID, "Use "+takeOrderUsage, "", "")
 		return e
 	}
-	confirmRaw, _ := randomToken(18)
-	cancelRaw, _ := randomToken(18)
-	result, err := s.repo.CreateDraft(ctx, outbound.DraftInput{ConnectionID: connection.ID, ChatID: m.Chat.ID, MessageID: m.MessageID, UserID: m.From.ID, UpdateID: updateID, ProductName: domain.NormalizeName(parsed.ProductName), SKU: parsed.SKU, OriginalCommand: m.Text, Quantity: parsed.Quantity, ExpiresAt: time.Now().UTC().Add(draftTTL), ConfirmTokenHash: hash(confirmRaw), CancelTokenHash: hash(cancelRaw)})
+	confirmRaw, err := randomToken(18)
+	if err != nil {
+		return app.Internal(err)
+	}
+	cancelRaw, err := randomToken(18)
+	if err != nil {
+		return app.Internal(err)
+	}
+	result, err := s.repo.CreateDraft(ctx, outbound.DraftInput{ConnectionID: connection.ID, ChatID: m.Chat.ID, MessageID: m.MessageID, UserID: m.From.ID, UpdateID: updateID, CustomerName: parsed.CustomerName, Items: parsed.Items, OriginalCommand: m.Text, ExpiresAt: time.Now().UTC().Add(draftTTL), ConfirmTokenHash: hash(confirmRaw), CancelTokenHash: hash(cancelRaw)})
 	if err != nil {
 		message := "The order could not be created because of a server error. Please try again later."
 		var apiErr *app.Error
 		if errors.As(err, &apiErr) {
 			switch apiErr.Code {
 			case "PRODUCT_NOT_FOUND":
-				message = "The product was not found.\nPlease check the product name or SKU (both must match when supplied), send the order again, and remove the previous incorrect message."
+				message = apiErr.Message + "\nCheck its name or SKU, then send the complete order again. No order was created."
 			case "AMBIGUOUS_PRODUCT":
-				message = "Multiple products were found.\nPlease add the SKU to distinguish between them, send a new order, and remove the previous message."
+				message = apiErr.Message + "\nSend the complete order again. No order was created."
 			case "NO_STOCK":
-				message = "There is no more stock for this product."
-			case "INSUFFICIENT_STOCK", "NO_LOCATION":
+				message = apiErr.Message
+			case "INSUFFICIENT_STOCK", "NO_LOCATION", "CURRENCY_MISMATCH", "VALIDATION_ERROR", "PAYMENT_NOT_CAPTURED", "RESERVATION_INACTIVE":
 				message = apiErr.Message
 			}
+		}
+		if !strings.Contains(message, "No order was created.") {
+			message += "\nNo order was created."
 		}
 		_, sendErr := s.provider.SendReply(ctx, m.Chat.ID, m.MessageID, message, "", "")
 		if sendErr != nil {
@@ -335,7 +338,10 @@ func (s *Service) takeOrder(ctx context.Context, updateID int64, m tdto.Message)
 		}
 		return err
 	}
-	text := fmt.Sprintf("Order pending confirmation\n\nProduct: %s\nQuantity: %s\nPrice: %s %s\nOrder No: %s\nStatus: Draft", result.Order.Description, result.Order.Quantity, result.Order.UnitPrice, result.Order.CurrencyCode, result.Order.OrderNumber)
+	if result.Order.AutoConfirmed {
+		return nil
+	} // The durable outbox sends the confirmed receipt.
+	text := orderMessage(result.Order)
 	sent, err := s.provider.SendReply(ctx, m.Chat.ID, m.MessageID, text, "tg:"+confirmRaw, "tg:"+cancelRaw)
 	if err != nil {
 		return err
@@ -371,7 +377,7 @@ func (s *Service) cancelByCommand(ctx context.Context, m tdto.Message) error {
 	}
 	_, err = s.provider.SendReply(ctx, m.Chat.ID, m.MessageID, "Order "+order.OrderNumber+" cancelled.", "", "")
 	if order.BotResponseMessageID != 0 {
-		_ = s.provider.EditOrderMessage(ctx, order.TelegramChatID, order.BotResponseMessageID, fmt.Sprintf("Order cancelled\n\nOrder No: %s\nStatus: CANCELLED", order.OrderNumber))
+		_ = s.provider.EditOrderMessage(ctx, order.TelegramChatID, order.BotResponseMessageID, orderMessage(order))
 	}
 	return err
 }
@@ -397,7 +403,7 @@ func (s *Service) handleCallback(ctx context.Context, q tdto.CallbackQuery) erro
 		return err
 	}
 	_ = s.provider.AnswerCallback(ctx, q.ID, "Order "+strings.ToLower(order.Status)+".", false)
-	return s.provider.EditOrderMessage(ctx, r.ChatID, r.BotResponseMessageID, fmt.Sprintf("Order %s\n\nOrder No: %s\nStatus: %s", strings.ToLower(order.Status), order.OrderNumber, order.Status))
+	return s.provider.EditOrderMessage(ctx, r.ChatID, r.BotResponseMessageID, orderMessage(order))
 }
 
 func (s *Service) ConfirmTelegramOrder(ctx context.Context, c *authdto.Claims, id string, a bool) (tdto.Order, error) {
@@ -414,7 +420,7 @@ func (s *Service) transitionWebsite(ctx context.Context, c *authdto.Claims, id, 
 	// The canonical transition is committed first. Delivery is retried through
 	// the outbox when this best-effort immediate edit fails.
 	if o.BotResponseMessageID != 0 {
-		_ = s.provider.EditOrderMessage(ctx, o.TelegramChatID, o.BotResponseMessageID, fmt.Sprintf("Order %s\n\nOrder No: %s\nStatus: %s", strings.ToLower(o.Status), o.OrderNumber, o.Status))
+		_ = s.provider.EditOrderMessage(ctx, o.TelegramChatID, o.BotResponseMessageID, orderMessage(o))
 	}
 	return o, nil
 }
@@ -426,3 +432,21 @@ func (s *Service) RetrySynchronization(ctx context.Context, c *authdto.Claims, i
 }
 
 func ParseTelegramUserID(value string) (int64, error) { return strconv.ParseInt(value, 10, 64) }
+
+func (s *Service) SetAutoConfirm(ctx context.Context, c *authdto.Claims, id string, enabled, admin bool) (tdto.Group, error) {
+	return s.repo.SetAutoConfirm(ctx, c, id, enabled, admin)
+}
+
+func (s *Service) deliverOrderNotification(ctx context.Context, item outbound.OutboxDelivery) error {
+	if item.MessageID != 0 {
+		return s.provider.EditOrderMessage(ctx, item.ChatID, item.MessageID, orderMessage(item.Order))
+	}
+	if !item.Order.AutoConfirmed {
+		return errors.New("Telegram response message has not been recorded")
+	}
+	sent, err := s.provider.SendReply(ctx, item.ChatID, item.ReplyToMessageID, orderMessage(item.Order), "", "")
+	if err != nil {
+		return err
+	}
+	return s.repo.StoreBotResponse(ctx, item.Order.ID, sent.MessageID)
+}

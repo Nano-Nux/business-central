@@ -235,7 +235,6 @@ export type AIConversation = {
   updated_at: string;
 };
 
-
 export type AIMessage = {
   id: string;
   conversation_id: string;
@@ -617,6 +616,7 @@ export type RepairImage = {
 };
 
 export type Invoice = {
+  channel?: string;
   id: string;
   number: string;
   customer: string;

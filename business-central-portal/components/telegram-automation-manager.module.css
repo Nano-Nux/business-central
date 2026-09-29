@@ -110,7 +110,7 @@
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: var(--surface);
+  background: var(--canvas);
 }
 .shopSelect > span {
   color: var(--muted);
@@ -136,7 +136,7 @@
   padding: 21px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--surface);
+  background: var(--canvas);
 }
 .metricIcon {
   display: grid;
@@ -221,7 +221,7 @@
   padding: 24px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--surface);
+  background: var(--canvas);
   min-width: 0;
 }
 .sectionHead {
@@ -266,7 +266,7 @@
   text-align: left;
   gap: 4px;
   padding: 17px;
-  background: var(--surface);
+  background: var(--canvas);
   border: 1px solid var(--line);
   border-radius: 12px;
   min-width: 0;
@@ -278,7 +278,7 @@
 .groupCard.selectedGroup {
   border-color: var(--color-brand);
   box-shadow: inset 3px 0 var(--color-brand);
-  background: color-mix(in srgb, var(--color-brand-soft) 35%, var(--surface));
+  background: color-mix(in srgb, var(--color-brand-soft) 35%, var(--canvas));
 }
 .groupCard > strong {
   font-size: 13px;
@@ -531,7 +531,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 25px;
   align-items: center;
-  background: var(--surface);
+  background: var(--canvas);
   border: 1px solid var(--status-info-border);
   border-radius: 14px;
   padding: 22px;
@@ -588,7 +588,7 @@
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--canvas);
   font-size: 11px;
   color: var(--muted);
 }
@@ -642,6 +642,13 @@
 }
 .orderBody h3 {
   overflow-wrap: anywhere;
+}
+.orderItem {
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+.commandList code {
+  white-space: pre-wrap;
 }
 .orderTotal {
   text-align: right;
@@ -986,5 +993,74 @@
   }
   .commandList :global(.button) {
     justify-self: start;
+  }
+}
+
+.autoConfirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.autoConfirm > div {
+  min-width: 0;
+}
+.autoConfirm p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.autoConfirmSwitch {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.autoConfirmSwitch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.autoConfirmSwitch:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.switchTrack {
+  display: block;
+  width: 44px;
+  height: 24px;
+  padding: 3px;
+  background: var(--muted);
+  border-radius: 20px;
+}
+.switchTrack > span {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: var(--canvas);
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.autoConfirmSwitch[aria-checked="true"] .switchTrack {
+  background: var(--color-brand);
+}
+.autoConfirmSwitch[aria-checked="true"] .switchTrack > span {
+  transform: translateX(20px);
+}
+@media (max-width: 420px) {
+  .autoConfirm {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
   }
 }

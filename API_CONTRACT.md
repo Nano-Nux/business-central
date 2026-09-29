@@ -39,6 +39,60 @@ transaction even though each SQL statement executes separately.
 
 Examples: `/takeorder electric wheelchair quantity=2`, `/takeorder quantity=2 WC-002`, and `/takeorder electric wheelchair quantity=2 WC-002`. `/takeorder quantity=2` is rejected. `/connect`, `/help`, and `/cancelorder <order number>` are also supported. Website and Telegram actions invoke the same canonical draft transition use cases.
 
+Multiple products use one message with one product per line:
+
+```text
+/takeorder
+customer=Ma Hnin
+wo phone quantity=1
+travel-mate-p214 quantity=2
+```
+
+`customer=<name>` is optional, may follow `/takeorder` on the first line or appear
+on its own line, and must precede all product lines. It may appear once and
+contains 1–255 characters without control characters. Customer names are saved
+as `orders.billing_address.name` and linked to a new canonical `GUEST` customer
+via `orders.customer_id`. Each order creates a separate guest; names are never
+used to merge people. Customer metadata records `source: TELEGRAM` and
+`label: Online-Telegram-Customer`. An omitted name is null in the order snapshot
+and API; the existing NOT NULL customer display-name column stores an empty
+string. The source label is never substituted for a personal name.
+Each product line uses the existing name/quantity/SKU syntax. Quantities must
+fit the canonical numeric column: positive, below 100000000000000, and at most
+six decimal places. Blank lines are
+ignored; at most 20 product lines are accepted. Repeated matches for the same
+variant combine their quantities. All products must use the same currency.
+Any missing/ambiguous product, inadequate stock, or failed write rejects the
+entire draft. One confirm/cancel action applies to all lines; expiry releases all
+reservations and consumes callback tokens. Existing single-line commands remain
+valid. Migration `0050_telegram_customers_payments` backfills customer links and
+payments for existing Telegram orders without payments; it preserves existing
+payment ledgers. No SQLite schema change is required; Telegram is
+online-only and remains unavailable in FULLY_OFFLINE mode.
+
+Merchant/admin order-list and transition responses add nullable `customer_name`,
+`payment_status` (`Pending`, `Paid`, `Cancelled`, or `Refunded`), and `items[]`,
+ordered by `line_number`. Each item includes
+`line_number`, `variant_id`, `sku`, `description`, `quantity`, `unit_price`, and
+`line_total`; numeric quantities and money remain strings. `grand_total` is the
+whole-order total. Existing `description`, `quantity`, and `unit_price` retain
+the first item's values for older clients. Current portal/admin clients render
+the complete `items[]`; pending/final bot messages and outbox retries do too.
+
+Telegram drafts have a canonical `PENDING` payment for their full positive total,
+with method `Telegram` and an order-specific idempotency key. Merchant confirmation
+acknowledges full payment: the same transaction captures that payment, emits a
+`PAYMENT_CAPTURED` accounting event, confirms the order, and posts every stock sale.
+Failed/repeated transitions cannot duplicate payment or leave partial capture.
+Cancellation/expiry void the pending payment. Zero-total orders have no payment
+row, but confirmation settles their zero balance.
+
+`GET /api/v1/invoices` includes Telegram drafts as Pending invoices and confirmed
+orders as Paid invoices, using actual captured payments. Cancelled/expired Telegram
+orders are excluded. Invoice `channel` identifies TELEGRAM; nullable `customer`
+contains the recorded name or null. Print/PDF previews leave unnamed Telegram
+customer fields blank, while other channels retain their existing defaults.
+
 This document defines the contract between `business-central-backend` and the admin, portal, and mobile clients. The backend is the authority for business behavior, validation, permissions, merchant modules, and state transitions.
 
 ## Current status
@@ -404,3 +458,29 @@ The backend provides the conversational and business analysis intelligence engin
 ## API change process
 
 Update this document, backend tests, client integration code, and affected feature records together. Breaking changes require a new API version or an explicit migration plan.
+
+Telegram automatic confirmation is saved per group as
+`telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
+processes existing drafts. `telegram_order_sources.auto_confirmed` records how
+an order was confirmed, independent of later setting changes.
+
+When ON, new valid orders are created and confirmed in one database transaction,
+using the same payment capture, accounting, and stock-sale logic as manual
+confirmation. Successful orders are Confirmed/Paid; their receipts have no manual
+action buttons. Any creation/confirmation failure rolls back the entire new order
+and returns the error. Failed orders are never automatically retried; sellers
+must correct the issue and send a new command. The existing outbox retries only
+receipt delivery for successfully committed orders, never the commerce operation.
+Turning OFF restores manual confirmation for subsequent orders. Existing pending
+orders remain pending, and already confirmed orders remain confirmed.
+
+`PATCH /api/v1/telegram/groups/{id}/auto-confirm` requires `tenant.write` and
+merchant/shop scope. The platform-admin equivalent is
+`PATCH /api/v1/admin/telegram/groups/{id}/auto-confirm`. Body:
+`{"auto_confirm_orders": true}` (or false); omission, null, strings, and numbers
+are rejected with 400. The response is the updated group envelope including
+`auto_confirm_orders`. Every change records the actor, previous value, and new
+value in audit events. Group GET/list reads expose the saved flag. Order responses
+add boolean `auto_confirmed`; receipts and web order review identify automatic
+confirmation. No SQLite schema change: Telegram configuration remains online-only.

@@ -11,6 +11,12 @@ import (
 //go:embed 0049_telegram_automation.sql
 var telegramAutomation string
 
+//go:embed 0050_telegram_customers_payments.sql
+var telegramCustomersPayments string
+
+//go:embed 0051_telegram_auto_confirm.sql
+var telegramAutoConfirm string
+
 const userManagementPolicies = `
 CREATE OR REPLACE FUNCTION app_can_manage_memberships(p_merchant_id UUID) RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog AS $$
@@ -1507,6 +1513,8 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0047_ai_merchant_usage_limit", sql: aiMerchantUsageLimit},
 		{version: "0048_optional_service_catalog_code", sql: optionalServiceCatalogCode},
 		{version: "0049_telegram_automation", sql: telegramAutomation},
+		{version: "0050_telegram_customers_payments", sql: telegramCustomersPayments},
+		{version: "0051_telegram_auto_confirm", sql: telegramAutoConfirm},
 	}
 	for _, migration := range migrations {
 		var applied bool

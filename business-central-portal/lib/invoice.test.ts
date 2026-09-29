@@ -225,3 +225,34 @@ describe("invoiceCanvas repair layout", () => {
     }
   });
 });
+
+describe("Telegram sales invoices", () => {
+  for (const status of ["Pending", "Paid"] as const) {
+    it(`prints ${status} with a blank unnamed customer`, async () => {
+      const { renderedText, restore } = setupMockCanvas();
+      try {
+        await invoiceCanvas({
+          id: "telegram-order",
+          number: "TG-123",
+          channel: "TELEGRAM",
+          customer: "",
+          currencyCode: "USD",
+          createdAt: "2026-09-29T10:00:00Z",
+          status,
+          kind: "pos",
+          subtotal: 900,
+          discount: 0,
+          tax: 0,
+          total: 900,
+          items: [{ name: "wo phone", quantity: 1, price: 900 }],
+        });
+        expect(renderedText).toContain("Customer");
+        expect(renderedText).toContain(status);
+        expect(renderedText).not.toContain("Walk-in customer");
+        expect(renderedText).not.toContain("Online-Telegram-Customer");
+      } finally {
+        restore();
+      }
+    });
+  }
+});

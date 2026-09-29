@@ -122,6 +122,12 @@ paths:
         Quantity is required and must be positive and finite. At least a product name
         or SKU is required. Put the name before quantity= and the SKU after it.
         When both are supplied, both must match the same merchant-scoped variant.
+        A message may contain up to 20 product lines after /takeorder. An optional
+        customer=<name> line precedes the products and saves an order snapshot
+        and links a new guest in the shared customer table; omitted names stay null.
+        Source metadata is Online-Telegram-Customer, never a personal name.
+        Invoices are Pending until merchant confirmation captures payment, then Paid. Repeated variants combine quantities.
+        All lines form one atomic draft with one confirm/cancel action.
       operationId: telegramWebhook
       security: []
       parameters:
@@ -162,7 +168,18 @@ paths:
       summary: List merchant-scoped Telegram orders including drafts
       operationId: listTelegramOrders
       responses:
-        '200': { description: Telegram order projections }
+        '200':
+          description: Telegram orders with customer snapshot and all items
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  meta: { type: object }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/TelegramOrder' }
   /api/v1/telegram/orders/{orderId}/confirm:
     post:
       tags: [Telegram]
@@ -174,7 +191,11 @@ paths:
           required: true
           schema: { type: string, format: uuid }
       responses:
-        '200': { description: Confirmed canonical order }
+        '200':
+          description: Confirmed whole order with every item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TelegramOrderEnvelope' }
         '409': { description: Order already processed or reservation invalid }
   /api/v1/telegram/orders/{orderId}/cancel:
     post:
@@ -187,7 +208,11 @@ paths:
           required: true
           schema: { type: string, format: uuid }
       responses:
-        '200': { description: Cancelled canonical order }
+        '200':
+          description: Cancelled whole order with every item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TelegramOrderEnvelope' }
         '409': { description: Order already processed }
   /api/v1/admin/telegram/groups:
     get:
@@ -197,6 +222,52 @@ paths:
       responses:
         '200': { description: Global Telegram group connections }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/telegram/groups/{id}/auto-confirm:
+    patch:
+      tags: [Telegram]
+      summary: Set automatic confirmation for new Telegram orders
+      description: Requires tenant.write and the group merchant/shop scope. Defaults OFF. Existing drafts are unchanged. New valid orders are confirmed and recorded as Paid atomically. Failed orders return errors and are not automatically retried.
+      operationId: setTelegramAutoConfirm
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auto_confirm_orders]
+              properties:
+                auto_confirm_orders: { type: boolean, default: false }
+      responses:
+        '200': { description: Updated group envelope with auto_confirm_orders boolean }
+        '400': { description: Missing or invalid boolean }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Group not found in authorized merchant/shop scope }
+  /api/v1/admin/telegram/groups/{id}/auto-confirm:
+    patch:
+      tags: [Telegram]
+      summary: Set automatic confirmation for new Telegram orders
+      description: Requires platform administrator access. Defaults OFF. Existing drafts are unchanged. New valid orders are confirmed and recorded as Paid atomically. Failed orders return errors and are not automatically retried.
+      operationId: adminSetTelegramAutoConfirm
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auto_confirm_orders]
+              properties:
+                auto_confirm_orders: { type: boolean, default: false }
+      responses:
+        '200': { description: Updated group envelope with auto_confirm_orders boolean }
+        '400': { description: Missing or invalid boolean }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Group not found in authorized merchant/shop scope }
   /health:
     get:
       tags: [System]
@@ -1075,7 +1146,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
   /api/v1/invoices:
-    get: { tags: [Catalog], summary: List canonical sales and service invoices, operationId: listInvoices, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: "Invoices with printable line items, projection kind, repair ticket status/payment status, merchant, shop identity and optional shop logo/print preference, all service work items/devices, and printable ticket fields", content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
+    get: { tags: [Catalog], summary: List canonical sales and service invoices, operationId: listInvoices, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/Query' }, { $ref: '#/components/parameters/PageIndex' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: "Invoices include channel and nullable customer name. Telegram drafts are Pending; confirmation captures payment and makes them Paid. Cancelled/expired Telegram invoices are excluded. Invoices with printable line items, projection kind, repair ticket status/payment status, merchant, shop identity and optional shop logo/print preference, all service work items/devices, and printable ticket fields", content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
   /api/v1/inventory/locations:
     get: { tags: [Inventory], summary: List active tenant locations scoped to the staff shop, operationId: listInventoryLocations, security: [{ bearerAuth: [] }], responses: { '200': { description: Inventory locations, content: { application/json: { schema: { $ref: '#/components/schemas/CollectionEnvelope' } } } } } }
   /api/v1/inventory/receivable-lines:
@@ -2342,6 +2413,47 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    TelegramOrderItem:
+      type: object
+      required: [line_number, variant_id, sku, description, quantity, unit_price, line_total]
+      properties:
+        line_number: { type: integer, minimum: 1 }
+        variant_id: { type: string, format: uuid }
+        sku: { type: string }
+        description: { type: string }
+        quantity: { type: string, example: '2.000000' }
+        unit_price: { type: string, example: '800000.00' }
+        line_total: { type: string, example: '1600000.00' }
+    TelegramOrder:
+      type: object
+      required: [id, order_number, status, payment_status, auto_confirmed, currency_code, grand_total, customer_name, items]
+      properties:
+        id: { type: string, format: uuid }
+        merchant_id: { type: string, format: uuid }
+        shop_id: { type: string, format: uuid }
+        telegram_group_connection_id: { type: string, format: uuid }
+        group_title: { type: string }
+        order_number: { type: string }
+        status: { type: string, enum: [DRAFT, CONFIRMED, CANCELLED, EXPIRED] }
+        currency_code: { type: string }
+        grand_total: { type: string }
+        customer_name: { type: string, nullable: true, maxLength: 255, description: Order name snapshot; null when omitted }
+        payment_status: { type: string, enum: [Pending, Paid, Cancelled, Refunded] }
+        auto_confirmed: { type: boolean, default: false }
+        items: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/TelegramOrderItem' } }
+        description: { type: string, description: First-item compatibility field }
+        quantity: { type: string, description: First-item compatibility field }
+        unit_price: { type: string, description: First-item compatibility field }
+        telegram_user_id: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        last_error: { type: string }
+    TelegramOrderEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/TelegramOrder' }
+        meta: { type: object }
     TelegramWebhookEnvelope:
       type: object
       required: [data, meta]

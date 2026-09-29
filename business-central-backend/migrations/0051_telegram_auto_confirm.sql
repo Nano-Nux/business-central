@@ -1,0 +1,2 @@
+ALTER TABLE telegram_group_connections ADD COLUMN IF NOT EXISTS auto_confirm_orders BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE telegram_order_sources ADD COLUMN IF NOT EXISTS auto_confirmed BOOLEAN NOT NULL DEFAULT FALSE;

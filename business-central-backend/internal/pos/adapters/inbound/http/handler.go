@@ -200,7 +200,11 @@ func (h *Handler) listInvoices(c fiber.Ctx) error {
 		return databaseError(err)
 	}
 	return posListPage(c, items, listQuery(c), func(item posdto.Invoice, q app.ListQuery) bool {
-		return posMatches(q, map[string]string{"number": item.Number, "customer": item.Customer, "status": item.Status})
+		customer := ""
+		if item.Customer != nil {
+			customer = *item.Customer
+		}
+		return posMatches(q, map[string]string{"number": item.Number, "customer": customer, "status": item.Status})
 	})
 }
 

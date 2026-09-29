@@ -577,7 +577,7 @@ export const en = {
   telegram_setup: {
     seller_commands: "Seller commands",
     order_rules:
-      "Quantity is required. Use a product name, an SKU, or both. Put the name before quantity= and the SKU after it. If you supply both, they must match the same variant. Add an SKU if a name matches multiple variants. Prices come from Business Central.",
+      "Put each product on its own line, with its name before quantity= and optional SKU after it. Quantity is required on every line; name or SKU (or both) is required. Add an optional customer=<name> line before the products. Up to 20 product lines form one order with one total and one Confirm/Cancel action. Repeated products are combined. If any item fails, no order is created. Each order links a guest customer; omitted names stay blank. Its invoice is Pending until merchant confirmation records payment and changes it to Paid. Prices come from Business Central.",
     title: "Set up Telegram in 5 steps",
     intro: "Follow these steps to connect a Telegram group to a shop.",
     before_start_title: "Before you start",

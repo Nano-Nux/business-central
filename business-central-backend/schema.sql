@@ -6458,6 +6458,7 @@ INSERT INTO merchant_modules(merchant_id,module_code,status) SELECT id,'telegram
 INSERT INTO shop_modules(merchant_id,shop_id,module_code) SELECT merchant_id,id,'telegram_automation' FROM shops ON CONFLICT DO NOTHING;
 
 CREATE TABLE telegram_group_connections (
+ auto_confirm_orders BOOLEAN NOT NULL DEFAULT FALSE,
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
     shop_id UUID NOT NULL,
@@ -6529,6 +6530,7 @@ CREATE TABLE telegram_group_users (
 );
 
 CREATE TABLE telegram_order_sources (
+ auto_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
     shop_id UUID NOT NULL,
