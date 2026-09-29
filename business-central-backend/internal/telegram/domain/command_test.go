@@ -13,6 +13,17 @@ func TestParseTakeOrder(t *testing.T) {
 		wantErr bool
 	}{
 		{"normal", "/takeorder electric wheelchair quantity=2", TakeOrderItem{"electric wheelchair", 2, ""}, false},
+		{"short quantity", "/takeorder wo phone qty=2", TakeOrderItem{"wo phone", 2, ""}, false},
+		{"short quantity sku", "/takeorder@BusinessBot qty=1.5 WC-002", TakeOrderItem{"", 1.5, "WC-002"}, false},
+		{"short quantity case insensitive", "/takeorder chair QtY=1", TakeOrderItem{"chair", 1, ""}, false},
+		{"short quantity name and sku", "/takeorder chair qty=1 CHAIR", TakeOrderItem{"chair", 1, "CHAIR"}, false},
+		{"mixed duplicate quantities", "/takeorder chair qty=1 quantity=2", TakeOrderItem{}, true},
+		{"mixed duplicate quantities reversed", "/takeorder chair quantity=1 qty=2", TakeOrderItem{}, true},
+		{"short duplicate quantities", "/takeorder chair qty=1 qty=2", TakeOrderItem{}, true},
+		{"short quantity zero", "/takeorder chair qty=0", TakeOrderItem{}, true},
+		{"short quantity negative", "/takeorder chair qty=-1", TakeOrderItem{}, true},
+		{"short quantity invalid", "/takeorder chair qty=abc", TakeOrderItem{}, true},
+		{"short quantity too precise", "/takeorder chair qty=0.0000001", TakeOrderItem{}, true},
 		{"bot and sku", "/takeorder@BusinessBot Electric Wheelchair quantity=2 WC-002", TakeOrderItem{"Electric Wheelchair", 2, "WC-002"}, false},
 		{"sku only", "/takeorder quantity=2 WC-002", TakeOrderItem{"", 2, "WC-002"}, false},
 		{"sku only with bot and whitespace", "  /takeorder@BusinessBot  QuAnTiTy=1.5  wc-002  ", TakeOrderItem{"", 1.5, "wc-002"}, false},
@@ -63,5 +74,14 @@ func TestParseCustomerAndMultipleProducts(t *testing.T) {
 	}
 	if _, err := ParseTakeOrder("/takeorder\n" + strings.Repeat("phone quantity=1\n", 20)); err != nil {
 		t.Fatalf("20 lines rejected: %v", err)
+	}
+}
+
+func TestParseCustomerWithShortAndMixedQuantities(t *testing.T) {
+	for _, keyword := range []string{"qty", "quantity"} {
+		got, err := ParseTakeOrder("/takeorder\ncustomer=KyawKyaw\nwo phone qty=2\ntravel-mate-p214 " + keyword + "=1")
+		if err != nil || got.CustomerName != "KyawKyaw" || len(got.Items) != 2 || got.Items[0] != (TakeOrderItem{"wo phone", 2, ""}) || got.Items[1] != (TakeOrderItem{"travel-mate-p214", 1, ""}) {
+			t.Fatalf("incorrect %s multi-product order: %+v %v", keyword, got, err)
+		}
 	}
 }

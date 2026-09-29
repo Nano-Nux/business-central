@@ -484,9 +484,7 @@ test("Telegram supports dark themes, compact layout, and copying commands", asyn
   await page.setViewportSize({ width: 375, height: 812 });
   await page.getByRole("button", { name: "Setup guide", exact: true }).click();
   await page.getByRole("button", { name: "Copy by sku command" }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    "/takeorder quantity=2 WC-002",
-  );
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("/takeorder qty=2 WC-002");
   await expectNoOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("dark-guide.png"), fullPage: true });
 });

@@ -23,7 +23,7 @@ import (
 const (
 	pairingTTL     = 15 * time.Minute
 	draftTTL       = 30 * time.Minute
-	takeOrderUsage = "/takeorder [product name] quantity=<positive number> [SKU]. For multiple products, put each on its own line. Add an optional customer=<name> line before the products. Maximum 20 product lines. Example:\n/takeorder\ncustomer=Ma Hnin\nwo phone quantity=1\nquantity=2 WC-002"
+	takeOrderUsage = "/takeorder [product name] qty=<positive number> [SKU]. quantity= is also supported; use exactly one quantity token per product line. For multiple products, put each on its own line. Add an optional customer=<name> line before the products. Maximum 20 product lines. Example:\n/takeorder\ncustomer=Ma Hnin\nwo phone qty=1\nqty=2 WC-002"
 )
 
 type Service struct {

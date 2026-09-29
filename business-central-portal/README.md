@@ -20,6 +20,23 @@ Existing single-product commands still work. Each order links a guest customer a
 names stay blank/null. Invoices are Pending until merchant confirmation records
 full payment and makes them Paid. Telegram remains online-only.
 
+Use `qty=` for quantity; the existing `quantity=` spelling also works.
+Each product line requires exactly one quantity token, using either spelling.
+Send the command and all order lines together in one Telegram message:
+
+```text
+/takeorder
+customer=KyawKyaw
+wo phone qty=2
+travel-mate-p214 qty=1
+```
+
+The `customer=` prefix is required when supplying a customer name. A bare
+`KyawKyaw` line is treated as a product missing `qty=` and rejects the
+whole message before product lookup. Omit the entire customer line for an
+unnamed customer. The Telegram Setup guide includes this rule and a copyable
+multiline example.
+
 ## Run locally
 
 Create `.env` (or override it with `.env.local`) and point the portal at the canonical backend:

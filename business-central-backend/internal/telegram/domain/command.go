@@ -10,11 +10,11 @@ import (
 	"unicode/utf8"
 )
 
-var quantityToken = regexp.MustCompile(`(?i)^quantity=([^\s]+)$`)
+var quantityToken = regexp.MustCompile(`(?i)^(?:qty|quantity)=([^\s]+)$`)
 
 var (
 	ErrMissingProduct   = errors.New("product name or SKU is required")
-	ErrMissingQuantity  = errors.New("exactly one quantity=<positive number> token is required")
+	ErrMissingQuantity  = errors.New("exactly one qty=<positive number> or quantity=<positive number> token is required")
 	ErrInvalidQuantity  = errors.New("quantity must be positive, below 100000000000000, and use at most six decimal places")
 	ErrUnexpectedTokens = errors.New("only one optional SKU may follow quantity")
 )
