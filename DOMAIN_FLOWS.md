@@ -18,7 +18,13 @@ The backend remains authoritative; hiding a view in a client is not a security b
 
 Telegram sellers can create one order with an optional customer name and several
 products in a single message. Send `/takeorder`, an optional `customer=<name>`
-line, then one product per line using `[name] quantity=<positive number> [SKU]`.
+line, then one product per line using `[name] qty=<positive number> [SKU]`.
+`quantity=` is also accepted. Use exactly one `qty=` or `quantity=` token per
+product line; both spellings share the same quantity validation.
+The customer name requires the `customer=` prefix: use `customer=KyawKyaw`,
+not a bare `KyawKyaw` line. A bare name is parsed as a product missing its
+quantity and rejects the whole message before product lookup. If no customer
+name is needed, omit that line. Send all lines together in one Telegram message.
 Each order links a new guest in the shared customer table and preserves the
 optional name on the order. Missing names remain blank/null; the source label
 `Online-Telegram-Customer` is metadata, not a customer name. Duplicate names are

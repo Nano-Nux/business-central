@@ -944,14 +944,15 @@ function TelegramWorkspace({
               <Icon name="send" size={21} />
             </div>
             <p className={styles.note}>{t("telegram_setup.after_connect_body")}</p>
+            <p className={styles.note}>{t("telegram_setup.customer_name_rule")}</p>
             <div className={styles.commandList}>
               {[
-                ["By product name", "/takeorder electric wheelchair quantity=2"],
-                ["By SKU", "/takeorder quantity=2 WC-002"],
-                ["By name and SKU", "/takeorder electric wheelchair quantity=2 WC-002"],
+                ["By product name", "/takeorder electric wheelchair qty=2"],
+                ["By SKU", "/takeorder qty=2 WC-002"],
+                ["By name and SKU", "/takeorder electric wheelchair qty=2 WC-002"],
                 [
                   "Customer and multiple products",
-                  "/takeorder\ncustomer=Ma Hnin\nwo phone quantity=1\ntravel-mate-p214 quantity=2",
+                  "/takeorder\ncustomer=KyawKyaw\nwo phone qty=2\ntravel-mate-p214 qty=1",
                 ],
                 ["Cancel a draft", "/cancelorder TG-20260927-0001"],
               ].map(([label, command]) => (
@@ -962,7 +963,9 @@ function TelegramWorkspace({
                 </div>
               ))}
             </div>
-            <p className={styles.note}>{t("telegram_setup.order_rules")}</p>
+            <p className={styles.note}>
+              {t("telegram_setup.quantity_keyword_rule")} {t("telegram_setup.order_rules")}
+            </p>
           </aside>
         </div>
       )}

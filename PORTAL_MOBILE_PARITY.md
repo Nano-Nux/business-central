@@ -99,6 +99,12 @@ then Paid. Cancellation/expiry void pending payment. Migration 0050 preserves
 existing ledgers and backfills Telegram orders without payments. Native Telegram
 remains online-only and outside the native mobile increment.
 
+Telegram quantity syntax: `qty=` and `quantity=` are equivalent in the canonical
+backend parser, with exactly one quantity token per product line. The portal
+guide uses `qty=` and documents compatibility with `quantity=` in every language.
+Native Telegram remains outside this increment; a future ONLINE workflow must
+accept both keywords with the same validation.
+
 Telegram automatic confirmation: portal group switch defaults OFF and applies only
 to new valid orders, recording Paid invoices and stock sales atomically. Existing
 pending orders stay pending. The portal is the design reference; native Telegram
