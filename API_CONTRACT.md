@@ -26,7 +26,7 @@ connection and observed administrator, and records audit/outbox events in one
 transaction; any failed write rolls those changes back. Previously seen update
 IDs remain deduplicated, so retry pairing with a new command after a server fix.
 
-`/takeorder wo phone quantity=1` resolves the active product/variant by normalized
+`/takeorder wo phone qty=1` resolves the active product/variant by normalized
 name and its current default price. The bot reports `PRODUCT_NOT_FOUND` only for
 an actual lookup miss; database failures during draft creation receive a generic
 server-error reply and remain webhook errors. Draft creation commits the canonical
@@ -35,23 +35,32 @@ tokens, audit, and outbox records atomically. Confirmation/cancellation likewise
 keeps stock, order state, callback consumption, and audit/outbox writes in one
 transaction even though each SQL statement executes separately.
 
-`/takeorder[@BotUsername] [product name] quantity=<positive number> [SKU]` requires exactly one positive, finite quantity and at least one of product name or SKU. Put the name before `quantity=` and the SKU after it. Name-only commands use exact normalized product/variant matching; SKU-only commands use exact case-insensitive SKU matching. When both are supplied, both must match the same variant. Matching remains scoped to the group's merchant and shop inventory location. Add an SKU when a name is ambiguous.
+`/takeorder[@BotUsername] [product name] qty=<positive number> [SKU]` requires exactly one positive, finite quantity and at least one of product name or SKU. Put the name before `qty=` and the SKU after it. Name-only commands use exact normalized product/variant matching; SKU-only commands use exact case-insensitive SKU matching. When both are supplied, both must match the same variant. Matching remains scoped to the group's merchant and shop inventory location. Add an SKU when a name is ambiguous.
 
-Examples: `/takeorder electric wheelchair quantity=2`, `/takeorder quantity=2 WC-002`, and `/takeorder electric wheelchair quantity=2 WC-002`. `/takeorder quantity=2` is rejected. `/connect`, `/help`, and `/cancelorder <order number>` are also supported. Website and Telegram actions invoke the same canonical draft transition use cases.
+Examples: `/takeorder electric wheelchair qty=2`, `/takeorder qty=2 WC-002`, and `/takeorder electric wheelchair qty=2 WC-002`. `/takeorder qty=2` is rejected. `/connect`, `/help`, and `/cancelorder <order number>` are also supported. Website and Telegram actions invoke the same canonical draft transition use cases.
+
+`qty=` and `quantity=` are equivalent, case-insensitive keywords. Each product
+line must contain exactly one of them; supplying both on a line is rejected.
+Existing `quantity=` commands remain supported.
 
 Multiple products use one message with one product per line:
 
 ```text
 /takeorder
-customer=Ma Hnin
-wo phone quantity=1
-travel-mate-p214 quantity=2
+customer=KyawKyaw
+wo phone qty=2
+travel-mate-p214 qty=1
 ```
 
 `customer=<name>` is optional, may follow `/takeorder` on the first line or appear
 on its own line, and must precede all product lines. It may appear once and
-contains 1–255 characters without control characters. Customer names are saved
-as `orders.billing_address.name` and linked to a new canonical `GUEST` customer
+contains 1–255 characters without control characters. The `customer=` prefix is
+required when supplying a name. A bare name such as `KyawKyaw` is treated as a
+product line and rejected for missing `qty=` before product lookup. Omit
+the entire customer line when no name is needed. Send the command, customer,
+and product lines together in one Telegram message.
+Customer names are saved as `orders.billing_address.name` and linked to a new
+canonical `GUEST` customer
 via `orders.customer_id`. Each order creates a separate guest; names are never
 used to merge people. Customer metadata records `source: TELEGRAM` and
 `label: Online-Telegram-Customer`. An omitted name is null in the order snapshot

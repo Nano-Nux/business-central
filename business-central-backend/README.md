@@ -12,19 +12,27 @@ removed). Restart the backend after changing its environment. The authenticated
 `GET /api/v1/telegram/bot` endpoint exposes only this username to the portal,
 which uses it for setup instructions and complete, copyable pairing commands.
 
-Orders use `/takeorder [product name] quantity=<positive number> [SKU]`. Quantity is required, and at least a name or SKU must be supplied. For SKU-only orders, use `/takeorder quantity=2 WC-002`. When both a name and SKU are supplied, both must identify the same variant.
+Orders use `/takeorder [product name] qty=<positive number> [SKU]`. Quantity is required, and at least a name or SKU must be supplied. For SKU-only orders, use `/takeorder qty=2 WC-002`. When both a name and SKU are supplied, both must identify the same variant.
+
+The shorter `qty=` and existing `quantity=` spellings are both supported,
+case-insensitively. Use exactly one quantity token per product line; do not
+supply both spellings on the same line.
 
 For a customer and multiple products, send one message:
 
 ```text
 /takeorder
-customer=Ma Hnin
-wo phone quantity=1
-travel-mate-p214 quantity=2
+customer=KyawKyaw
+wo phone qty=2
+travel-mate-p214 qty=1
 ```
 
-The customer line is optional and appears before products. Its name is saved on
-the order and links a new guest in the shared customer table. Missing names stay
+The customer line is optional and appears before products. When included, it
+must start with `customer=`. A bare `KyawKyaw` line is treated as a product
+missing `qty=` and rejects the message before product lookup. Omit the
+entire customer line when no name is needed. Send all lines in one Telegram
+message. The customer name is saved on the order and links a new guest in the
+shared customer table. Missing names stay
 blank/null; customer metadata records `Online-Telegram-Customer` as the source
 label. Guest records are never merged by name. Up to 20 product lines become
 one draft, one total, and one Confirm/Cancel action. Each line requires quantity
@@ -38,7 +46,7 @@ invoices are Pending; merchant confirmation captures the full amount and makes
 them Paid. Cancellation/expiry void pending payment. No payment gateway is called;
 confirmation is the merchant acknowledgment of payment.
 
-For example, `/takeorder wo phone quantity=1` matches the active product named
+For example, `/takeorder wo phone qty=1` matches the active product named
 `wo phone` using its current default-list price. A server failure during order
 creation is reported as a server error, not as a missing product. A webhook log
 with `SQLSTATE 42601` and `cannot insert multiple commands into a prepared

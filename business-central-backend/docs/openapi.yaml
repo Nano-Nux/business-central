@@ -118,9 +118,11 @@ paths:
       tags: [Telegram]
       summary: Receive an authenticated Telegram Bot API update
       description: >-
-        Order messages use /takeorder [product name] quantity=<positive number> [SKU].
+        Order messages use /takeorder [product name] qty=<positive number> [SKU].
+        qty= and quantity= are equivalent, case-insensitive keywords; exactly one
+        quantity token is allowed per product line, including across both spellings.
         Quantity is required and must be positive and finite. At least a product name
-        or SKU is required. Put the name before quantity= and the SKU after it.
+        or SKU is required. Put the name before qty= (or quantity=) and the SKU after it.
         When both are supplied, both must match the same merchant-scoped variant.
         A message may contain up to 20 product lines after /takeorder. An optional
         customer=<name> line precedes the products and saves an order snapshot

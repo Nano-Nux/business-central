@@ -164,7 +164,7 @@ func TestMultiProductCustomerOrderReply(t *testing.T) {
 	repo := &updateRepository{draftResult: outbound.DraftResult{Order: order}}
 	provider := &updateProvider{}
 	service := NewService(repo, provider, "secret", "bot")
-	update := tdto.TelegramUpdate{UpdateID: 127, Message: &tdto.Message{From: &tdto.User{ID: 42}, Chat: tdto.Chat{ID: -100, Type: "supergroup"}, Text: "/takeorder\ncustomer=Ma Hnin\nwo phone quantity=1\ntravel-mate-p214 quantity=2"}}
+	update := tdto.TelegramUpdate{UpdateID: 127, Message: &tdto.Message{From: &tdto.User{ID: 42}, Chat: tdto.Chat{ID: -100, Type: "supergroup"}, Text: "/takeorder\ncustomer=Ma Hnin\nwo phone qty=1\ntravel-mate-p214 quantity=2"}}
 	if err := service.HandleUpdate(context.Background(), update); err != nil {
 		t.Fatal(err)
 	}
