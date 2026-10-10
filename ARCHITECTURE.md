@@ -24,13 +24,16 @@ This is a fresh-build commerce architecture. The project has no production data 
 | Stock location | `locations` | Warehouses, bins, shops, stock rooms, fulfillment centers, transit, and virtual locations |
 | Inventory | `inventory_movements` | Immutable movement ledger; `inventory_balances` is a derived/current balance |
 | Costing | `inventory_cost_layers`, `inventory_cost_allocations` | Receipt layers are consumed FIFO and are traceable to sale movements |
+| Pack conversion | `stock_conversion_rules`, `inventory_transformations`, `inventory_transformation_lines` | A same-product variant rule consumes source stock and creates destination stock while conserving FIFO value |
 | Purchasing | `purchase_orders` â†’ `goods_receipts` | Receipt lines are the only origin of normal inventory cost layers |
 | Order | `orders` | One order aggregate for POS, online, wholesale, phone, and marketplace channels |
 
 `merchants.pos_complexity_level` controls catalog workflow, not the canonical
-model. `COMPLEX` exposes normal multi-variant setup. `SIMPLE` presents products
-directly while the backend atomically creates and maintains one standard
-`product_variants` row for pricing, stock, orders, and reporting.
+model. `COMPLEX` exposes normal multi-variant setup. `NANO`, `MINI`, and `SIMPLE` create
+one managed standard variant with each new product and may retain or add more
+sellable variants for pack sizes. Mode changes preserve variant IDs, prices,
+balances, and conversion rules; simplified product edits rename only the
+managed standard variant.
 | Payment | `payment_type_categories`, `payment_types`, `payments`, `refunds` | Merchants configure payment types once per tenant; payments belong to orders and retain the selected type/name snapshot; refunds belong to payments and orders |
 | Accounting boundary | `accounting_events` | Every financial/valuation event is posted through an explicit event |
 
@@ -198,3 +201,27 @@ must correct the issue and send a new command. The existing outbox retries only
 receipt delivery for successfully committed orders, never the commerce operation.
 Turning OFF restores manual confirmation for subsequent orders. Existing pending
 orders remain pending, and already confirmed orders remain confirmed.
+
+POS Nano uses the same managed standard variant and direct price workflow as Mini. New merchant provisioning defaults to `NANO`; mode changes preserve existing products, variants, prices, and stock. Nano combines portal presentation without introducing new domain masters. Opening stock remains a separate canonical receipt after catalog creation.
+
+## Independent POS delivery payment
+
+See [delivery payment workflow, financial rules, migration and offline behavior](DELIVERY_PAYMENT.md).
+
+## Authorized transaction corrections
+
+Merchant-owner transaction Edit and permanent Delete are explicit exceptions to
+the append-only sale ledger (migration 0055). A guarded order-delete trigger
+restores stock and original FIFO capacity before removing dependent commercial,
+financial and sale-history records. Ledger guards otherwise remain enforced;
+triggers are never disabled. Edits reconstruct the same canonical order ID,
+number and dates inside the same transaction, with new line/payment/stock
+records. Customer edits use order billing snapshots without changing other
+orders' shared customer data. Only POS and confirmed Telegram sales support
+this flow. Cross-order return-cost dependencies reject the entire correction.
+Minimal hashed idempotency and sync tombstones survive permanent deletion.
+
+
+## AI read boundary
+
+The model proposes a domain `ReadQuery`; the PostgreSQL adapter compiles only approved datasets, projections, filters and aggregates with bound values and immutable tenant/shop constraints. No model-generated SQL is executed. The application owns permission checks and immutable shop conversation scope. Chat lifecycle persistence/quota reservation is distinct from the sole read-only business-data tool. See [AI security policy](AI_CHAT_SECURITY.md).

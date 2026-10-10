@@ -99,8 +99,8 @@ func TestConfiguredDatabaseTelegramCustomerPaymentMigration(t *testing.T) {
 				t.Fatalf("unnamed confirmed invoice wrong: %+v", invoice)
 			}
 		case posID:
-			if invoice.Customer == nil || *invoice.Customer != "Walk-in customer" || invoice.Status != "Pending" {
-				t.Fatalf("POS invoice changed: %+v", invoice)
+			if invoice.Customer != nil || invoice.Status != "Pending" {
+				t.Fatalf("unnamed POS invoice wrong: %+v", invoice)
 			}
 		case existingPaidID:
 			if invoice.Customer == nil || *invoice.Customer != "Existing customer" || invoice.Status != "Paid" {

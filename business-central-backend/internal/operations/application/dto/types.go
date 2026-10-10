@@ -114,6 +114,9 @@ type StockAsset struct {
 
 type StorageItem struct {
 	ID              string     `json:"id"`
+	BaseUnitID      *string    `json:"base_unit_id,omitempty"`
+	AllowsDecimal   bool       `json:"allows_decimal"`
+	IsStockTracked  bool       `json:"is_stock_tracked"`
 	Catalog         string     `json:"catalog"`
 	ProductName     string     `json:"product_name"`
 	VariantName     string     `json:"variant_name"`
@@ -198,50 +201,63 @@ type StockMovementDetail struct {
 // changes, while this read combines stock events with orders, refunds, and
 // repair checkout payments for one chronological workspace view.
 type TransactionHistoryEntry struct {
-	ID            string    `json:"id"`
-	EventType     string    `json:"event_type"`
-	Reference     string    `json:"reference"`
-	OccurredAt    time.Time `json:"occurred_at"`
-	Status        string    `json:"status"`
-	Channel       string    `json:"channel,omitempty"`
-	CustomerName  *string   `json:"customer_name,omitempty"`
-	CustomerPhone *string   `json:"customer_phone,omitempty"`
-	PaymentMethod string    `json:"payment_method,omitempty"`
-	Amount        string    `json:"amount,omitempty"`
-	CurrencyCode  string    `json:"currency_code,omitempty"`
-	ShopID        string    `json:"shop_id,omitempty"`
-	ShopName      string    `json:"shop_name,omitempty"`
-	Quantity      string    `json:"quantity,omitempty"`
-	ProductName   string    `json:"product_name,omitempty"`
-	VariantName   string    `json:"variant_name,omitempty"`
-	SKU           string    `json:"sku,omitempty"`
-	Details       string    `json:"details,omitempty"`
+	DeliveryPaymentStatus string    `json:"delivery_payment_status,omitempty"`
+	PaymentStatus         string    `json:"payment_status,omitempty"`
+	DeliveryFee           string    `json:"delivery_fee,omitempty"`
+	PaidTotal             string    `json:"paid_total,omitempty"`
+	OutstandingTotal      string    `json:"outstanding_total,omitempty"`
+	ID                    string    `json:"id"`
+	EventType             string    `json:"event_type"`
+	Reference             string    `json:"reference"`
+	OccurredAt            time.Time `json:"occurred_at"`
+	Status                string    `json:"status"`
+	Channel               string    `json:"channel,omitempty"`
+	CustomerName          *string   `json:"customer_name,omitempty"`
+	CustomerPhone         *string   `json:"customer_phone,omitempty"`
+	PaymentMethod         string    `json:"payment_method,omitempty"`
+	Amount                string    `json:"amount,omitempty"`
+	CurrencyCode          string    `json:"currency_code,omitempty"`
+	ShopID                string    `json:"shop_id,omitempty"`
+	ShopName              string    `json:"shop_name,omitempty"`
+	Quantity              string    `json:"quantity,omitempty"`
+	ProductName           string    `json:"product_name,omitempty"`
+	VariantName           string    `json:"variant_name,omitempty"`
+	SKU                   string    `json:"sku,omitempty"`
+	Details               string    `json:"details,omitempty"`
 }
 
 type TransactionOrderDetail struct {
-	ID              string     `json:"id"`
-	OrderNumber     string     `json:"order_number"`
-	Channel         string     `json:"channel"`
-	Status          string     `json:"status"`
-	CurrencyCode    string     `json:"currency_code"`
-	Subtotal        string     `json:"subtotal"`
-	DiscountTotal   string     `json:"discount_total"`
-	TaxTotal        string     `json:"tax_total"`
-	ShippingTotal   string     `json:"shipping_total"`
-	GrandTotal      string     `json:"grand_total"`
-	CustomerName    string     `json:"customer_name,omitempty"`
-	CustomerPhone   string     `json:"customer_phone,omitempty"`
-	ShopID          string     `json:"shop_id,omitempty"`
-	ShopName        string     `json:"shop_name,omitempty"`
-	DeliveryName    string     `json:"delivery_name,omitempty"`
-	DeliveryContact string     `json:"delivery_contact,omitempty"`
-	Note            string     `json:"note,omitempty"`
-	PaymentType     string     `json:"payment_type,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	PlacedAt        *time.Time `json:"placed_at,omitempty"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+	DeliveryPaymentStatus string     `json:"delivery_payment_status,omitempty"`
+	PaymentStatus         string     `json:"payment_status,omitempty"`
+	DeliveryFee           string     `json:"delivery_fee,omitempty"`
+	PaidTotal             string     `json:"paid_total,omitempty"`
+	OutstandingTotal      string     `json:"outstanding_total,omitempty"`
+	ID                    string     `json:"id"`
+	OrderNumber           string     `json:"order_number"`
+	Channel               string     `json:"channel"`
+	Status                string     `json:"status"`
+	CurrencyCode          string     `json:"currency_code"`
+	Subtotal              string     `json:"subtotal"`
+	DiscountTotal         string     `json:"discount_total"`
+	TaxTotal              string     `json:"tax_total"`
+	ShippingTotal         string     `json:"shipping_total"`
+	GrandTotal            string     `json:"grand_total"`
+	CustomerName          string     `json:"customer_name,omitempty"`
+	CustomerPhone         string     `json:"customer_phone,omitempty"`
+	ShopID                string     `json:"shop_id,omitempty"`
+	ShopName              string     `json:"shop_name,omitempty"`
+	DeliveryName          string     `json:"delivery_name,omitempty"`
+	DeliveryContact       string     `json:"delivery_contact,omitempty"`
+	Note                  string     `json:"note,omitempty"`
+	PaymentType           string     `json:"payment_type,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	PlacedAt              *time.Time `json:"placed_at,omitempty"`
 }
 
 type TransactionOrderLine struct {
+	VariantID        string `json:"variant_id"`
+	AssetID          string `json:"asset_id,omitempty"`
 	ID               string `json:"id"`
 	Description      string `json:"description"`
 	ProductName      string `json:"product_name,omitempty"`
@@ -260,6 +276,7 @@ type TransactionOrderLine struct {
 }
 
 type TransactionPayment struct {
+	Purpose    string     `json:"purpose"`
 	ID         string     `json:"id"`
 	Method     string     `json:"method"`
 	Status     string     `json:"status"`

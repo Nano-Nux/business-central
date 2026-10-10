@@ -24,6 +24,9 @@
   position: relative;
   margin-bottom: 19px;
 }
+.pos-catalog > .barcode-scanner {
+  margin-bottom: 16px;
+}
 .pos-search svg {
   position: absolute;
   left: 14px;

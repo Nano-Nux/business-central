@@ -3,10 +3,13 @@
 import { useMemo, useState } from "react";
 import { formatMoney, formatQuantity } from "@/lib/currency";
 import { useAuth } from "@/lib/auth";
+import { useOffline } from "@/lib/offline";
+import { projectStorageStock } from "@/lib/offline-stock";
 import { useResource } from "@/lib/use-resource";
 import type { StorageItem } from "@/lib/types";
 import { Icon } from "./icons";
-import { EmptyState, Loading, PageHeader, Pagination } from "./ui";
+import { Button, EmptyState, Loading, PageHeader, Pagination } from "./ui";
+import { StorageStockDialog } from "./storage-stock-dialog";
 
 type StorageColumn = {
   key: keyof StorageItem;
@@ -16,9 +19,9 @@ type StorageColumn = {
 };
 
 const columns: StorageColumn[] = [
-  { key: "catalog", label: "Catalog", filterPlaceholder: "Filter catalog" },
+  { key: "catalog", label: "Catalog", filterPlaceholder: "Filter catalog", merchantOnly: true },
   { key: "variant_name", label: "Product variant", filterPlaceholder: "Filter variant" },
-  { key: "brand", label: "Brand", filterPlaceholder: "Filter brand" },
+  { key: "brand", label: "Brand", filterPlaceholder: "Filter brand", merchantOnly: true },
   { key: "product_name", label: "Product item", filterPlaceholder: "Filter product" },
   { key: "unit", label: "Unit", filterPlaceholder: "Filter unit" },
   { key: "stock_count", label: "Stock count", filterPlaceholder: "Filter quantity" },
@@ -30,8 +33,18 @@ const columns: StorageColumn[] = [
     merchantOnly: true,
   },
   { key: "profit", label: "Profit", filterPlaceholder: "Filter profit", merchantOnly: true },
-  { key: "expired_date", label: "Expiration date", filterPlaceholder: "YYYY-MM-DD" },
-  { key: "manufacture_date", label: "Manufacture date", filterPlaceholder: "YYYY-MM-DD" },
+  {
+    key: "expired_date",
+    label: "Expiration date",
+    filterPlaceholder: "YYYY-MM-DD",
+    merchantOnly: true,
+  },
+  {
+    key: "manufacture_date",
+    label: "Manufacture date",
+    filterPlaceholder: "YYYY-MM-DD",
+    merchantOnly: true,
+  },
 ];
 
 function displayDate(value?: string) {
@@ -63,6 +76,12 @@ function CatalogPath({ value }: { value?: string }) {
 
 export function StoragePage() {
   const { isMerchant, merchant } = useAuth();
+  const offline = useOffline();
+  const [editing, setEditing] = useState<{
+    item: StorageItem;
+    action?: "increase" | "reduce";
+  } | null>(null);
+  const [notice, setNotice] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [query, setQuery] = useState("");
@@ -85,6 +104,7 @@ export function StoragePage() {
   if (query.trim()) params.set("query", query.trim());
   if (filterQuery) params.set("filter", filterQuery);
   const resource = useResource<StorageItem>(`/inventory/storage?${params.toString()}`);
+  const items = projectStorageStock(resource.data, offline.operations);
   const currency = merchant?.default_currency_code;
 
   function updateFilter(key: keyof StorageItem, value: string) {
@@ -114,8 +134,17 @@ export function StoragePage() {
       <PageHeader
         eyebrow="Operations · Inventory"
         title="Storage"
-        description="Check current stock, RETAIL pricing, catalog placement and product dates. This page is view-only."
+        description={
+          isMerchant
+            ? "Check stock and prices, receive inventory or record a stock reduction. Every change is recorded in stock history."
+            : "Check current stock and RETAIL sell prices."
+        }
       />
+      {notice && (
+        <p role="status" className="banner">
+          {notice}
+        </p>
+      )}
       <div className="toolbar storage-toolbar">
         <div className="search-box">
           <Icon name="search" size={17} />
@@ -138,7 +167,7 @@ export function StoragePage() {
               setPageSize(Number(event.target.value));
             }}
           >
-            {[10].map((size) => (
+            {[10, 25, 50, 100].map((size) => (
               <option key={size} value={size}>
                 {size}
               </option>
@@ -186,17 +215,53 @@ export function StoragePage() {
                     <span className="storage-column-label">{column.label}</span>
                   </th>
                 ))}
+                {isMerchant && <th>Stock actions</th>}
               </tr>
             </thead>
             <tbody>
-              {resource.data.map((item, index) => (
+              {items.map((item, index) => (
                 <tr key={item.id}>
                   <td className="storage-number-column">{pageIndex * pageSize + index + 1}</td>
                   {visibleColumns.map((column) => (
                     <td key={column.key} className={`storage-cell-${column.key}`}>
                       {renderValue(item, column.key)}
+                      {column.key === "stock_count" && item.stock_pending && (
+                        <small> (pending)</small>
+                      )}
                     </td>
                   ))}
+                  {isMerchant && (
+                    <td>
+                      <div className="table-actions">
+                        {merchant?.pos_complexity_level === "NANO" ? (
+                          <Button
+                            variant="secondary"
+                            disabled={item.is_stock_tracked === false}
+                            onClick={() => setEditing({ item })}
+                          >
+                            Adjust stock
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="secondary"
+                              disabled={item.is_stock_tracked === false}
+                              onClick={() => setEditing({ item, action: "increase" })}
+                            >
+                              Increase
+                            </Button>
+                            <Button
+                              variant="danger"
+                              disabled={item.is_stock_tracked === false}
+                              onClick={() => setEditing({ item, action: "reduce" })}
+                            >
+                              Reduce
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -211,6 +276,18 @@ export function StoragePage() {
         itemLabel="stock records"
         onPageChange={setPageIndex}
       />
+      {isMerchant && editing && (
+        <StorageStockDialog
+          item={editing.item}
+          action={editing.action}
+          onClose={() => setEditing(null)}
+          onSaved={async (message) => {
+            setNotice(message);
+            setEditing(null);
+            await resource.reload();
+          }}
+        />
+      )}
     </>
   );
 }

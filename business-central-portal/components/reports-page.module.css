@@ -1,0 +1,592 @@
+.reports :global(.pagination-controls),
+.reports :global(.pagination-pages) {
+  flex-wrap: wrap;
+}
+
+.reports :global(.pagination-pages) {
+  display: flex;
+}
+
+.reports :global(.list-pagination .pagination-pages .pagination-page-slot) {
+  display: inline-flex;
+}
+
+.reports {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  color: var(--text);
+}
+.reports :global(.page-header) {
+  margin: 0;
+  gap: 10px;
+}
+.reports :global(.page-header h1) {
+  font-size: clamp(22px, 2.5vw, 26px);
+  letter-spacing: -0.035em;
+}
+.toolbar {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  overflow: hidden;
+  min-width: 0;
+}
+.reports :global(.report-tabs) {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 5px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-muted);
+  overflow: visible;
+}
+.reports :global(.report-tabs button) {
+  justify-content: center;
+  min-width: 0;
+  padding: 8px 6px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.reports :global(.report-tabs button.active) {
+  background: var(--paper);
+  color: var(--text);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 6%);
+}
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--line);
+}
+.filterContext {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.filterContext > svg {
+  color: var(--muted);
+}
+.filterContext span {
+  display: grid;
+  gap: 3px;
+}
+.filterContext small {
+  font-weight: 400;
+  color: var(--muted);
+}
+.dateControls {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dateField {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.dateField input {
+  width: 170px;
+  min-height: 36px;
+  margin: 0;
+  color: var(--text);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  padding: 8px 10px;
+  color-scheme: light dark;
+}
+.periodIntro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.periodIntro h2 {
+  margin: 0 0 5px;
+  font-size: 18px;
+  letter-spacing: -0.025em;
+}
+.periodIntro p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.contextBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.periodMetrics,
+.overviewMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+.overviewMetrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.metric {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  min-width: 0;
+}
+.metricLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.metricLabel svg {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+.metric > strong {
+  font-size: clamp(19px, 2vw, 24px);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.metric small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.reports .periodPanel {
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: none;
+}
+.reports :global(.report-table) {
+  min-width: 600px;
+}
+.reports :global(.report-table th) {
+  background: var(--surface-muted);
+  padding: 9px 12px;
+  font-size: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+.reports :global(.report-table td) {
+  padding: 9px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.reports :global(.report-table th:first-child),
+.reports :global(.report-table td:first-child) {
+  background: transparent;
+  position: static;
+  box-shadow: none;
+}
+.reports :global(.report-table th:first-child) {
+  background: var(--surface-muted);
+}
+.reports :global(.report-table tbody tr:hover) {
+  background: var(--surface-muted);
+}
+.reports :global(.report-table tbody tr:last-child td) {
+  border-bottom: 0;
+}
+.transactionCount {
+  font-size: 12px;
+  color: var(--muted);
+}
+.mobileCountLabel {
+  display: none;
+}
+.reports :global(.list-pagination) {
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  gap: 8px;
+}
+.reports :global(.pagination-controls button) {
+  min-width: 34px;
+  min-height: 36px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.reports :global(.pagination-controls .pagination-step) {
+  padding-inline: 12px;
+}
+.overviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.reports .overviewPanel,
+.reports .breakdown {
+  padding: 0;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: none;
+  min-width: 0;
+  overflow: hidden;
+}
+.reports :global(.card-head) {
+  padding: 12px;
+  margin: 0;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.reports :global(.card-head h2) {
+  margin: 0 0 5px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.reports :global(.card-head p) {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+.reports :global(.breakdown-list) {
+  padding: 4px 12px;
+}
+.reports :global(.breakdown-list > div) {
+  gap: 10px;
+  padding: 9px 0;
+  font-size: 13px;
+}
+.reports :global(.breakdown-list strong) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.salesList {
+  padding: 2px 12px;
+}
+.salesRow {
+  display: grid;
+  grid-template-columns: 95px minmax(30px, 1fr) minmax(100px, auto);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.salesRow:last-child {
+  border-bottom: 0;
+}
+.salesDate {
+  font-size: 12px;
+  color: var(--muted);
+}
+.salesTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+.salesTrack span {
+  display: block;
+  height: 100%;
+  background: var(--color-brand);
+  border-radius: inherit;
+}
+.salesAmounts {
+  display: grid;
+  gap: 4px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.salesAmounts strong {
+  font-size: 12px;
+}
+.salesAmounts small {
+  font-size: 11px;
+}
+.reports :global(.rank-list) {
+  padding: 2px 12px;
+}
+.reports :global(.rank-item) {
+  padding: 9px 0;
+  gap: 8px;
+  min-width: 0;
+}
+.reports :global(.rank-item > div) {
+  min-width: 0;
+}
+.reports :global(.rank-item strong) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.reports :global(.rank-item b) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  text-align: right;
+}
+.reports :global(.report-profit-positive),
+.reports :global(.report-table th.report-profit-positive),
+.reports :global(.report-table td.report-profit-positive),
+.reports :global(.report-table.responsive-table-ready tbody td.report-profit-positive) {
+  color: var(--status-success);
+}
+.reports :global(.report-profit-negative),
+.reports :global(.report-table td.report-profit-negative),
+.reports :global(.report-table.responsive-table-ready tbody td.report-profit-negative) {
+  color: var(--status-danger);
+}
+.reports :global(.report-profit-zero),
+.reports :global(.report-table td.report-profit-zero),
+.reports :global(.report-table.responsive-table-ready tbody td.report-profit-zero) {
+  color: var(--text);
+}
+@media (max-width: 1000px) {
+  .overviewMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overviewGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .reports {
+    gap: 10px;
+  }
+  .reports :global(.page-header) {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .reports :global(.page-header h1) {
+    font-size: 22px;
+  }
+  .reports :global(.page-header .button) {
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+  .reports :global(.report-tabs) {
+    gap: 2px;
+    padding: 5px;
+  }
+  .reports :global(.report-tabs button) {
+    font-size: 11px;
+    padding: 8px 3px;
+    gap: 0;
+  }
+  .reports :global(.report-tabs button svg) {
+    display: none;
+  }
+  .filterBar {
+    padding: 10px;
+    gap: 8px;
+  }
+  .filterContext {
+    width: 100%;
+    font-size: 12px;
+  }
+  .filterContext span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dateControls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 10px;
+  }
+  .dateControls > button {
+    grid-column: 1 / -1;
+  }
+  .dateField input {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
+  .periodIntro h2 {
+    font-size: 18px;
+  }
+  .periodIntro .contextBadge {
+    display: none;
+  }
+  .periodMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .periodMetrics .metric:first-child {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 8px 10px;
+  }
+  .periodMetrics .metric:first-child strong {
+    font-size: 22px;
+  }
+  .periodMetrics .metric:first-child svg {
+    display: none;
+  }
+  .metric {
+    padding: 10px;
+    gap: 10px;
+    border-radius: 10px;
+  }
+  .metricLabel {
+    font-size: 11px;
+  }
+  .metricLabel svg {
+    width: 15px;
+  }
+  .metric > strong {
+    font-size: 19px;
+  }
+  .periodMetrics .metric > strong {
+    font-size: 18px;
+  }
+  .reports :global(.report-table-scroll) {
+    padding: 0;
+    overflow: visible;
+  }
+  .reports :global(.report-table.responsive-table-ready) {
+    min-width: 0;
+    width: 100%;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody) {
+    display: block;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody tr) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+    padding: 10px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    margin: 0;
+    background: var(--paper);
+    box-shadow: none;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody tr:last-child) {
+    border-bottom: 0;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody td) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    order: 0;
+    grid-column: auto;
+    font-size: 13px;
+    font-weight: 500;
+    gap: 4px;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody td:first-child) {
+    grid-column: 1;
+    font-size: 13px;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody td:nth-child(2)) {
+    grid-column: 2;
+    align-items: flex-end;
+    text-align: right;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody td:nth-child(-n + 2)::before) {
+    display: none;
+  }
+  .mobileCountLabel {
+    display: inline;
+  }
+  .transactionCount {
+    font-size: 11px;
+    font-weight: 400;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody td:last-child) {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 6px;
+    border-top: 1px dashed var(--line);
+    font-size: 14px;
+    font-weight: 650;
+  }
+  .reports :global(.report-table.responsive-table-ready tbody td:last-child::before) {
+    color: var(--status-success);
+    font-size: 10px;
+  }
+  .reports :global(.list-pagination) {
+    padding: 10px;
+  }
+  .reports :global(.pagination-controls) {
+    justify-content: center;
+  }
+  .reports :global(.pagination-controls .pagination-step) {
+    flex: 0 0 auto;
+    min-width: 54px;
+    font-size: 11px;
+    padding: 6px;
+  }
+  .reports :global(.pagination-controls button) {
+    min-width: 30px;
+  }
+  .reports :global(.pagination-pages) {
+    gap: 3px;
+  }
+  .salesRow {
+    grid-template-columns: 85px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .salesList {
+    padding-inline: 10px;
+  }
+  .salesDate,
+  .salesAmounts strong {
+    font-size: 11px;
+  }
+  .salesAmounts small {
+    font-size: 10px;
+  }
+  .reports :global(.card-head) {
+    padding: 10px;
+  }
+  .reports :global(.breakdown-list) {
+    padding-inline: 10px;
+  }
+  .reports :global(.breakdown-list > div) {
+    font-size: 12px;
+  }
+}
+
+.reports :global(.today-overview) {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.reports :global(.today-overview > .card-head) {
+  flex-wrap: wrap;
+  gap: 12px;
+}

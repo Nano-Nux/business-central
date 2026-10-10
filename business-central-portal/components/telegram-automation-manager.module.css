@@ -8,7 +8,7 @@
 
 .workspace {
   display: grid;
-  gap: 24px;
+  gap: var(--space-section);
   color: var(--ink);
   font-size: 13px;
   line-height: 1.5;
@@ -62,12 +62,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: var(--space-section);
 }
 .titleBlock {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-section);
   min-width: 0;
 }
 .titleBlock p {
@@ -128,12 +128,12 @@
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: var(--space-section);
 }
 .metrics article {
   display: flex;
   gap: 14px;
-  padding: 21px;
+  padding: var(--space-panel);
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--canvas);
@@ -172,7 +172,7 @@
 }
 .views {
   display: flex;
-  gap: 22px;
+  gap: var(--space-section);
 }
 .views button {
   display: flex;
@@ -218,7 +218,7 @@
   background: var(--status-success);
 }
 .panel {
-  padding: 24px;
+  padding: var(--space-panel);
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--canvas);
@@ -228,8 +228,8 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: var(--space-section);
+  margin-bottom: var(--space-section);
 }
 .sectionHead p {
   color: var(--muted);
@@ -243,7 +243,7 @@
 .groupLayout {
   display: grid;
   grid-template-columns: 270px minmax(0, 1fr);
-  gap: 20px;
+  gap: var(--space-section);
   align-items: start;
 }
 .groupRail {
@@ -347,7 +347,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 16px 0 22px;
+  padding: 16px 0 var(--space-panel);
 }
 .dangerLink,
 .textButton {
@@ -424,7 +424,7 @@
 }
 .connectionDetails {
   border-top: 1px solid var(--line);
-  margin-top: 22px;
+  margin-top: var(--space-section);
   padding-top: 17px;
 }
 .connectionDetails summary {
@@ -445,7 +445,7 @@
 .detailGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  gap: var(--space-section);
   margin: 20px 0 0;
 }
 .detailGrid dt {
@@ -478,13 +478,13 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 48px 24px;
+  padding: 24px var(--space-panel);
 }
 .emptyMark {
   width: 72px;
   height: 72px;
   border-radius: 22px;
-  margin-bottom: 22px;
+  margin-bottom: var(--space-section);
 }
 .onboarding h2 {
   font-size: 22px;
@@ -499,7 +499,7 @@
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-section);
   margin: 28px 0;
   color: var(--muted);
   font-size: 11px;
@@ -519,7 +519,7 @@
   display: flex;
   align-items: center;
   gap: 13px;
-  padding: 24px 0 8px;
+  padding: var(--space-panel) 0 8px;
   color: var(--muted);
   font-size: 12px;
 }
@@ -529,12 +529,12 @@
 .pairing {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 25px;
+  gap: var(--space-section);
   align-items: center;
   background: var(--canvas);
   border: 1px solid var(--status-info-border);
   border-radius: 14px;
-  padding: 22px;
+  padding: var(--space-panel);
 }
 .pairing h2 {
   margin-top: 10px;
@@ -608,7 +608,7 @@
 .orderCard {
   border: 1px solid var(--line);
   border-radius: 11px;
-  padding: 18px;
+  padding: var(--space-panel);
 }
 .orderHeading,
 .orderBody,
@@ -616,10 +616,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-section);
 }
 .orderHeading {
-  margin-bottom: 18px;
+  margin-bottom: var(--space-section);
 }
 .orderHeading strong {
   font-size: 12px;
@@ -662,7 +662,7 @@
 }
 .orderActions {
   border-top: 1px solid var(--line);
-  margin-top: 18px;
+  margin-top: var(--space-section);
   padding-top: 14px;
 }
 .orderActions > span {
@@ -680,7 +680,7 @@
 .guideLayout {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 20px;
+  gap: var(--space-section);
   align-items: start;
 }
 .prerequisite {
@@ -707,7 +707,7 @@
 }
 .steps {
   display: grid;
-  gap: 24px;
+  gap: var(--space-section);
   list-style: none;
   padding: 0;
   margin: 26px 0;
@@ -751,7 +751,7 @@
 .commandList {
   display: grid;
   gap: 12px;
-  margin-top: 20px;
+  margin-top: var(--space-section);
 }
 .commandList > div {
   display: grid;
@@ -783,7 +783,7 @@
   .header {
     align-items: flex-start;
     flex-direction: column;
-    gap: 18px;
+    gap: var(--space-section);
   }
   .headerActions {
     width: 100%;
@@ -799,7 +799,7 @@
 }
 @media (max-width: 760px) {
   .workspace {
-    gap: 20px;
+    gap: var(--space-section);
   }
   .groupLayout,
   .guideLayout,
@@ -827,10 +827,10 @@
     height: 32px;
   }
   .panel {
-    padding: 20px;
+    padding: var(--space-panel);
   }
   .pairing {
-    gap: 16px;
+    gap: var(--space-section);
   }
   .liveNote {
     display: none;
@@ -888,7 +888,7 @@
     width: 16px;
   }
   .views {
-    gap: 20px;
+    gap: var(--space-section);
   }
   .views button {
     font-size: 12px;
@@ -934,7 +934,7 @@
     gap: 15px;
   }
   .onboarding {
-    padding: 30px 17px;
+    padding: var(--space-panel) 17px;
   }
   .onboarding h2 {
     font-size: 19px;
@@ -1000,7 +1000,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-section);
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 12px;

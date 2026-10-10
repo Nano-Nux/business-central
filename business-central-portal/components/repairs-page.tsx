@@ -388,7 +388,17 @@ function TicketDetails({
   const usablePaymentTypes = useMemo(() => {
     const active = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
     if (active.length > 0) return active;
-    return [{ id: "cash", merchant_id: "", name: "Cash", category_code: "CASH" as const, is_active: true, created_at: "", updated_at: "" }];
+    return [
+      {
+        id: "cash",
+        merchant_id: "",
+        name: "Cash",
+        category_code: "CASH" as const,
+        is_active: true,
+        created_at: "",
+        updated_at: "",
+      },
+    ];
   }, [paymentTypes.data]);
   const images = useResource<RepairImage>(
     `/repairs/orders/${repair.id}/images?page_index=0&page_size=100`,
@@ -726,7 +736,7 @@ function TicketDetails({
           </span>
           <div>
             <small>Customer</small>
-            <strong>{repair.customer_name || "Customer not recorded"}</strong>
+            <strong>{repair.customer_name ?? ""}</strong>
             <span>{repair.customer_phone || "Phone number not recorded"}</span>
           </div>
         </div>
@@ -1434,7 +1444,17 @@ export function RepairsPage() {
   const usablePaymentTypes = useMemo(() => {
     const active = paymentTypes.data.filter((item) => item.category_code !== "DIGITAL");
     if (active.length > 0) return active;
-    return [{ id: "cash", merchant_id: "", name: "Cash", category_code: "CASH" as const, is_active: true, created_at: "", updated_at: "" }];
+    return [
+      {
+        id: "cash",
+        merchant_id: "",
+        name: "Cash",
+        category_code: "CASH" as const,
+        is_active: true,
+        created_at: "",
+        updated_at: "",
+      },
+    ];
   }, [paymentTypes.data]);
   const services = useResource<ServiceCatalog>(
     "/services/catalog?page_index=0&page_size=100&filter=is_active:true",
@@ -1464,7 +1484,7 @@ export function RepairsPage() {
     .sort((left, right) => left.display_order - right.display_order);
   const posMode = merchant?.pos_complexity_level || "SIMPLE";
   const isMini = posMode === "MINI";
-  const isSimple = posMode === "SIMPLE";
+  const isSimple = posMode === "SIMPLE" || posMode === "NANO";
   const isComplex = posMode === "COMPLEX";
 
   const [open, setOpen] = useState(false);
@@ -1970,7 +1990,7 @@ export function RepairsPage() {
   const repairInvoice: Invoice = {
     id: "repair-preview",
     number: "REPAIR-PREVIEW",
-    customer: customerName || "Repair customer preview",
+    customer: customerName.trim() || null,
     customerPhone,
     currencyCode: merchant?.default_currency_code ?? "USD",
     shopName: currentShop?.name,
@@ -2104,17 +2124,11 @@ export function RepairsPage() {
         eyebrow={t("repairs.eyebrow")}
         title={t("repairs.repair_desk_title")}
         description={
-          offline.status === "offline"
-            ? t("repairs.repair_desk_desc")
-            : t("repairs.description")
+          offline.status === "offline" ? t("repairs.repair_desk_desc") : t("repairs.description")
         }
         action={
           <div className="repair-desk-actions">
-            <Button
-              icon="repair"
-              onClick={() => setOpen(true)}
-              aria-label="Create repair ticket"
-            >
+            <Button icon="repair" onClick={() => setOpen(true)} aria-label="Create repair ticket">
               {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
             </Button>
             <Link className="button button-secondary" href="/repairs/catalog">
@@ -2195,11 +2209,7 @@ export function RepairsPage() {
             title={t("repairs.title")}
             message={t("repairs.description")}
             action={
-              <Button
-                icon="repair"
-                onClick={() => setOpen(true)}
-                aria-label="Create repair ticket"
-              >
+              <Button icon="repair" onClick={() => setOpen(true)} aria-label="Create repair ticket">
                 {offline.status === "offline" ? t("repairs.save_ticket") : t("repairs.new_ticket")}
               </Button>
             }
@@ -2316,10 +2326,20 @@ export function RepairsPage() {
           <div className={`repair-mode-banner banner-${posMode.toLowerCase()}`}>
             <div className={`repair-mode-badge ${posMode.toLowerCase()}`}>
               <span className="badge-dot" />
-              <strong>{isMini ? "POS-Mini" : isSimple ? "POS-Simple" : "POS-Complex"}</strong>
+              <strong>
+                {posMode === "NANO"
+                  ? "POS Nano"
+                  : isMini
+                    ? "POS-Mini"
+                    : isSimple
+                      ? "POS-Simple"
+                      : "POS-Complex"}
+              </strong>
               <span>
                 · {isMini ? "Fast Intake" : isSimple ? "Standard Intake" : "Enterprise Depot"}
-                {additionalWorkItems.length > 0 ? ` (${additionalWorkItems.length + 1} devices)` : ""}
+                {additionalWorkItems.length > 0
+                  ? ` (${additionalWorkItems.length + 1} devices)`
+                  : ""}
               </span>
             </div>
             <span className="repair-mode-hint">
@@ -2339,7 +2359,9 @@ export function RepairsPage() {
                 className={`repair-nav-tab ${activeSection === "customer-device" ? "active" : ""}`}
                 onClick={() => {
                   setActiveSection("customer-device");
-                  document.getElementById("ticket-section-customer")?.scrollIntoView({ behavior: "smooth" });
+                  document
+                    .getElementById("ticket-section-customer")
+                    ?.scrollIntoView({ behavior: "smooth" });
                 }}
               >
                 <span className="step-num">1</span>
@@ -2353,7 +2375,9 @@ export function RepairsPage() {
                 className={`repair-nav-tab ${activeSection === "services-parts" ? "active" : ""}`}
                 onClick={() => {
                   setActiveSection("services-parts");
-                  document.getElementById("ticket-section-services")?.scrollIntoView({ behavior: "smooth" });
+                  document
+                    .getElementById("ticket-section-services")
+                    ?.scrollIntoView({ behavior: "smooth" });
                 }}
               >
                 <span className="step-num">2</span>
@@ -2369,7 +2393,9 @@ export function RepairsPage() {
                 className={`repair-nav-tab ${activeSection === "payment-total" ? "active" : ""}`}
                 onClick={() => {
                   setActiveSection("payment-total");
-                  document.getElementById("ticket-section-payment")?.scrollIntoView({ behavior: "smooth" });
+                  document
+                    .getElementById("ticket-section-payment")
+                    ?.scrollIntoView({ behavior: "smooth" });
                 }}
               >
                 <span className="step-num">3</span>
@@ -2563,7 +2589,9 @@ export function RepairsPage() {
                               onChange={(event) =>
                                 setAdditionalWorkItems((current) =>
                                   current.map((value, itemIndex) =>
-                                    itemIndex === index ? { ...value, model: event.target.value } : value,
+                                    itemIndex === index
+                                      ? { ...value, model: event.target.value }
+                                      : value,
                                   ),
                                 )
                               }
@@ -2716,11 +2744,15 @@ export function RepairsPage() {
                         ? ` (${additionalWorkItems.length + 1} devices)`
                         : ""}
                     </span>
-                    <strong>{formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}</strong>
+                    <strong>
+                      {formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}
+                    </strong>
                   </div>
                   <div className="repair-summary-turnaround">
                     <span>Projected Turnaround</span>
-                    <strong>{formatDateOnly(ticketWaitingEndDate)} ({ticketWaitingDays} days)</strong>
+                    <strong>
+                      {formatDateOnly(ticketWaitingEndDate)} ({ticketWaitingDays} days)
+                    </strong>
                   </div>
                 </div>
               </section>
@@ -2824,7 +2856,10 @@ export function RepairsPage() {
                     </div>
                     <div className="stack gap-3">
                       {serviceLines.map((line, index) => (
-                        <div className="form-grid repair-service-line" key={`service-line-${index}`}>
+                        <div
+                          className="form-grid repair-service-line"
+                          key={`service-line-${index}`}
+                        >
                           <Field label={`Service ${index + 1} (optional)`}>
                             <select
                               name={index === 0 ? "service_id" : `service_id_${index}`}
@@ -2832,7 +2867,9 @@ export function RepairsPage() {
                               onChange={(event) =>
                                 setServiceLines((current) =>
                                   current.map((entry, lineIndex) =>
-                                    lineIndex === index ? { ...entry, serviceId: event.target.value } : entry,
+                                    lineIndex === index
+                                      ? { ...entry, serviceId: event.target.value }
+                                      : entry,
                                   ),
                                 )
                               }
@@ -2842,7 +2879,9 @@ export function RepairsPage() {
                                 .filter((item) => item.is_active)
                                 .map((item) => (
                                   <option key={item.id} value={item.id}>
-                                    {item.code ? `${item.code} · ` : ""}{item.name} · {formatMoney(item.labor_fee, merchant?.default_currency_code)}
+                                    {item.code ? `${item.code} · ` : ""}
+                                    {item.name} ·{" "}
+                                    {formatMoney(item.labor_fee, merchant?.default_currency_code)}
                                   </option>
                                 ))}
                             </select>
@@ -2857,7 +2896,9 @@ export function RepairsPage() {
                                 onChange={(event) =>
                                   setServiceLines((current) =>
                                     current.map((entry, lineIndex) =>
-                                      lineIndex === index ? { ...entry, quantity: event.target.value } : entry,
+                                      lineIndex === index
+                                        ? { ...entry, quantity: event.target.value }
+                                        : entry,
                                     ),
                                   )
                                 }
@@ -2918,7 +2959,9 @@ export function RepairsPage() {
                     <Icon name="repair" />
                     <div>
                       <h3>1. Customer & Device Intake</h3>
-                      <p className="repair-form-card-subtitle">Customer identity and device diagnostics</p>
+                      <p className="repair-form-card-subtitle">
+                        Customer identity and device diagnostics
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -3128,7 +3171,9 @@ export function RepairsPage() {
                               onChange={(event) =>
                                 setAdditionalWorkItems((current) =>
                                   current.map((value, itemIndex) =>
-                                    itemIndex === index ? { ...value, model: event.target.value } : value,
+                                    itemIndex === index
+                                      ? { ...value, model: event.target.value }
+                                      : value,
                                   ),
                                 )
                               }
@@ -3226,7 +3271,9 @@ export function RepairsPage() {
                     <Icon name="box" />
                     <div>
                       <h3>2. Services & Replacement Parts</h3>
-                      <p className="repair-form-card-subtitle">Add catalog repair services or inventory items (optional)</p>
+                      <p className="repair-form-card-subtitle">
+                        Add catalog repair services or inventory items (optional)
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -3248,13 +3295,18 @@ export function RepairsPage() {
                         .filter((item) => item.is_active)
                         .map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.code ? `${item.code} · ` : ""}{item.name} · {formatMoney(item.labor_fee, merchant?.default_currency_code)}
+                            {item.code ? `${item.code} · ` : ""}
+                            {item.name} ·{" "}
+                            {formatMoney(item.labor_fee, merchant?.default_currency_code)}
                           </option>
                         ))}
                     </select>
                   </Field>
                   {serviceLines.slice(1).map((line, index) => (
-                    <div className="form-grid repair-service-line" key={`service-line-${index + 1}`}>
+                    <div
+                      className="form-grid repair-service-line"
+                      key={`service-line-${index + 1}`}
+                    >
                       <Field label={`Service ${index + 2}`}>
                         <select
                           name={`service_id_${index + 1}`}
@@ -3262,7 +3314,9 @@ export function RepairsPage() {
                           onChange={(event) =>
                             setServiceLines((current) =>
                               current.map((entry, lineIndex) =>
-                                lineIndex === index + 1 ? { ...entry, serviceId: event.target.value } : entry,
+                                lineIndex === index + 1
+                                  ? { ...entry, serviceId: event.target.value }
+                                  : entry,
                               ),
                             )
                           }
@@ -3272,7 +3326,9 @@ export function RepairsPage() {
                             .filter((item) => item.is_active)
                             .map((item) => (
                               <option key={item.id} value={item.id}>
-                                {item.code ? `${item.code} · ` : ""}{item.name} · {formatMoney(item.labor_fee, merchant?.default_currency_code)}
+                                {item.code ? `${item.code} · ` : ""}
+                                {item.name} ·{" "}
+                                {formatMoney(item.labor_fee, merchant?.default_currency_code)}
                               </option>
                             ))}
                         </select>
@@ -3304,7 +3360,13 @@ export function RepairsPage() {
                   </button>
                 </div>
 
-                <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--line)" }}>
+                <div
+                  style={{
+                    marginTop: "16px",
+                    paddingTop: "14px",
+                    borderTop: "1px solid var(--line)",
+                  }}
+                >
                   <Field label="Replacement part source">
                     <select
                       name="part_source"
@@ -3340,11 +3402,10 @@ export function RepairsPage() {
                         </div>
                         <div className="repair-parts-meta">
                           <span>
-                            {filteredVariants.length} product{filteredVariants.length === 1 ? "" : "s"} found
+                            {filteredVariants.length} product
+                            {filteredVariants.length === 1 ? "" : "s"} found
                           </span>
-                          <span>
-                            {partIds.length} selected
-                          </span>
+                          <span>{partIds.length} selected</span>
                         </div>
                         <div className="repair-product-picker">
                           {filteredVariants.map((item) => {
@@ -3356,7 +3417,9 @@ export function RepairsPage() {
                                 className={`repair-product-option${isSelected ? " selected" : ""}`}
                                 onClick={() => {
                                   setPartIds((current) =>
-                                    isSelected ? current.filter((id) => id !== item.id) : [...current, item.id],
+                                    isSelected
+                                      ? current.filter((id) => id !== item.id)
+                                      : [...current, item.id],
                                   );
                                   setPartWorkItemIndexes((current) => {
                                     const next = { ...current };
@@ -3374,13 +3437,16 @@ export function RepairsPage() {
                                 }}
                                 aria-pressed={isSelected}
                               >
-                                <span className="repair-product-check">{isSelected ? "✓" : ""}</span>
+                                <span className="repair-product-check">
+                                  {isSelected ? "✓" : ""}
+                                </span>
                                 <span className="repair-product-copy">
                                   <strong>
                                     {[item.product_name, item.name].filter(Boolean).join(" · ")}
                                   </strong>
                                   <small>
-                                    SKU {item.sku} · {formatQuantity(item.quantity_on_hand)} in stock ·{" "}
+                                    SKU {item.sku} · {formatQuantity(item.quantity_on_hand)} in
+                                    stock ·{" "}
                                     {formatMoney(item.price, merchant?.default_currency_code)}
                                   </small>
                                 </span>
@@ -3459,7 +3525,9 @@ export function RepairsPage() {
                     <Icon name="tag" />
                     <div>
                       <h3>3. Payment & Total</h3>
-                      <p className="repair-form-card-subtitle">Payment status, customer note, and total cost breakdown</p>
+                      <p className="repair-form-card-subtitle">
+                        Payment status, customer note, and total cost breakdown
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -3520,25 +3588,33 @@ export function RepairsPage() {
                 <div className="repair-summary-card">
                   <div className="repair-summary-header">
                     <span>Estimated Total Cost</span>
-                    <strong>{formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}</strong>
+                    <strong>
+                      {formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}
+                    </strong>
                   </div>
                   <div className="repair-price-breakdown">
                     {catalogLaborFee > 0 && (
                       <div>
                         <span>{selectedService?.name || "Service catalog"}</span>
-                        <strong>{formatMoney(catalogLaborFee, merchant?.default_currency_code)}</strong>
+                        <strong>
+                          {formatMoney(catalogLaborFee, merchant?.default_currency_code)}
+                        </strong>
                       </div>
                     )}
                     {allAdditionalFees > 0 && (
                       <div>
                         <span>Device price{additionalWorkItems.length > 0 ? "s" : ""}</span>
-                        <strong>{formatMoney(allAdditionalFees, merchant?.default_currency_code)}</strong>
+                        <strong>
+                          {formatMoney(allAdditionalFees, merchant?.default_currency_code)}
+                        </strong>
                       </div>
                     )}
                     {estimatedDiscount > 0 && (
                       <div className="discount">
                         <span>Promotion discount</span>
-                        <strong>−{formatMoney(estimatedDiscount, merchant?.default_currency_code)}</strong>
+                        <strong>
+                          −{formatMoney(estimatedDiscount, merchant?.default_currency_code)}
+                        </strong>
                       </div>
                     )}
                     {partIds.map((id) => {
@@ -3548,7 +3624,8 @@ export function RepairsPage() {
                       return (
                         <div key={id}>
                           <span>
-                            {[item?.product_name, item?.name].filter(Boolean).join(" · ") || "Replacement part"}{" "}
+                            {[item?.product_name, item?.name].filter(Boolean).join(" · ") ||
+                              "Replacement part"}{" "}
                             × {formatQuantity(quantity)}
                           </span>
                           <strong>{formatMoney(amount, merchant?.default_currency_code)}</strong>
@@ -3558,14 +3635,17 @@ export function RepairsPage() {
                     {estimatedTax > 0 && (
                       <div>
                         <span>{currentShop?.tax_label || "Tax"}</span>
-                        <strong>{formatMoney(estimatedTax, merchant?.default_currency_code)}</strong>
+                        <strong>
+                          {formatMoney(estimatedTax, merchant?.default_currency_code)}
+                        </strong>
                       </div>
                     )}
                   </div>
                   <div className="repair-summary-turnaround">
                     <span>Ticket waiting period</span>
                     <strong>
-                      {formatDateOnly(waitingStartDate)} – {formatDateOnly(ticketWaitingEndDate)} ({ticketWaitingDays} days)
+                      {formatDateOnly(waitingStartDate)} – {formatDateOnly(ticketWaitingEndDate)} (
+                      {ticketWaitingDays} days)
                     </strong>
                   </div>
                 </div>
@@ -3590,13 +3670,18 @@ export function RepairsPage() {
           {isComplex && (
             <>
               {/* 1. Customer & Ticket Details */}
-              <section className="configuration-section repair-form-card" id="ticket-section-customer">
+              <section
+                className="configuration-section repair-form-card"
+                id="ticket-section-customer"
+              >
                 <div className="repair-form-card-header">
                   <div className="repair-form-card-title">
                     <Icon name="user" />
                     <div>
                       <h3>1. Customer & Ticket Details</h3>
-                      <p className="repair-form-card-subtitle">Information shared across all devices on this ticket</p>
+                      <p className="repair-form-card-subtitle">
+                        Information shared across all devices on this ticket
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -3666,7 +3751,10 @@ export function RepairsPage() {
               </section>
 
               {/* 2. Devices Stack */}
-              <section className="configuration-section repair-form-card" id="ticket-section-devices">
+              <section
+                className="configuration-section repair-form-card"
+                id="ticket-section-devices"
+              >
                 <div className="repair-form-card-header">
                   <div className="repair-form-card-title">
                     <Icon name="repair" />
@@ -3677,7 +3765,10 @@ export function RepairsPage() {
                       </p>
                     </div>
                   </div>
-                  <span className="step-count">{additionalWorkItems.length + 1} device{additionalWorkItems.length === 0 ? "" : "s"}</span>
+                  <span className="step-count">
+                    {additionalWorkItems.length + 1} device
+                    {additionalWorkItems.length === 0 ? "" : "s"}
+                  </span>
                 </div>
 
                 <div className="repair-device-stack">
@@ -3873,7 +3964,9 @@ export function RepairsPage() {
                             onChange={(event) =>
                               setAdditionalWorkItems((current) =>
                                 current.map((value, itemIndex) =>
-                                  itemIndex === index ? { ...value, model: event.target.value } : value,
+                                  itemIndex === index
+                                    ? { ...value, model: event.target.value }
+                                    : value,
                                 ),
                               )
                             }
@@ -4031,7 +4124,10 @@ export function RepairsPage() {
               </section>
 
               {/* 3. Services */}
-              <section className="configuration-section repair-form-card" id="ticket-section-services">
+              <section
+                className="configuration-section repair-form-card"
+                id="ticket-section-services"
+              >
                 <div className="repair-form-card-header">
                   <div className="repair-form-card-title">
                     <Icon name="box" />
@@ -4065,7 +4161,9 @@ export function RepairsPage() {
                             .filter((item) => item.is_active)
                             .map((item) => (
                               <option key={item.id} value={item.id}>
-                                {item.code ? `${item.code} · ` : ""}{item.name} · {formatMoney(item.labor_fee, merchant?.default_currency_code)}
+                                {item.code ? `${item.code} · ` : ""}
+                                {item.name} ·{" "}
+                                {formatMoney(item.labor_fee, merchant?.default_currency_code)}
                               </option>
                             ))}
                         </select>
@@ -4151,7 +4249,8 @@ export function RepairsPage() {
                     <div>
                       <h3>4. Replacement parts charged to the customer</h3>
                       <p className="repair-form-card-subtitle">
-                        Select parts consumed during repair; price adds to total and quantity is deducted from inventory
+                        Select parts consumed during repair; price adds to total and quantity is
+                        deducted from inventory
                       </p>
                     </div>
                   </div>
@@ -4193,11 +4292,10 @@ export function RepairsPage() {
                       </div>
                       <div className="repair-parts-meta">
                         <span>
-                          {filteredVariants.length} product{filteredVariants.length === 1 ? "" : "s"} found
+                          {filteredVariants.length} product
+                          {filteredVariants.length === 1 ? "" : "s"} found
                         </span>
-                        <span>
-                          {partIds.length} selected
-                        </span>
+                        <span>{partIds.length} selected</span>
                       </div>
                       <div className="repair-product-picker">
                         {filteredVariants.map((item) => {
@@ -4235,8 +4333,8 @@ export function RepairsPage() {
                                   {[item.product_name, item.name].filter(Boolean).join(" · ")}
                                 </strong>
                                 <small>
-                                  SKU {item.sku} · {formatQuantity(item.quantity_on_hand)} in stock ·{" "}
-                                  {formatMoney(item.price, merchant?.default_currency_code)}
+                                  SKU {item.sku} · {formatQuantity(item.quantity_on_hand)} in stock
+                                  · {formatMoney(item.price, merchant?.default_currency_code)}
                                 </small>
                               </span>
                             </button>
@@ -4331,7 +4429,10 @@ export function RepairsPage() {
               </section>
 
               {/* 5. Payment, Notes & Total */}
-              <section className="configuration-section repair-form-card" id="ticket-section-payment">
+              <section
+                className="configuration-section repair-form-card"
+                id="ticket-section-payment"
+              >
                 <div className="repair-form-card-header">
                   <div className="repair-form-card-title">
                     <Icon name="tag" />
@@ -4400,12 +4501,16 @@ export function RepairsPage() {
                 <div className="repair-summary-card">
                   <div className="repair-summary-header">
                     <span>Estimated Total Cost</span>
-                    <strong>{formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}</strong>
+                    <strong>
+                      {formatMoney(estimatedFinalTotal, merchant?.default_currency_code)}
+                    </strong>
                   </div>
                   <div className="repair-price-breakdown">
                     <div>
                       <span>{selectedService?.name || "Service catalog"}</span>
-                      <strong>{formatMoney(catalogLaborFee, merchant?.default_currency_code)}</strong>
+                      <strong>
+                        {formatMoney(catalogLaborFee, merchant?.default_currency_code)}
+                      </strong>
                     </div>
                     {allAdditionalFees > 0 && (
                       <div>
@@ -4441,7 +4546,9 @@ export function RepairsPage() {
                     {estimatedTax > 0 && (
                       <div>
                         <span>{currentShop?.tax_label || "Tax"}</span>
-                        <strong>{formatMoney(estimatedTax, merchant?.default_currency_code)}</strong>
+                        <strong>
+                          {formatMoney(estimatedTax, merchant?.default_currency_code)}
+                        </strong>
                       </div>
                     )}
                   </div>
@@ -4452,8 +4559,16 @@ export function RepairsPage() {
                       {ticketWaitingDays} days)
                     </strong>
                   </div>
-                  <small style={{ display: "block", marginTop: "8px", color: "var(--muted)", fontSize: "10px" }}>
-                    Final tax, promotions, and stock pricing are confirmed by the backend when the ticket is saved.
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: "8px",
+                      color: "var(--muted)",
+                      fontSize: "10px",
+                    }}
+                  >
+                    Final tax, promotions, and stock pricing are confirmed by the backend when the
+                    ticket is saved.
                   </small>
                 </div>
 
@@ -4548,7 +4663,10 @@ export function RepairsPage() {
                 .map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.name} · {item.sku} ·{" "}
-                    {(item as Variant & { quantity_on_hand?: string }).quantity_on_hand} available
+                    {formatQuantity(
+                      (item as Variant & { quantity_on_hand?: string }).quantity_on_hand,
+                    )}{" "}
+                    available
                   </option>
                 ))}
             </select>

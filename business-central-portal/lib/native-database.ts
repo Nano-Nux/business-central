@@ -25,6 +25,7 @@ type PendingCallback = {
 
 declare global {
   interface Window {
+    BusinessCentralRuntimeMode?: "ONLINE" | "FULLY_OFFLINE";
     BusinessCentralDatabaseChannel?: {
       postMessage: (message: string) => void;
     };
@@ -67,6 +68,26 @@ initNativeDatabaseGlobal();
 export function usingNativeDatabaseBridge(): boolean {
   if (typeof window === "undefined") return false;
   return Boolean(window.BusinessCentralNativeDatabase || window.BusinessCentralDatabaseChannel);
+}
+
+export function usingFullyOfflineNativeDatabase(): boolean {
+  if (typeof window === "undefined") return false;
+  // Read the launch mode before the asynchronous native bridge attaches. Keep
+  // it across full navigations so initial hydration cannot contact the backend.
+  const launchMode = window.location?.search
+    ? new URLSearchParams(window.location.search).get("bc_runtime_mode")
+    : null;
+  let mode = window.BusinessCentralRuntimeMode ?? launchMode;
+  try {
+    if (mode === "ONLINE" || mode === "FULLY_OFFLINE") {
+      sessionStorage.setItem("bc.native-runtime-mode", mode);
+    } else {
+      mode = sessionStorage.getItem("bc.native-runtime-mode");
+    }
+  } catch {
+    // The injected mode and launch parameter still work without web storage.
+  }
+  return mode === "FULLY_OFFLINE";
 }
 
 export function callNativeDatabase<T = unknown>(

@@ -880,7 +880,7 @@
   background: linear-gradient(135deg, #059669 0%, #0d9488 50%, #047857 100%);
   border: 1px solid #059669;
   border-radius: 14px;
-  padding: 18px 24px;
+  padding: var(--space-panel);
   min-height: 84px;
   gap: 18px;
   color: #ffffff;
@@ -977,7 +977,7 @@
   background: rgba(255, 255, 255, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.32);
   color: #ffffff;
-  padding: 2.5px 8px;
+  padding: var(--space-panel);
   border-radius: 9999px;
   white-space: nowrap;
 }
@@ -999,7 +999,7 @@
   color: #ffffff;
   font-size: 13px;
   font-weight: 700;
-  padding: 8px 16px;
+  padding: var(--space-panel);
   border-radius: 9999px;
   white-space: nowrap;
   flex: 0 0 auto;
@@ -1029,7 +1029,7 @@
 @media (max-width: 640px) {
   .settings-card.repair-desk-hero-card,
   [data-theme] .settings-card.repair-desk-hero-card {
-    padding: 14px 16px;
+    padding: var(--space-panel);
     gap: 12px;
   }
 
@@ -1063,7 +1063,7 @@
     width: 36px;
     height: 36px;
     min-width: 36px;
-    padding: 0;
+    padding: var(--space-panel);
     justify-content: center;
     border-radius: 50%;
   }

@@ -16,3 +16,5 @@ selected; existing merchants are also loaded as tenant selectors for users,
 roles, and shops. The admin application does not own business rules or
 persistence; it uses APIs from `business-central-backend`. Read the
 repository-level `BUSINESS_CONTEXT.md` and `SYSTEM_MAP.md` before development.
+
+New Merchant users default to POS Nano. The POS complexity selector also retains Mini, Simple and Complex; editing an existing merchant preserves its stored selection.

@@ -15,20 +15,25 @@ import { resolveMediaURL } from "@/lib/media-url";
 
 import {
   getFilteredNavigationGroups,
+  isAiWorkspacePath,
   getLocalizedNavLabel,
   getLocalizedGroupLabel,
 } from "@/lib/navigation";
+import { getCanonicalWorkspaceHref, getWorkspaceSourcePath } from "@/lib/workspace-routes";
 import { useTranslation } from "@/lib/i18n";
 import { QuickGuideModal } from "./quick-guide-modal";
 import { useResponsiveTables } from "./responsive-tables";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const contentRef = useRef<HTMLElement>(null);
-  const pathname = usePathname();
+  const browserPathname = usePathname();
   const router = useRouter();
-  const isPos = pathname === "/pos" || pathname.startsWith("/pos/");
-  const isAi = pathname === "/ai-assistant" || pathname.startsWith("/ai-assistant/");
+  const isPos = browserPathname === "/pos" || browserPathname.startsWith("/pos/");
+  const isAi = browserPathname === "/ai-assistant" || browserPathname.startsWith("/ai-assistant/");
   const { user, merchant, merchantReady, ready, isMerchant, can, logout } = useAuth();
+  const nano = merchant?.pos_complexity_level === "NANO";
+  const pathname = getWorkspaceSourcePath(browserPathname, merchant?.pos_complexity_level);
+  const aiPageDisabled = isAiWorkspacePath(pathname) && merchant?.ai_assistant_enabled !== true;
   useResponsiveTables(contentRef, Boolean(ready && user && merchantReady && merchant));
   const { t, language } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -50,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const merchantOnly = [
       "/accounts",
-      "/catalog",
+      ...(nano ? ["/products"] : ["/catalog"]),
       "/reports",
       "/promotions",
       "/settings/payment-types",
@@ -62,6 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ];
     if (
       ready &&
+      merchantReady &&
       user &&
       !isMerchant &&
       merchantOnly.some((path) => pathname === path || pathname.startsWith(`${path}/`))
@@ -69,10 +75,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (pathname.startsWith("/settings")) {
         router.replace("/settings");
       } else {
-        router.replace("/staff/dashboard");
+        router.replace(
+          can("tenant.write") ? "/pos" : can("tenant.read") ? "/transaction-history" : "/settings",
+        );
       }
     }
-  }, [ready, user, isMerchant, pathname, router]);
+  }, [ready, merchantReady, user, isMerchant, pathname, router, nano, can]);
+
+  useEffect(() => {
+    if (!ready || !user || !merchantReady || !merchant || !aiPageDisabled) return;
+    router.replace(
+      can("tenant.write") ? "/pos" : can("tenant.read") ? "/transaction-history" : "/settings",
+    );
+  }, [ready, user, merchantReady, merchant, aiPageDisabled, router, can]);
+
+  useEffect(() => {
+    if (!ready || !user || !nano) return;
+    if (["/guide"].some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+      router.replace(can("tenant.write") ? "/pos" : "/products-and-storage");
+    } else if (["/products", "/storage", "/stock-in"].includes(pathname)) {
+      router.replace("/products-and-storage");
+    }
+  }, [ready, user, nano, pathname, router, can]);
 
   useEffect(() => {
     if (
@@ -82,9 +106,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       !currentShop.module_codes?.includes("repair") &&
       (pathname === "/repairs" || pathname.startsWith("/repairs/"))
     ) {
-      router.replace(isMerchant ? "/merchant/dashboard" : "/staff/dashboard");
+      router.replace(
+        isMerchant && can("tenant.read")
+          ? "/reports"
+          : can("tenant.write")
+            ? "/pos"
+            : can("tenant.read")
+              ? "/transaction-history"
+              : "/settings",
+      );
     }
-  }, [ready, user, currentShop, pathname, router, isMerchant]);
+  }, [ready, user, currentShop, pathname, router, isMerchant, can]);
 
   useEffect(() => {
     if (
@@ -98,6 +130,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [currentShop, pathname, ready, router, shops.length, shopsError, shopsLoading, user]);
 
+  useEffect(() => {
+    if (!ready || !user || !merchantReady || !merchant || shopsLoading || !currentShop) return;
+    const canonical = getCanonicalWorkspaceHref(browserPathname, merchant.pos_complexity_level);
+    if (canonical !== browserPathname) {
+      router.replace(canonical + window.location.search + window.location.hash);
+    }
+  }, [ready, user, merchantReady, merchant, shopsLoading, currentShop, browserPathname, router]);
+
   const groups = useMemo(
     () =>
       getFilteredNavigationGroups({
@@ -105,12 +145,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         isMerchant,
         can,
         moduleCodes: currentShop?.module_codes,
-        mapDashboardForRole: true,
         aiAssistantEnabled: merchant?.ai_assistant_enabled,
       }),
-    [can, isMerchant, currentShop?.module_codes, merchant?.pos_complexity_level, merchant?.ai_assistant_enabled],
+    [
+      can,
+      isMerchant,
+      currentShop?.module_codes,
+      merchant?.pos_complexity_level,
+      merchant?.ai_assistant_enabled,
+    ],
   );
-  if (!ready || !user || !merchantReady)
+  if (
+    !ready ||
+    !user ||
+    !merchantReady ||
+    (merchant && aiPageDisabled) ||
+    (merchant &&
+      currentShop &&
+      getCanonicalWorkspaceHref(browserPathname, merchant.pos_complexity_level) !== browserPathname)
+  )
     return (
       <main className="screen-center">
         <Loading />
@@ -174,7 +227,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <Icon name="close" />
         </button>
-        <Link href={isMerchant ? "/merchant/dashboard" : "/staff/dashboard"} className="brand">
+        <Link
+          href={
+            nano
+              ? "/pos"
+              : isMerchant && can("tenant.read")
+                ? "/reports"
+                : can("tenant.write")
+                  ? "/pos"
+                  : can("tenant.read")
+                    ? "/transaction-history"
+                    : "/settings"
+          }
+          className="brand"
+        >
           <span className="brand-mark">
             <BrandIcon />
           </span>
@@ -221,17 +287,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="nav-group" key={group.label}>
               <p>{getLocalizedGroupLabel(group.label, t)}</p>
               {group.items.map((item) => {
+                const itemPath = getWorkspaceSourcePath(item.href, merchant?.pos_complexity_level);
                 const matches =
-                  pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+                  (itemPath === "/customers" && pathname === "/deliveries") ||
+                  (itemPath === "/history" &&
+                    (pathname.startsWith("/stock-movements") ||
+                      pathname.startsWith("/transaction-history"))) ||
+                  (merchant?.pos_complexity_level === "MINI" &&
+                    itemPath === "/catalog" &&
+                    ["/categories", "/brands", "/stock-conversions", "/stock-assets"].includes(
+                      pathname,
+                    )) ||
+                  pathname === itemPath ||
+                  (itemPath !== "/dashboard" && pathname.startsWith(`${itemPath}/`));
                 const moreSpecificMatch = groups
                   .flatMap((candidateGroup) => candidateGroup.items)
-                  .some(
-                    (candidate) =>
-                      candidate.href !== item.href &&
-                      candidate.href.startsWith(`${item.href}/`) &&
-                      (pathname === candidate.href || pathname.startsWith(`${candidate.href}/`)),
-                  );
+                  .some((candidate) => {
+                    const candidatePath = getWorkspaceSourcePath(
+                      candidate.href,
+                      merchant?.pos_complexity_level,
+                    );
+                    return (
+                      candidatePath !== itemPath &&
+                      candidatePath.startsWith(`${itemPath}/`) &&
+                      (pathname === candidatePath || pathname.startsWith(`${candidatePath}/`))
+                    );
+                  });
                 const active = matches && !moreSpecificMatch;
                 const localizedLabel = getLocalizedNavLabel(item.href, item.label, t);
                 return (
@@ -250,17 +331,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <Link href="/guide" className="sidebar-help" onClick={() => setMobileOpen(false)}>
-          <span>?</span>
-          <div>
-            <strong>{t("nav.need_help", "Need a hand?")}</strong>
-            <small>{t("nav.view_quick_guide", "View the quick guide")}</small>
-          </div>
-          <Icon name="arrow" size={16} />
-        </Link>
+        {!nano && (
+          <Link href="/guide" className="sidebar-help" onClick={() => setMobileOpen(false)}>
+            <span>?</span>
+            <div>
+              <strong>{t("nav.need_help", "Need a hand?")}</strong>
+              <small>{t("nav.view_quick_guide", "View the quick guide")}</small>
+            </div>
+            <Icon name="arrow" size={16} />
+          </Link>
+        )}
       </aside>
       <QuickGuideModal isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
-      <section className={`main-area ${isPos ? "main-area-pos" : ""} ${isAi ? "main-area-ai" : ""}`}>
+      <section
+        className={`main-area ${isPos ? "main-area-pos" : ""} ${isAi ? "main-area-ai" : ""}`}
+      >
         <header className="topbar">
           <button
             className="icon-button menu-button"

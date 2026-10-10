@@ -49,7 +49,6 @@ const workspaceRoutes = [
   "/repairs/issue-presets",
   "/repairs/condition-presets",
   "/repairs/sync-review/operation-id",
-  "/invoices",
   "/reports",
   "/promotions",
   "/accounts",
@@ -179,6 +178,26 @@ async function mockWorkspace(
       });
       return;
     }
+    if (path === "/transaction-history") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: invoices.map((item) => ({
+            id: item.id,
+            reference: item.number,
+            customer_name: item.customer,
+            amount: item.grand_total,
+            currency_code: item.currency_code,
+            occurred_at: item.created_at,
+            event_type: "TRANSACTION",
+            status: "FULFILLED",
+            product_name: "Blue phone case",
+            payment_status: "COMPLETE",
+          })),
+        }),
+      });
+      return;
+    }
     if (path === "/invoices") {
       await route.fulfill({
         contentType: "application/json",
@@ -301,7 +320,7 @@ test.describe("phone interactions", () => {
     const sidebar = page.locator(".sidebar");
     await expect(sidebar).toHaveClass(/open/);
     await expect(sidebar).toBeInViewport();
-    await page.getByRole("button", { name: "Close menu" }).click();
+    await page.getByRole("complementary").getByRole("button", { name: "Close menu" }).click();
     await expect(sidebar).not.toHaveClass(/open/);
   });
 
@@ -334,7 +353,7 @@ test.describe("phone interactions", () => {
     const toggle = page.locator(".mobile-cart-toggle");
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("heading", { name: "Current order" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Cart", exact: true })).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
@@ -369,7 +388,7 @@ test.describe("phone interactions", () => {
     await expect(quantity).toHaveText("2");
   });
 
-  test("invoice preview opens from the full row", async ({ page }) => {
+  test("invoice preview opens from the transaction actions menu", async ({ page }) => {
     await mockWorkspace(
       page,
       [],
@@ -393,17 +412,19 @@ test.describe("phone interactions", () => {
         },
       ],
     );
-    await page.goto("/invoices");
+    await page.goto("/transaction-history");
 
-    const row = page.locator(".invoice-row");
-    await row.getByText("Walk-in customer").click();
+    const row = page.locator(".history-table tbody tr");
+    await row.getByRole("button", { name: "Actions for INV-ROW-001" }).click();
+    await page.getByRole("menuitem", { name: "View invoice", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Invoice details" });
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("INV-ROW-001");
     await dialog.getByRole("button", { name: "Close" }).click();
 
-    await row.focus();
-    await row.press("Enter");
+    await row.getByRole("button", { name: "Actions for INV-ROW-001" }).focus();
+    await row.getByRole("button", { name: "Actions for INV-ROW-001" }).press("ArrowDown");
+    await page.getByRole("menuitem", { name: "View invoice", exact: true }).press("Enter");
     await expect(dialog).toBeVisible();
   });
 
@@ -431,13 +452,13 @@ test.describe("phone interactions", () => {
         },
       ],
     );
-    await page.goto("/invoices");
+    await page.goto("/transaction-history");
 
     const table = page.locator(".data-table");
     const row = table.locator("tbody tr");
     await expect(table).toHaveClass(/responsive-table-ready/);
-    await expect(row.locator("td").nth(1)).toHaveAttribute("data-mobile-label", "Customer");
-    await expect(row.locator("td").nth(5)).toHaveAttribute("data-mobile-label", "Actions");
+    await expect(row.locator("td").nth(2)).toHaveAttribute("data-mobile-label", "Customer");
+    await expect(row.locator("td").nth(9)).toHaveAttribute("data-mobile-label", "Actions");
 
     const mobileLayout = await row.evaluate((element) => {
       const tableRow = element as HTMLTableRowElement;
@@ -449,19 +470,19 @@ test.describe("phone interactions", () => {
           tableRow.closest("table")!.scrollWidth - tableRow.closest("table")!.clientWidth,
         rowRight: tableRow.getBoundingClientRect().right,
         viewportWidth: document.documentElement.clientWidth,
-        primaryKind: tableRow.cells[0].dataset.mobileKind,
-        customerCaption: getComputedStyle(tableRow.cells[1], "::before").content,
+        primaryKind: tableRow.cells[2].dataset.mobileKind,
+        customerCaption: getComputedStyle(tableRow.cells[2], "::before").content,
         totalCaption: getComputedStyle(tableRow.cells[4], "::before").content,
       };
     });
     expect(mobileLayout.display).toBe("grid");
-    expect(mobileLayout.height).toBeLessThan(150);
+    expect(mobileLayout.height).toBeLessThan(260);
     expect(mobileLayout.tableWidth).toBeLessThanOrEqual(mobileLayout.viewportWidth);
     expect(mobileLayout.rowRight).toBeLessThanOrEqual(mobileLayout.viewportWidth);
     expect(mobileLayout.tableOverflow).toBe(0);
     expect(mobileLayout.primaryKind).toBe("primary");
     expect(mobileLayout.customerCaption).toBe("none");
-    expect(mobileLayout.totalCaption).toContain("Total");
+    expect(mobileLayout.totalCaption).toContain("total");
   });
 
   test("dense tables promote one title and caption only ambiguous metrics", async ({ page }) => {
@@ -513,8 +534,8 @@ test.describe("phone interactions", () => {
         overflow: tableRow.closest("table")!.scrollWidth - tableRow.closest("table")!.clientWidth,
       };
     });
-    expect(historyLayout.primaryLabel).toBe("Activity");
-    expect(historyLayout.metricLabels).toEqual(["Qty", "Value"]);
+    expect(historyLayout.primaryLabel).toBe("Customer");
+    expect(historyLayout.metricLabels).toEqual(["Order total", "Delivery fee / payment"]);
     expect(historyLayout.visibleCaptions).toBe(2);
     expect(historyLayout.height).toBeLessThan(250);
     expect(historyLayout.overflow).toBe(0);
@@ -560,13 +581,20 @@ test.describe("phone interactions", () => {
           (cell) => getComputedStyle(cell, "::before").content !== "none",
         ).length,
         metricCount: metricCells.length,
+        actionHeight: Math.max(
+          0,
+          ...Array.from(element.querySelectorAll("button")).map(
+            (button) => button.getBoundingClientRect().height,
+          ),
+        ),
         overflow: tableRow.closest("table")!.scrollWidth - tableRow.closest("table")!.clientWidth,
       };
     });
     expect(storageLayout.primaryLabel).toBe("Product variant");
     expect(storageLayout.visibleCaptions).toBe(storageLayout.metricCount);
     expect(storageLayout.visibleCaptions).toBeLessThan(storageLayout.cellCount / 2);
-    expect(storageLayout.height).toBeLessThan(300);
+    // Storage now includes a separate row of touch-sized stock actions.
+    expect(storageLayout.height - storageLayout.actionHeight).toBeLessThan(300);
     expect(storageLayout.overflow).toBe(0);
   });
 
@@ -603,7 +631,7 @@ test.describe("tablet interactions", () => {
       await expect(sidebar).toHaveClass(/open/);
       await expect(sidebar).toBeInViewport();
 
-      const closeBtn = page.getByRole("button", { name: "Close menu" });
+      const closeBtn = sidebar.getByRole("button", { name: "Close menu" });
       await expect(closeBtn).toBeVisible();
       await closeBtn.click();
       await expect(sidebar).not.toHaveClass(/open/);

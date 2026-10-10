@@ -2,6 +2,21 @@
 
 These are shared business workflows. Client implementations must preserve the same states and outcomes.
 
+## Merchant Storage stock changes
+
+1. Everyone with tenant read access may check product stock and RETAIL sell price.
+   Only merchant/owner users see original price/profit and mutation controls.
+2. A merchant selects Increase or Reduce on a product and chooses an active shop
+   stock location plus a positive quantity in the base unit.
+3. Increase reuses the stock receipt operation and records original unit cost
+   (or backend reuse of the latest cost). Reduce requires a reason and appends an
+   ADJUSTMENT movement; reserved quantities cannot be removed.
+4. Balance, FIFO allocations, audit reason/actor and ordered shop-scoped change
+   commit atomically. Existing movements remain immutable and stock history
+   shows each receipt or reduction.
+5. Temporary-offline portal changes remain pending until backend validation;
+   rejected changes are visible for review. Native mobile parity remains pending.
+
 ## Authentication and authorization
 
 ```text
@@ -61,6 +76,16 @@ Purchase order
 ```
 
 Transfers, sales, returns, and reversals must use immutable inventory movements and preserve traceability.
+
+## Stock conversion
+
+1. The merchant creates two sellable variants of one product (for example, one carton and one bottle) and saves a rule such as one carton to 30 bottles. SIMPLE and MINI create the first standard variant with the product; extra pack sizes use the same canonical variant table as COMPLEX.
+2. Staff or merchant chooses an active rule, an authorized shop location, and a whole number of source packs. The portal shows the source and destination quantities before confirmation.
+3. The backend checks active shop membership, unreserved source stock, eligibility, and the required idempotency key. It writes one transformation and linked source/destination movements in a transaction.
+4. The source movement consumes FIFO cost layers. Destination movements create cent-exact cost tiers whose total equals the consumed value. The operation is either fully applied or fully rolled back.
+5. POS mode changes keep all variants, rules, balances, and history. Staff can execute a rule but cannot see its cost or manage its ratio.
+
+Batch, serial, and asset-tracked conversions and offline local application are not yet supported.
 
 ## Repair service flow
 
@@ -174,3 +199,19 @@ must correct the issue and send a new command. The existing outbox retries only
 receipt delivery for successfully committed orders, never the commerce operation.
 Turning OFF restores manual confirmation for subsequent orders. Existing pending
 orders remain pending, and already confirmed orders remain confirmed.
+
+## Delivery payment
+
+[Delivery payment](DELIVERY_PAYMENT.md) defines the shared four-mode workflow.
+Portal and mobile use the same embedded screens, terminology and permissions.
+Mobile FULLY_OFFLINE stores transitions in SQLite without backend traffic; ONLINE
+uses canonical APIs and synchronization.
+
+Merchant owners can fully correct POS/Telegram sales from Transaction detail.
+Edit atomically removes the old sale effects, restores stock/FIFO capacity, and
+saves the corrected canonical order under its existing ID, number and dates.
+Delete permanently removes that sale's owned financial/stock/activity history
+and restores its stock after an explicit UI confirmation. Payment providers are
+not called. Shared customer masters remain, with customer edits recorded in the
+order snapshot. Version conflicts, retries and dependent return stock are handled
+by the backend or fully offline local SQLite transaction.

@@ -78,26 +78,37 @@ class WebViewApplication extends StatelessWidget {
   const WebViewApplication({
     required this.portalUrl,
     this.backendUrl,
+    this.fullyOffline = false,
     super.key,
   });
 
   final String portalUrl;
   final String? backendUrl;
+  final bool fullyOffline;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'Business Central',
     theme: ThemeData(colorSchemeSeed: const Color(0xff2563eb)),
-    home: _PortalWebView(portalUrl: portalUrl, backendUrl: backendUrl),
+    home: _PortalWebView(
+      portalUrl: portalUrl,
+      backendUrl: backendUrl,
+      fullyOffline: fullyOffline,
+    ),
   );
 }
 
 class _PortalWebView extends StatefulWidget {
-  const _PortalWebView({required this.portalUrl, this.backendUrl});
+  const _PortalWebView({
+    required this.portalUrl,
+    this.backendUrl,
+    this.fullyOffline = false,
+  });
 
   final String portalUrl;
   final String? backendUrl;
+  final bool fullyOffline;
 
   @override
   State<_PortalWebView> createState() => _PortalWebViewState();
@@ -378,7 +389,13 @@ class _PortalWebViewState extends State<_PortalWebView> {
   @override
   void initState() {
     super.initState();
-    final uri = Uri.tryParse(widget.portalUrl);
+    final configuredUri = Uri.tryParse(widget.portalUrl);
+    final uri = configuredUri?.replace(
+      queryParameters: {
+        ...configuredUri.queryParameters,
+        'bc_runtime_mode': widget.fullyOffline ? 'FULLY_OFFLINE' : 'ONLINE',
+      },
+    );
     if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
       _error = 'Set a valid APPLICATION_WEBVIEW_URL in .env.';
       _configurationError = true;
@@ -458,7 +475,10 @@ class _PortalWebViewState extends State<_PortalWebView> {
           ..loadRequest(uri);
 
     final backendUri = Uri.tryParse(widget.backendUrl ?? '');
-    if (backendUri != null && backendUri.hasScheme && backendUri.hasAuthority) {
+    if (!widget.fullyOffline &&
+        backendUri != null &&
+        backendUri.hasScheme &&
+        backendUri.hasAuthority) {
       _licenseValidator = SilentLicenseValidator(
         networkClient: OnlineNetworkClient(backendUri),
         database: AppDatabase(),
@@ -484,6 +504,9 @@ class _PortalWebViewState extends State<_PortalWebView> {
 
   Future<void> _injectBridgeScripts() async {
     try {
+      await _controller.runJavaScript(
+        "window.BusinessCentralRuntimeMode = '${widget.fullyOffline ? 'FULLY_OFFLINE' : 'ONLINE'}';",
+      );
       await _controller.runJavaScript(_bridgeScript);
       await _controller.runJavaScript(_scannerBridgeScript);
       await _controller.runJavaScript(_storageBridgeScript);

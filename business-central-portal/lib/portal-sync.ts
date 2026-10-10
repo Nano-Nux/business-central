@@ -306,6 +306,7 @@ async function markDeferredDependentsBlocked(
       if (
         operation.dependencyOperationId &&
         blocked.has(operation.dependencyOperationId) &&
+        !blocked.has(operation.operationId) &&
         ["PENDING", "FAILED"].includes(operation.status)
       ) {
         blocked.add(operation.operationId);
@@ -531,6 +532,13 @@ async function applyPushResults(
       serverPayload: result.server_payload,
       serverVersion: result.entity_version,
     });
+    if (operation.entityType === "STOCK_RECEIPT") {
+      await markDeferredDependentsBlocked(
+        scope,
+        operation.operationId,
+        result.message ?? "The stock receipt was rejected.",
+      );
+    }
   }
   return { pushed, conflicts, rejected };
 }

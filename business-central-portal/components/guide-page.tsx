@@ -107,14 +107,14 @@ export function GuidePage() {
         .guide-card-content {
           display: grid;
           grid-template-columns: 1.35fr 1fr;
-          gap: 1.75rem;
+          gap: var(--space-section);
           align-items: start;
         }
         .guide-hero-card {
           background: var(--paper);
           border: 1px solid var(--line);
           border-radius: 16px;
-          padding: 2rem;
+          padding: var(--space-panel);
           margin-bottom: 1.75rem;
           box-shadow: var(--shadow);
         }
@@ -213,13 +213,13 @@ export function GuidePage() {
         }
         @media (max-width: 900px) {
           .guide-hero-card {
-            padding: 1.25rem !important;
+            padding: var(--space-panel) !important;
           }
           .guide-card-content {
             grid-template-columns: 1fr !important;
           }
           .guide-card {
-            padding: 1.25rem !important;
+            padding: var(--space-panel) !important;
           }
           .guide-toolbar .search-box {
             max-width: 100% !important;
@@ -236,7 +236,7 @@ export function GuidePage() {
             justifyContent: "space-between",
             alignItems: "flex-start",
             flexWrap: "wrap",
-            gap: "1.25rem",
+            gap: "var(--space-panel)",
           }}
         >
           <div>
@@ -420,7 +420,7 @@ export function GuidePage() {
         {/* Mode Information Callout */}
         <div
           style={{
-            marginTop: "1.25rem",
+            marginTop: "var(--space-panel)",
             padding: "0.85rem 1.15rem",
             borderRadius: "10px",
             background: "var(--surface-muted)",
@@ -541,7 +541,7 @@ export function GuidePage() {
       </div>
 
       {/* Guide Section List */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-panel)" }}>
         {filteredSections.map((sec, idx) => {
           return (
             <div
@@ -550,7 +550,7 @@ export function GuidePage() {
               className="card guide-card"
               style={{
                 borderRadius: "14px",
-                padding: "1.75rem",
+                padding: "var(--space-panel)",
                 background: "var(--paper)",
                 border: "1px solid var(--line)",
                 boxShadow: "var(--shadow)",
@@ -564,7 +564,7 @@ export function GuidePage() {
                   alignItems: "flex-start",
                   flexWrap: "wrap",
                   gap: "1rem",
-                  marginBottom: "1.25rem",
+                  marginBottom: "var(--space-panel)",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
@@ -896,7 +896,7 @@ export function GuidePage() {
         })}
 
         {filteredSections.length === 0 && (
-          <div className="empty-state" style={{ padding: "4rem 2rem", textAlign: "center" }}>
+          <div className="empty-state" style={{ padding: "24px 16px", textAlign: "center" }}>
             <h3 style={{ margin: "0 0 0.5rem 0", color: "var(--ink)" }}>
               {language === "my"
                 ? "ကိုက်ညီသော လမ်းညွှန်ချက် မတွေ့ပါ"
@@ -943,7 +943,7 @@ export function GuidePage() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            padding: "2rem",
+            padding: "var(--space-panel)",
             cursor: "zoom-out",
           }}
           onClick={() => setLightboxImage(null)}

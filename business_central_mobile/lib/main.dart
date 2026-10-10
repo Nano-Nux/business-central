@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'webview/webview_application.dart';
+import 'config/app_configuration.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,8 +13,14 @@ Future<void> main() async {
       await dotenv.load(fileName: '.env.example');
     }
     final portalUrl = dotenv.env['APPLICATION_WEBVIEW_URL']?.trim() ?? '';
-    final backendUrl = dotenv.env['APPLICATION_BACKEND_URL']?.trim();
-    runApp(WebViewApplication(portalUrl: portalUrl, backendUrl: backendUrl));
+    final configuration = AppConfiguration.fromEnvironment(dotenv.env);
+    runApp(
+      WebViewApplication(
+        portalUrl: portalUrl,
+        backendUrl: configuration.backendUri?.toString(),
+        fullyOffline: configuration.isFullyOffline,
+      ),
+    );
   } on Object catch (error) {
     runApp(
       MaterialApp(

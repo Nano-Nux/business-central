@@ -13,6 +13,7 @@ import (
 	authdto "business-central-backend/internal/auth/application/dto"
 	authinbound "business-central-backend/internal/auth/ports/inbound"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
 )
 
 type Handler struct {
@@ -28,12 +29,25 @@ func NewHandler(ai aiinbound.AIService, auth authinbound.Authentication) *Handle
 }
 
 func (h *Handler) RegisterRoutes(r fiber.Router) {
-	r.Post("/ai/chat", h.chat)
+	providerLimit := limiter.New(limiter.Config{
+		Max: 10, Expiration: time.Minute,
+		KeyGenerator: func(c fiber.Ctx) string {
+			cl := claims(c)
+			if cl != nil {
+				return cl.MerchantID + ":" + cl.MembershipID
+			}
+			return "anonymous:" + c.IP()
+		},
+		LimitReached: func(c fiber.Ctx) error {
+			return app.NewError("AI_RATE_LIMITED", "Too many AI requests. Please retry after a minute.", 429)
+		},
+	})
+	r.Post("/ai/chat", providerLimit, h.chat)
 	r.Get("/ai/conversations", h.listConversations)
 	r.Post("/ai/conversations", h.createConversation)
 	r.Get("/ai/conversations/:id/messages", h.getConversationMessages)
 	r.Delete("/ai/conversations/:id", h.deleteConversation)
-	r.Post("/ai/transcribe", h.transcribe)
+	r.Post("/ai/transcribe", providerLimit, h.transcribe)
 	r.Get("/ai/usage", h.getUsage)
 
 	// Platform Admin AI maintenance routes
@@ -135,7 +149,9 @@ func (h *Handler) createConversation(c fiber.Ctx) error {
 		Title  string  `json:"title"`
 		ShopID *string `json:"shop_id"`
 	}
-	_ = c.Bind().JSON(&body)
+	if err := c.Bind().JSON(&body); err != nil {
+		return app.NewError("VALIDATION_ERROR", "Request body must be valid JSON.", 400)
+	}
 	if body.ShopID == nil && c.Query("shop_id") != "" {
 		sid := c.Query("shop_id")
 		body.ShopID = &sid
@@ -165,7 +181,7 @@ func (h *Handler) getConversationMessages(c fiber.Ctx) error {
 	ctx, cancel := contextWithTimeout(c)
 	defer cancel()
 
-	conv, messages, err := h.AI.GetConversation(ctx, cl, id)
+	conv, messages, err := h.AI.GetConversation(ctx, cl, id, shopScope(c))
 	if err != nil {
 		return err
 	}
@@ -191,7 +207,7 @@ func (h *Handler) deleteConversation(c fiber.Ctx) error {
 	ctx, cancel := contextWithTimeout(c)
 	defer cancel()
 
-	if err := h.AI.DeleteConversation(ctx, cl, id); err != nil {
+	if err := h.AI.DeleteConversation(ctx, cl, id, shopScope(c)); err != nil {
 		return err
 	}
 
@@ -216,7 +232,7 @@ func (h *Handler) transcribe(c fiber.Ctx) error {
 			return app.NewError("VALIDATION_ERROR", "Failed to open uploaded audio file.", 400)
 		}
 		defer file.Close()
-		audioBytes, err = io.ReadAll(file)
+		audioBytes, err = io.ReadAll(io.LimitReader(file, 6*1024*1024+1))
 		if err != nil {
 			return app.NewError("VALIDATION_ERROR", "Failed to read uploaded audio file.", 400)
 		}
@@ -244,7 +260,7 @@ func (h *Handler) transcribe(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(c.Context(), 45*time.Second)
 	defer cancel()
 
-	transcribed, err := h.AI.Transcribe(ctx, cl, audioBytes, mimeType)
+	transcribed, err := h.AI.Transcribe(ctx, cl, audioBytes, mimeType, shopScope(c))
 	if err != nil {
 		return err
 	}
@@ -330,4 +346,12 @@ func contextWithTimeout(c fiber.Ctx) (context.Context, context.CancelFunc) {
 func claims(c fiber.Ctx) *authdto.Claims {
 	value, _ := c.Locals("claims").(*authdto.Claims)
 	return value
+}
+
+func shopScope(c fiber.Ctx) *string {
+	id := c.Query("shop_id")
+	if id == "" {
+		return nil
+	}
+	return &id
 }

@@ -26,6 +26,194 @@ void main() {
     await database.close();
   });
 
+  for (final status in ['UN_PAID', 'COMPLETE']) {
+    test(
+      'delivery fee persists separately and can be collected: $status',
+      () async {
+        Future<void> send(String method, Map<String, dynamic> payload) =>
+            bridge.handleMessage(
+              JavaScriptMessage(
+                message: jsonEncode({
+                  'id': 'delivery-test',
+                  'method': method,
+                  'payload': payload,
+                }),
+              ),
+            );
+        await send('checkout', {
+          'order': {
+            'id': 'delivery-order',
+            'merchant_id': 'merchant-a',
+            'shop_id': 'shop-a',
+            'subtotal': '100.00',
+            'discount_total': '10.00',
+            'tax_total': '9.00',
+            'grand_total': '106.00',
+            'delivery_fee': '7.00',
+            'delivery_payment_status': status,
+            'lines': [],
+          },
+        });
+        final order = await database.select(database.localOrders).getSingle();
+        expect(order.deliveryFee, '7.00');
+        expect(order.deliveryPaymentStatus, status);
+        expect(order.grandTotal, '106.00');
+        final payments = await database.select(database.localPayments).get();
+        expect(
+          payments.where((p) => p.purpose == 'ORDER').single.amount,
+          '99.00',
+        );
+        expect(
+          payments.where((p) => p.purpose == 'DELIVERY').length,
+          status == 'COMPLETE' ? 1 : 0,
+        );
+        if (status == 'UN_PAID') {
+          final request = {
+            'merchant_id': 'merchant-a',
+            'shop_id': 'shop-a',
+            'id': 'delivery-order',
+            'delivery_payment_status': 'COMPLETE',
+            'expected_status': 'UN_PAID',
+            'idempotency_key': 'collect-1',
+          };
+          await send('updateDeliveryPayment', request);
+          await send('updateDeliveryPayment', request);
+          expect(
+            (await database.select(database.localPayments).get()).length,
+            2,
+          );
+        }
+        await send('getTransactionHistoryDetail', {
+          'merchant_id': 'merchant-a',
+          'shop_id': 'shop-a',
+          'id': 'delivery-order',
+        });
+        expect(executedScripts.last, contains('"paid_total":"106.00"'));
+        await send('updateDeliveryPayment', {
+          'merchant_id': 'merchant-a',
+          'shop_id': 'shop-a',
+          'id': 'delivery-order',
+          'delivery_payment_status': 'UN_PAID',
+          'expected_status': 'COMPLETE',
+          'idempotency_key': 'reverse-1',
+        });
+        await send('getTransactionHistoryDetail', {
+          'merchant_id': 'merchant-a',
+          'shop_id': 'shop-a',
+          'id': 'delivery-order',
+        });
+        expect(executedScripts.last, contains('"outstanding_total":"7.00"'));
+        await send('updateDeliveryPayment', {
+          'merchant_id': 'merchant-a',
+          'shop_id': 'shop-other',
+          'id': 'delivery-order',
+          'delivery_payment_status': 'COMPLETE',
+          'expected_status': 'UN_PAID',
+          'idempotency_key': 'wrong-shop',
+        });
+        expect(
+          executedScripts.last,
+          contains('Transaction not found in this shop'),
+        );
+      },
+    );
+  }
+
+  test(
+    'shop defaults and partial delivery refunds preserve local balances',
+    () async {
+      Future<void> send(String method, Map<String, dynamic> payload) =>
+          bridge.handleMessage(
+            JavaScriptMessage(
+              message: jsonEncode({
+                'id': 'scoped-fee',
+                'method': method,
+                'payload': payload,
+              }),
+            ),
+          );
+      await send('saveSetting', {
+        'key': 'shop:merchant-a:shop-a:delivery_payment_status_auto_complete',
+        'value': 'true',
+      });
+      for (final shop in ['shop-a', 'shop-b']) {
+        await send('checkout', {
+          'order': {
+            'id': 'order-$shop',
+            'merchant_id': 'merchant-a',
+            'shop_id': shop,
+            'subtotal': '99.00',
+            'discount_total': '0.00',
+            'tax_total': '0.00',
+            'grand_total': '106.00',
+            'delivery_fee': '7.00',
+            'delivery_payment_status': 'UN_PAID',
+            'lines': [],
+          },
+        });
+      }
+      final orders = await database.select(database.localOrders).get();
+      expect(
+        orders.singleWhere((o) => o.shopId == 'shop-a').deliveryPaymentStatus,
+        'COMPLETE',
+      );
+      expect(
+        orders.singleWhere((o) => o.shopId == 'shop-b').deliveryPaymentStatus,
+        'UN_PAID',
+      );
+      final receipt = (await database.select(database.localPayments).get())
+          .singleWhere((p) => p.purpose == 'DELIVERY');
+      await database
+          .into(database.localRefunds)
+          .insert(
+            LocalRefundsCompanion.insert(
+              id: 'partial',
+              idempotencyKey: 'partial-refund',
+              merchantId: 'merchant-a',
+              paymentId: receipt.id,
+              orderId: 'order-shop-a',
+              amount: '2.00',
+              status: 'SUCCEEDED',
+              createdAt: DateTime.now().toUtc().toIso8601String(),
+            ),
+          );
+      await (database.update(
+        database.localOrders,
+      )..where((t) => t.id.equals('order-shop-a'))).write(
+        const LocalOrdersCompanion(deliveryPaymentStatus: Value('UN_PAID')),
+      );
+      await send('updateDeliveryPayment', {
+        'merchant_id': 'merchant-a',
+        'shop_id': 'shop-a',
+        'id': 'order-shop-a',
+        'delivery_payment_status': 'COMPLETE',
+        'expected_status': 'UN_PAID',
+        'idempotency_key': 'replenish',
+      });
+      expect(
+        (await database.select(database.localPayments).get())
+            .where((p) => p.purpose == 'DELIVERY')
+            .map((p) => p.amount),
+        contains('2.00'),
+      );
+      await send('updateDeliveryPayment', {
+        'merchant_id': 'merchant-a',
+        'shop_id': 'shop-a',
+        'id': 'order-shop-a',
+        'delivery_payment_status': 'UN_PAID',
+        'expected_status': 'COMPLETE',
+        'idempotency_key': 'reverse-partial',
+      });
+      await send('getTransactionHistoryDetail', {
+        'merchant_id': 'merchant-a',
+        'shop_id': 'shop-a',
+        'id': 'order-shop-a',
+      });
+      expect(executedScripts.last, contains('"paid_total":"99.00"'));
+      expect(executedScripts.last, contains('"outstanding_total":"7.00"'));
+    },
+  );
+
   test('saves and gets settings in AppMetadata', () async {
     await bridge.handleMessage(
       JavaScriptMessage(
@@ -223,6 +411,17 @@ void main() {
       expect(order.number, 'ORD-2026-001');
       expect(order.grandTotal, '50.00');
       expect(order.customerName, 'Alice Smith');
+
+      await bridge.handleMessage(
+        JavaScriptMessage(
+          message: jsonEncode({
+            'id': 'req-history-products',
+            'method': 'getTransactionHistory',
+            'payload': {'merchant_id': 'merch-1', 'shop_id': 'shop-main'},
+          }),
+        ),
+      );
+      expect(executedScripts.last, contains('"product_name":"Dark Roast"'));
 
       // Verify lines in local SQLite
       final lines = await (database.select(

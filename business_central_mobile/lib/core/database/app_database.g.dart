@@ -10086,6 +10086,30 @@ class $LocalOrdersTable extends LocalOrders
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $LocalOrdersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _deliveryPaymentStatusMeta =
+      const VerificationMeta('deliveryPaymentStatus');
+  @override
+  late final GeneratedColumn<String> deliveryPaymentStatus =
+      GeneratedColumn<String>(
+        'delivery_payment_status',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant("COMPLETE"),
+      );
+  static const VerificationMeta _deliveryFeeMeta = const VerificationMeta(
+    'deliveryFee',
+  );
+  @override
+  late final GeneratedColumn<String> deliveryFee = GeneratedColumn<String>(
+    'delivery_fee',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant("0.00"),
+  );
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -10265,6 +10289,8 @@ class $LocalOrdersTable extends LocalOrders
   );
   @override
   List<GeneratedColumn> get $columns => [
+    deliveryPaymentStatus,
+    deliveryFee,
     id,
     merchantId,
     shopId,
@@ -10295,6 +10321,24 @@ class $LocalOrdersTable extends LocalOrders
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
+    if (data.containsKey('delivery_payment_status')) {
+      context.handle(
+        _deliveryPaymentStatusMeta,
+        deliveryPaymentStatus.isAcceptableOrUnknown(
+          data['delivery_payment_status']!,
+          _deliveryPaymentStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('delivery_fee')) {
+      context.handle(
+        _deliveryFeeMeta,
+        deliveryFee.isAcceptableOrUnknown(
+          data['delivery_fee']!,
+          _deliveryFeeMeta,
+        ),
+      );
+    }
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
@@ -10451,6 +10495,14 @@ class $LocalOrdersTable extends LocalOrders
   LocalOrder map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return LocalOrder(
+      deliveryPaymentStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}delivery_payment_status'],
+      )!,
+      deliveryFee: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}delivery_fee'],
+      )!,
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -10529,6 +10581,8 @@ class $LocalOrdersTable extends LocalOrders
 }
 
 class LocalOrder extends DataClass implements Insertable<LocalOrder> {
+  final String deliveryPaymentStatus;
+  final String deliveryFee;
   final String id;
   final String merchantId;
   final String shopId;
@@ -10547,6 +10601,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   final String idempotencyKey;
   final String createdAt;
   const LocalOrder({
+    required this.deliveryPaymentStatus,
+    required this.deliveryFee,
     required this.id,
     required this.merchantId,
     required this.shopId,
@@ -10568,6 +10624,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    map['delivery_payment_status'] = Variable<String>(deliveryPaymentStatus);
+    map['delivery_fee'] = Variable<String>(deliveryFee);
     map['id'] = Variable<String>(id);
     map['merchant_id'] = Variable<String>(merchantId);
     map['shop_id'] = Variable<String>(shopId);
@@ -10598,6 +10656,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
 
   LocalOrdersCompanion toCompanion(bool nullToAbsent) {
     return LocalOrdersCompanion(
+      deliveryPaymentStatus: Value(deliveryPaymentStatus),
+      deliveryFee: Value(deliveryFee),
       id: Value(id),
       merchantId: Value(merchantId),
       shopId: Value(shopId),
@@ -10630,6 +10690,10 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return LocalOrder(
+      deliveryPaymentStatus: serializer.fromJson<String>(
+        json['deliveryPaymentStatus'],
+      ),
+      deliveryFee: serializer.fromJson<String>(json['deliveryFee']),
       id: serializer.fromJson<String>(json['id']),
       merchantId: serializer.fromJson<String>(json['merchantId']),
       shopId: serializer.fromJson<String>(json['shopId']),
@@ -10653,6 +10717,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
+      'deliveryPaymentStatus': serializer.toJson<String>(deliveryPaymentStatus),
+      'deliveryFee': serializer.toJson<String>(deliveryFee),
       'id': serializer.toJson<String>(id),
       'merchantId': serializer.toJson<String>(merchantId),
       'shopId': serializer.toJson<String>(shopId),
@@ -10674,6 +10740,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   }
 
   LocalOrder copyWith({
+    String? deliveryPaymentStatus,
+    String? deliveryFee,
     String? id,
     String? merchantId,
     String? shopId,
@@ -10692,6 +10760,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
     String? idempotencyKey,
     String? createdAt,
   }) => LocalOrder(
+    deliveryPaymentStatus: deliveryPaymentStatus ?? this.deliveryPaymentStatus,
+    deliveryFee: deliveryFee ?? this.deliveryFee,
     id: id ?? this.id,
     merchantId: merchantId ?? this.merchantId,
     shopId: shopId ?? this.shopId,
@@ -10714,6 +10784,12 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   );
   LocalOrder copyWithCompanion(LocalOrdersCompanion data) {
     return LocalOrder(
+      deliveryPaymentStatus: data.deliveryPaymentStatus.present
+          ? data.deliveryPaymentStatus.value
+          : this.deliveryPaymentStatus,
+      deliveryFee: data.deliveryFee.present
+          ? data.deliveryFee.value
+          : this.deliveryFee,
       id: data.id.present ? data.id.value : this.id,
       merchantId: data.merchantId.present
           ? data.merchantId.value
@@ -10755,6 +10831,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   @override
   String toString() {
     return (StringBuffer('LocalOrder(')
+          ..write('deliveryPaymentStatus: $deliveryPaymentStatus, ')
+          ..write('deliveryFee: $deliveryFee, ')
           ..write('id: $id, ')
           ..write('merchantId: $merchantId, ')
           ..write('shopId: $shopId, ')
@@ -10778,6 +10856,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
 
   @override
   int get hashCode => Object.hash(
+    deliveryPaymentStatus,
+    deliveryFee,
     id,
     merchantId,
     shopId,
@@ -10800,6 +10880,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is LocalOrder &&
+          other.deliveryPaymentStatus == this.deliveryPaymentStatus &&
+          other.deliveryFee == this.deliveryFee &&
           other.id == this.id &&
           other.merchantId == this.merchantId &&
           other.shopId == this.shopId &&
@@ -10820,6 +10902,8 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
 }
 
 class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
+  final Value<String> deliveryPaymentStatus;
+  final Value<String> deliveryFee;
   final Value<String> id;
   final Value<String> merchantId;
   final Value<String> shopId;
@@ -10839,6 +10923,8 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
   final Value<String> createdAt;
   final Value<int> rowid;
   const LocalOrdersCompanion({
+    this.deliveryPaymentStatus = const Value.absent(),
+    this.deliveryFee = const Value.absent(),
     this.id = const Value.absent(),
     this.merchantId = const Value.absent(),
     this.shopId = const Value.absent(),
@@ -10859,6 +10945,8 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
     this.rowid = const Value.absent(),
   });
   LocalOrdersCompanion.insert({
+    this.deliveryPaymentStatus = const Value.absent(),
+    this.deliveryFee = const Value.absent(),
     required String id,
     required String merchantId,
     required String shopId,
@@ -10891,6 +10979,8 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
        idempotencyKey = Value(idempotencyKey),
        createdAt = Value(createdAt);
   static Insertable<LocalOrder> custom({
+    Expression<String>? deliveryPaymentStatus,
+    Expression<String>? deliveryFee,
     Expression<String>? id,
     Expression<String>? merchantId,
     Expression<String>? shopId,
@@ -10911,6 +11001,9 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
+      if (deliveryPaymentStatus != null)
+        'delivery_payment_status': deliveryPaymentStatus,
+      if (deliveryFee != null) 'delivery_fee': deliveryFee,
       if (id != null) 'id': id,
       if (merchantId != null) 'merchant_id': merchantId,
       if (shopId != null) 'shop_id': shopId,
@@ -10933,6 +11026,8 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
   }
 
   LocalOrdersCompanion copyWith({
+    Value<String>? deliveryPaymentStatus,
+    Value<String>? deliveryFee,
     Value<String>? id,
     Value<String>? merchantId,
     Value<String>? shopId,
@@ -10953,6 +11048,9 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
     Value<int>? rowid,
   }) {
     return LocalOrdersCompanion(
+      deliveryPaymentStatus:
+          deliveryPaymentStatus ?? this.deliveryPaymentStatus,
+      deliveryFee: deliveryFee ?? this.deliveryFee,
       id: id ?? this.id,
       merchantId: merchantId ?? this.merchantId,
       shopId: shopId ?? this.shopId,
@@ -10977,6 +11075,14 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    if (deliveryPaymentStatus.present) {
+      map['delivery_payment_status'] = Variable<String>(
+        deliveryPaymentStatus.value,
+      );
+    }
+    if (deliveryFee.present) {
+      map['delivery_fee'] = Variable<String>(deliveryFee.value);
+    }
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
@@ -11037,6 +11143,8 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
   @override
   String toString() {
     return (StringBuffer('LocalOrdersCompanion(')
+          ..write('deliveryPaymentStatus: $deliveryPaymentStatus, ')
+          ..write('deliveryFee: $deliveryFee, ')
           ..write('id: $id, ')
           ..write('merchantId: $merchantId, ')
           ..write('shopId: $shopId, ')
@@ -16478,6 +16586,18 @@ class $LocalPaymentsTable extends LocalPayments
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $LocalPaymentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _purposeMeta = const VerificationMeta(
+    'purpose',
+  );
+  @override
+  late final GeneratedColumn<String> purpose = GeneratedColumn<String>(
+    'purpose',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant("ORDER"),
+  );
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -16583,6 +16703,7 @@ class $LocalPaymentsTable extends LocalPayments
   );
   @override
   List<GeneratedColumn> get $columns => [
+    purpose,
     id,
     merchantId,
     orderId,
@@ -16606,6 +16727,12 @@ class $LocalPaymentsTable extends LocalPayments
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
+    if (data.containsKey('purpose')) {
+      context.handle(
+        _purposeMeta,
+        purpose.isAcceptableOrUnknown(data['purpose']!, _purposeMeta),
+      );
+    }
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
@@ -16698,6 +16825,10 @@ class $LocalPaymentsTable extends LocalPayments
   LocalPayment map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return LocalPayment(
+      purpose: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}purpose'],
+      )!,
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -16748,6 +16879,7 @@ class $LocalPaymentsTable extends LocalPayments
 }
 
 class LocalPayment extends DataClass implements Insertable<LocalPayment> {
+  final String purpose;
   final String id;
   final String merchantId;
   final String orderId;
@@ -16759,6 +16891,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
   final String? capturedAt;
   final String createdAt;
   const LocalPayment({
+    required this.purpose,
     required this.id,
     required this.merchantId,
     required this.orderId,
@@ -16773,6 +16906,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    map['purpose'] = Variable<String>(purpose);
     map['id'] = Variable<String>(id);
     map['merchant_id'] = Variable<String>(merchantId);
     map['order_id'] = Variable<String>(orderId);
@@ -16792,6 +16926,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
 
   LocalPaymentsCompanion toCompanion(bool nullToAbsent) {
     return LocalPaymentsCompanion(
+      purpose: Value(purpose),
       id: Value(id),
       merchantId: Value(merchantId),
       orderId: Value(orderId),
@@ -16815,6 +16950,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return LocalPayment(
+      purpose: serializer.fromJson<String>(json['purpose']),
       id: serializer.fromJson<String>(json['id']),
       merchantId: serializer.fromJson<String>(json['merchantId']),
       orderId: serializer.fromJson<String>(json['orderId']),
@@ -16833,6 +16969,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
+      'purpose': serializer.toJson<String>(purpose),
       'id': serializer.toJson<String>(id),
       'merchantId': serializer.toJson<String>(merchantId),
       'orderId': serializer.toJson<String>(orderId),
@@ -16847,6 +16984,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
   }
 
   LocalPayment copyWith({
+    String? purpose,
     String? id,
     String? merchantId,
     String? orderId,
@@ -16858,6 +16996,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
     Value<String?> capturedAt = const Value.absent(),
     String? createdAt,
   }) => LocalPayment(
+    purpose: purpose ?? this.purpose,
     id: id ?? this.id,
     merchantId: merchantId ?? this.merchantId,
     orderId: orderId ?? this.orderId,
@@ -16873,6 +17012,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
   );
   LocalPayment copyWithCompanion(LocalPaymentsCompanion data) {
     return LocalPayment(
+      purpose: data.purpose.present ? data.purpose.value : this.purpose,
       id: data.id.present ? data.id.value : this.id,
       merchantId: data.merchantId.present
           ? data.merchantId.value
@@ -16897,6 +17037,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
   @override
   String toString() {
     return (StringBuffer('LocalPayment(')
+          ..write('purpose: $purpose, ')
           ..write('id: $id, ')
           ..write('merchantId: $merchantId, ')
           ..write('orderId: $orderId, ')
@@ -16913,6 +17054,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
 
   @override
   int get hashCode => Object.hash(
+    purpose,
     id,
     merchantId,
     orderId,
@@ -16928,6 +17070,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is LocalPayment &&
+          other.purpose == this.purpose &&
           other.id == this.id &&
           other.merchantId == this.merchantId &&
           other.orderId == this.orderId &&
@@ -16941,6 +17084,7 @@ class LocalPayment extends DataClass implements Insertable<LocalPayment> {
 }
 
 class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
+  final Value<String> purpose;
   final Value<String> id;
   final Value<String> merchantId;
   final Value<String> orderId;
@@ -16953,6 +17097,7 @@ class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
   final Value<String> createdAt;
   final Value<int> rowid;
   const LocalPaymentsCompanion({
+    this.purpose = const Value.absent(),
     this.id = const Value.absent(),
     this.merchantId = const Value.absent(),
     this.orderId = const Value.absent(),
@@ -16966,6 +17111,7 @@ class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
     this.rowid = const Value.absent(),
   });
   LocalPaymentsCompanion.insert({
+    this.purpose = const Value.absent(),
     required String id,
     required String merchantId,
     required String orderId,
@@ -16986,6 +17132,7 @@ class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
        idempotencyKey = Value(idempotencyKey),
        createdAt = Value(createdAt);
   static Insertable<LocalPayment> custom({
+    Expression<String>? purpose,
     Expression<String>? id,
     Expression<String>? merchantId,
     Expression<String>? orderId,
@@ -16999,6 +17146,7 @@ class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
+      if (purpose != null) 'purpose': purpose,
       if (id != null) 'id': id,
       if (merchantId != null) 'merchant_id': merchantId,
       if (orderId != null) 'order_id': orderId,
@@ -17014,6 +17162,7 @@ class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
   }
 
   LocalPaymentsCompanion copyWith({
+    Value<String>? purpose,
     Value<String>? id,
     Value<String>? merchantId,
     Value<String>? orderId,
@@ -17027,6 +17176,7 @@ class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
     Value<int>? rowid,
   }) {
     return LocalPaymentsCompanion(
+      purpose: purpose ?? this.purpose,
       id: id ?? this.id,
       merchantId: merchantId ?? this.merchantId,
       orderId: orderId ?? this.orderId,
@@ -17044,6 +17194,9 @@ class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    if (purpose.present) {
+      map['purpose'] = Variable<String>(purpose.value);
+    }
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
@@ -17083,6 +17236,7 @@ class LocalPaymentsCompanion extends UpdateCompanion<LocalPayment> {
   @override
   String toString() {
     return (StringBuffer('LocalPaymentsCompanion(')
+          ..write('purpose: $purpose, ')
           ..write('id: $id, ')
           ..write('merchantId: $merchantId, ')
           ..write('orderId: $orderId, ')
@@ -30331,6 +30485,8 @@ typedef $$LocalDeliveriesTableProcessedTableManager =
     >;
 typedef $$LocalOrdersTableCreateCompanionBuilder =
     LocalOrdersCompanion Function({
+      Value<String> deliveryPaymentStatus,
+      Value<String> deliveryFee,
       required String id,
       required String merchantId,
       required String shopId,
@@ -30352,6 +30508,8 @@ typedef $$LocalOrdersTableCreateCompanionBuilder =
     });
 typedef $$LocalOrdersTableUpdateCompanionBuilder =
     LocalOrdersCompanion Function({
+      Value<String> deliveryPaymentStatus,
+      Value<String> deliveryFee,
       Value<String> id,
       Value<String> merchantId,
       Value<String> shopId,
@@ -30381,6 +30539,16 @@ class $$LocalOrdersTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<String> get deliveryPaymentStatus => $composableBuilder(
+    column: $table.deliveryPaymentStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deliveryFee => $composableBuilder(
+    column: $table.deliveryFee,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
@@ -30476,6 +30644,16 @@ class $$LocalOrdersTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<String> get deliveryPaymentStatus => $composableBuilder(
+    column: $table.deliveryPaymentStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deliveryFee => $composableBuilder(
+    column: $table.deliveryFee,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
@@ -30571,6 +30749,16 @@ class $$LocalOrdersTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<String> get deliveryPaymentStatus => $composableBuilder(
+    column: $table.deliveryPaymentStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get deliveryFee => $composableBuilder(
+    column: $table.deliveryFee,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
@@ -30672,6 +30860,8 @@ class $$LocalOrdersTableTableManager
               $$LocalOrdersTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
+                Value<String> deliveryPaymentStatus = const Value.absent(),
+                Value<String> deliveryFee = const Value.absent(),
                 Value<String> id = const Value.absent(),
                 Value<String> merchantId = const Value.absent(),
                 Value<String> shopId = const Value.absent(),
@@ -30691,6 +30881,8 @@ class $$LocalOrdersTableTableManager
                 Value<String> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalOrdersCompanion(
+                deliveryPaymentStatus: deliveryPaymentStatus,
+                deliveryFee: deliveryFee,
                 id: id,
                 merchantId: merchantId,
                 shopId: shopId,
@@ -30712,6 +30904,8 @@ class $$LocalOrdersTableTableManager
               ),
           createCompanionCallback:
               ({
+                Value<String> deliveryPaymentStatus = const Value.absent(),
+                Value<String> deliveryFee = const Value.absent(),
                 required String id,
                 required String merchantId,
                 required String shopId,
@@ -30731,6 +30925,8 @@ class $$LocalOrdersTableTableManager
                 required String createdAt,
                 Value<int> rowid = const Value.absent(),
               }) => LocalOrdersCompanion.insert(
+                deliveryPaymentStatus: deliveryPaymentStatus,
+                deliveryFee: deliveryFee,
                 id: id,
                 merchantId: merchantId,
                 shopId: shopId,
@@ -33448,6 +33644,7 @@ typedef $$LocalInventoryCostAllocationsTableProcessedTableManager =
     >;
 typedef $$LocalPaymentsTableCreateCompanionBuilder =
     LocalPaymentsCompanion Function({
+      Value<String> purpose,
       required String id,
       required String merchantId,
       required String orderId,
@@ -33462,6 +33659,7 @@ typedef $$LocalPaymentsTableCreateCompanionBuilder =
     });
 typedef $$LocalPaymentsTableUpdateCompanionBuilder =
     LocalPaymentsCompanion Function({
+      Value<String> purpose,
       Value<String> id,
       Value<String> merchantId,
       Value<String> orderId,
@@ -33484,6 +33682,11 @@ class $$LocalPaymentsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<String> get purpose => $composableBuilder(
+    column: $table.purpose,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
@@ -33544,6 +33747,11 @@ class $$LocalPaymentsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<String> get purpose => $composableBuilder(
+    column: $table.purpose,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
@@ -33604,6 +33812,9 @@ class $$LocalPaymentsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<String> get purpose =>
+      $composableBuilder(column: $table.purpose, builder: (column) => column);
+
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
@@ -33674,6 +33885,7 @@ class $$LocalPaymentsTableTableManager
               $$LocalPaymentsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
+                Value<String> purpose = const Value.absent(),
                 Value<String> id = const Value.absent(),
                 Value<String> merchantId = const Value.absent(),
                 Value<String> orderId = const Value.absent(),
@@ -33686,6 +33898,7 @@ class $$LocalPaymentsTableTableManager
                 Value<String> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalPaymentsCompanion(
+                purpose: purpose,
                 id: id,
                 merchantId: merchantId,
                 orderId: orderId,
@@ -33700,6 +33913,7 @@ class $$LocalPaymentsTableTableManager
               ),
           createCompanionCallback:
               ({
+                Value<String> purpose = const Value.absent(),
                 required String id,
                 required String merchantId,
                 required String orderId,
@@ -33712,6 +33926,7 @@ class $$LocalPaymentsTableTableManager
                 required String createdAt,
                 Value<int> rowid = const Value.absent(),
               }) => LocalPaymentsCompanion.insert(
+                purpose: purpose,
                 id: id,
                 merchantId: merchantId,
                 orderId: orderId,

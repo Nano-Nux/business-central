@@ -5,293 +5,11 @@ import { formatMoney, formatQuantity } from "@/lib/currency";
 import { formatShopDateTime } from "@/lib/date-time";
 import { useAuth } from "@/lib/auth";
 import { useShop } from "@/lib/shop";
-import type { StockMovementDetail, TransactionHistoryDetail } from "@/lib/types";
+import type { StockMovementDetail } from "@/lib/types";
 import { useCachedQuery } from "@/lib/use-cached-query";
 import { EmptyState, Loading, PageHeader, StatusBadge } from "./ui";
 
-export function TransactionDetailPage({ id }: { id: string }) {
-  const { isMerchant } = useAuth();
-  const { currentShop } = useShop();
-  const {
-    data: detail,
-    loading,
-    error,
-  } = useCachedQuery<TransactionHistoryDetail>(
-    `/transaction-history/${id}`,
-    `transaction-history-detail:${id}`,
-  );
-
-  if (!isMerchant) {
-    return (
-      <EmptyState
-        title="Access restricted"
-        message="Only merchant administrators can view complete financial and FIFO cost details."
-      />
-    );
-  }
-
-  if (loading) return <Loading />;
-  if (error || !detail)
-    return (
-      <EmptyState
-        title="Transaction not found"
-        message={error || "This transaction is not available in the current shop."}
-      />
-    );
-
-  const { entry, order } = detail;
-  const currency = order?.currency_code || entry.currency_code;
-  const money = (value: string | undefined) => formatMoney(value, currency);
-  const hasPendingInventoryCost = detail.lines.some((line) => line.cost_posted === false);
-  const pendingCost = (
-    <span title="FIFO inventory cost is posted when the order is fulfilled.">
-      <StatusBadge status="PENDING" label="Pending fulfillment" />
-    </span>
-  );
-
-  return (
-    <>
-      <PageHeader
-        eyebrow="Transaction history"
-        title={entry.reference}
-        description="Complete checkout order, pricing, cost, profit, payment, and refund details."
-        action={
-          <Link className="button button-secondary" href="/transaction-history">
-            Back to history
-          </Link>
-        }
-      />
-      <section className="card detail-card">
-        <dl>
-          <div>
-            <dt>Activity</dt>
-            <dd>{entry.event_type}</dd>
-          </div>
-          <div>
-            <dt>Status</dt>
-            <dd>
-              <StatusBadge status={order?.status || entry.status} />
-            </dd>
-          </div>
-          <div>
-            <dt>Order date</dt>
-            <dd>
-              {formatShopDateTime(
-                order?.placed_at || order?.created_at || entry.occurred_at,
-                currentShop?.timezone,
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Channel</dt>
-            <dd>{order?.channel || entry.channel || "—"}</dd>
-          </div>
-          <div>
-            <dt>Customer</dt>
-            <dd>{order?.customer_name || entry.customer_name || "Not recorded"}</dd>
-          </div>
-          <div>
-            <dt>Customer phone</dt>
-            <dd>{order?.customer_phone || entry.customer_phone || "Not recorded"}</dd>
-          </div>
-          <div>
-            <dt>Shop</dt>
-            <dd>{order?.shop_name || entry.shop_name || "—"}</dd>
-          </div>
-          <div>
-            <dt>Payment type</dt>
-            <dd>{order?.payment_type || entry.payment_method || "—"}</dd>
-          </div>
-          {order?.delivery_name && (
-            <div>
-              <dt>Delivery</dt>
-              <dd>
-                {order.delivery_name}
-                {order.delivery_contact ? ` · ${order.delivery_contact}` : ""}
-              </dd>
-            </div>
-          )}
-          {order?.note && (
-            <div>
-              <dt>Order note</dt>
-              <dd>{order.note}</dd>
-            </div>
-          )}
-        </dl>
-      </section>
-
-      {order ? (
-        <>
-          <section className="transaction-financial-grid">
-            <div className="card">
-              <span>Checkout total</span>
-              <strong>{money(order.grand_total)}</strong>
-            </div>
-            <div className="card">
-              <span>Original cost</span>
-              <strong>{hasPendingInventoryCost ? pendingCost : money(detail.total_cost)}</strong>
-            </div>
-            <div className="card">
-              <span>Gross profit</span>
-              <strong>{hasPendingInventoryCost ? "Not final" : money(detail.gross_profit)}</strong>
-            </div>
-            <div className="card">
-              <span>Gross margin</span>
-              <strong>
-                {hasPendingInventoryCost
-                  ? "Not final"
-                  : `${Number(detail.gross_margin).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`}
-              </strong>
-            </div>
-          </section>
-          {hasPendingInventoryCost && (
-            <p className="notice">
-              Inventory cost and profit are not final yet. FIFO cost is posted when this checkout is
-              fulfilled; the product has not been deducted from stock while the order remains
-              pending.
-            </p>
-          )}
-
-          <section>
-            <h2 className="section-title">Order items</h2>
-            <div className="table-card transaction-detail-table">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Qty</th>
-                    <th>Sell price</th>
-                    <th>Original unit cost</th>
-                    <th>Original cost</th>
-                    <th>Discount</th>
-                    <th>Tax</th>
-                    <th>Line total</th>
-                    <th>Profit</th>
-                    <th>Margin</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.lines.map((line) => (
-                    <tr key={line.id}>
-                      <td>
-                        <div className="cell-main">
-                          <strong>{line.product_name || line.description}</strong>
-                          <small>
-                            {[line.variant_name, line.sku].filter(Boolean).join(" · ") ||
-                              line.description}
-                          </small>
-                        </div>
-                      </td>
-                      <td>{formatQuantity(line.quantity)}</td>
-                      <td>{money(line.unit_price)}</td>
-                      <td>
-                        {line.cost_posted === false ? pendingCost : money(line.original_unit_cost)}
-                      </td>
-                      <td>
-                        {line.cost_posted === false ? pendingCost : money(line.original_cost)}
-                      </td>
-                      <td>{money(line.discount_amount)}</td>
-                      <td>{money(line.tax_amount)}</td>
-                      <td>
-                        <strong>{money(line.line_total)}</strong>
-                      </td>
-                      <td className={line.cost_posted === false ? undefined : "amount-positive"}>
-                        {line.cost_posted === false ? "Not final" : money(line.gross_profit)}
-                      </td>
-                      <td>
-                        {line.cost_posted === false
-                          ? "Not final"
-                          : `${Number(line.gross_margin).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="transaction-detail-columns">
-            <div className="card detail-card">
-              <h2>Order totals</h2>
-              <dl>
-                <div>
-                  <dt>Subtotal</dt>
-                  <dd>{money(order.subtotal)}</dd>
-                </div>
-                <div>
-                  <dt>Discount</dt>
-                  <dd>{money(order.discount_total)}</dd>
-                </div>
-                <div>
-                  <dt>Tax</dt>
-                  <dd>{money(order.tax_total)}</dd>
-                </div>
-                <div>
-                  <dt>Shipping</dt>
-                  <dd>{money(order.shipping_total)}</dd>
-                </div>
-                <div>
-                  <dt>Grand total</dt>
-                  <dd>{money(order.grand_total)}</dd>
-                </div>
-              </dl>
-            </div>
-            <div className="card detail-card">
-              <h2>Payments</h2>
-              {detail.payments.length ? (
-                <dl>
-                  {detail.payments.map((payment) => (
-                    <div key={payment.id}>
-                      <dt>
-                        {payment.method} · <StatusBadge status={payment.status} />
-                      </dt>
-                      <dd>
-                        {money(payment.amount)}
-                        <small>
-                          {formatShopDateTime(
-                            payment.captured_at || payment.created_at,
-                            currentShop?.timezone,
-                          )}
-                        </small>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : (
-                <p className="notice">No payment was recorded.</p>
-              )}
-            </div>
-          </section>
-          {detail.refunds.length > 0 && (
-            <section className="card detail-card">
-              <h2>Refunds</h2>
-              <dl>
-                {detail.refunds.map((refund) => (
-                  <div key={refund.id}>
-                    <dt>
-                      <StatusBadge status={refund.status} /> ·{" "}
-                      {formatShopDateTime(refund.created_at, currentShop?.timezone)}
-                    </dt>
-                    <dd>
-                      {money(refund.amount)}
-                      <small>{refund.reason || "No reason recorded"}</small>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          )}
-        </>
-      ) : (
-        <section className="card">
-          <p className="notice">
-            {entry.details || "This stock event is not linked to a checkout order."}
-          </p>
-        </section>
-      )}
-    </>
-  );
-}
+export { TransactionDetailPage } from "./transaction-detail-page";
 
 export function MovementDetailPage({ id }: { id: string }) {
   const { isMerchant } = useAuth();
@@ -334,7 +52,7 @@ export function MovementDetailPage({ id }: { id: string }) {
         title={`${detail.product_name} · ${detail.variant_name}`}
         description="Complete immutable stock ledger event and its related business documents."
         action={
-          <Link className="button button-secondary" href="/stock-movements">
+          <Link className="button button-secondary" href="/stock-history">
             Back to movements
           </Link>
         }
@@ -430,7 +148,7 @@ export function MovementDetailPage({ id }: { id: string }) {
             <div>
               <dt>Reverses movement</dt>
               <dd>
-                <Link className="text-link" href={`/stock-movements/${item.reverses_movement_id}`}>
+                <Link className="text-link" href={`/stock-history/${item.reverses_movement_id}`}>
                   View original movement
                 </Link>
               </dd>
@@ -551,7 +269,7 @@ export function MovementDetailPage({ id }: { id: string }) {
             </div>
             <div>
               <dt>Customer</dt>
-              <dd>{detail.order.customer_name || "Not recorded"}</dd>
+              <dd>{detail.order.customer_name ?? ""}</dd>
             </div>
             <div>
               <dt>Order-line quantity</dt>

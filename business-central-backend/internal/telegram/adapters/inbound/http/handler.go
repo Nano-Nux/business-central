@@ -75,6 +75,16 @@ func (h *Handler) permission(c fiber.Ctx, code string) error {
 	}
 	return nil
 }
+func (h *Handler) merchantOnly(c fiber.Ctx) error {
+	allowed, err := h.Authorization.HasAnyRole(c.Context(), claims(c), "owner", "merchant")
+	if err != nil {
+		return app.Internal(err)
+	}
+	if !allowed {
+		return app.NewError("FORBIDDEN", "Only a merchant owner can manage Telegram connections and orders.", 403)
+	}
+	return nil
+}
 func admin(c fiber.Ctx) error {
 	if claims(c) == nil || !claims(c).PlatformAdmin {
 		return app.NewError("FORBIDDEN", "Platform administrator access is required.", 403)
@@ -123,6 +133,9 @@ func (h *Handler) groups(c fiber.Ctx, a bool, shop string) error {
 }
 func (h *Handler) createPairing(c fiber.Ctx) error {
 	if err := h.permission(c, "tenant.write"); err != nil {
+		return err
+	}
+	if err := h.merchantOnly(c); err != nil {
 		return err
 	}
 	ctx, x := timeout(c)
@@ -198,6 +211,11 @@ func (h *Handler) doRotate(c fiber.Ctx, a bool) error {
 		}
 	} else if err := h.permission(c, "tenant.write"); err != nil {
 		return err
+	}
+	if !a {
+		if err := h.merchantOnly(c); err != nil {
+			return err
+		}
 	}
 	ctx, x := timeout(c)
 	defer x()
@@ -326,6 +344,11 @@ func (h *Handler) transition(c fiber.Ctx, a bool, confirm bool) error {
 	} else if err := h.permission(c, "tenant.write"); err != nil {
 		return err
 	}
+	if !a {
+		if err := h.merchantOnly(c); err != nil {
+			return err
+		}
+	}
 	ctx, x := timeout(c)
 	defer x()
 	var v tdto.Order
@@ -354,6 +377,11 @@ func (h *Handler) doAutoConfirm(c fiber.Ctx, a bool) error {
 		}
 	} else if err := h.permission(c, "tenant.write"); err != nil {
 		return err
+	}
+	if !a {
+		if err := h.merchantOnly(c); err != nil {
+			return err
+		}
 	}
 	var q tdto.AutoConfirmRequest
 	if err := c.Bind().JSON(&q); err != nil || q.AutoConfirmOrders == nil {

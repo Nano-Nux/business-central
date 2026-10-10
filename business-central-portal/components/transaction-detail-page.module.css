@@ -1,0 +1,312 @@
+.page {
+  display: grid;
+  gap: var(--space-section);
+  min-width: 0;
+}
+
+.context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px var(--space-section);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-section);
+}
+
+.page .metric {
+  display: grid;
+  gap: 8px;
+  padding: var(--space-panel);
+  min-width: 0;
+}
+
+.metric > span,
+.metric small,
+.muted,
+.sectionHead > span,
+.items small,
+.records small,
+.itemAmounts,
+.facts dt,
+.rows dt {
+  color: var(--muted);
+}
+
+.metric > strong {
+  font-size: clamp(18px, 2vw, 26px);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: var(--space-section);
+  align-items: start;
+}
+
+.main,
+.side {
+  display: grid;
+  gap: var(--space-section);
+  min-width: 0;
+}
+
+.page .panel {
+  padding: var(--space-panel);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.panel h2 {
+  font-size: 18px;
+  margin: 0 0 18px;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sectionHead h2 {
+  margin: 0;
+}
+
+.delivery {
+  border-top: 3px solid var(--color-brand);
+}
+
+.delivery > button {
+  width: 100%;
+  min-height: 44px;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-section);
+  margin: 0;
+}
+
+.facts dt {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.facts dd,
+.rows dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+.rows {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.rows > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-section);
+}
+
+.rows dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.total {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  font-size: 17px;
+}
+
+.total dt {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.note {
+  margin-top: var(--space-section);
+  padding: 14px;
+  background: var(--surface-muted);
+  border-radius: 8px;
+}
+
+.note span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.note p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
+
+.items,
+.records {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: 12px;
+  padding: var(--space-panel) 0;
+}
+
+.item + .item,
+.records li + li {
+  border-top: 1px solid var(--border);
+}
+
+.itemHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: var(--space-section);
+}
+
+.itemHead > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.itemHead > strong {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.itemAmounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px var(--space-section);
+  font-size: 13px;
+}
+
+.item :global(.badge) {
+  justify-self: start;
+}
+
+.muted {
+  line-height: 1.6;
+}
+
+.disclosure {
+  margin-top: var(--space-section);
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.disclosure summary {
+  cursor: pointer;
+  padding: 6px 0;
+  font-weight: 650;
+}
+
+.disclosure summary:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 4px;
+}
+
+.records li {
+  padding: var(--space-panel) 0;
+}
+
+.records li > strong {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.records p {
+  margin: 8px 0;
+}
+
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .side {
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .summary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .page .metric {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 16px var(--space-panel);
+    align-items: baseline;
+  }
+
+  .metric small {
+    grid-column: 1 / -1;
+  }
+
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-section);
+  }
+
+  .itemHead {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.editor {
+  width: min(760px, calc(100vw - 24px));
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+.editorFields {
+  display: grid;
+  gap: var(--space-section);
+  border: 0;
+  padding: 0;
+  margin: 0 0 20px;
+  min-width: 0;
+}
+.editorItem {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+/* The grid provides separation without adding component margins twice. */
+.page :global(.page-header),
+.page :global(.notice),
+.page :global(.form-error),
+.page :global(.success-message) {
+  margin-bottom: 0;
+}

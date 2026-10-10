@@ -71,15 +71,19 @@ type GroupUser = {
 type Action = (key: string, run: () => Promise<unknown>) => Promise<void>;
 type View = "groups" | "orders" | "guide";
 const TELEGRAM_REFRESH_INTERVAL_MS = 3 * 60 * 1000;
-const date = (value?: string) =>
+const date = (value: string | undefined, language: "en" | "my" | "th", fallback: string) =>
   value
-    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
-        new Date(value),
-      )
-    : "Unavailable";
+    ? new Intl.DateTimeFormat(language === "my" ? "my-MM" : language === "th" ? "th-TH" : "en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date(value))
+    : fallback;
 const readable = (value: string) => value.toLowerCase().replaceAll("_", " ");
+const translatedValue = (value: string, t: ReturnType<typeof useTranslation>["t"]) =>
+  t(`telegram.values.${value.toLowerCase()}`, readable(value));
 
 function CopyButton({ value, label }: { value: string; label: string }) {
+  const { t } = useTranslation();
   const [result, setResult] = useState("");
   return (
     <button
@@ -87,20 +91,21 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(value);
-          setResult("Copied");
+          setResult(t("telegram.copied"));
         } catch {
-          setResult("Select the code to copy");
+          setResult(t("telegram.select_code_to_copy"));
         }
       }}
       aria-label={label}
     >
-      <Icon name={result === "Copied" ? "check" : "receipt"} size={15} />
-      <span aria-live="polite">{result || "Copy"}</span>
+      <Icon name={result === t("telegram.copied") ? "check" : "receipt"} size={15} />
+      <span aria-live="polite">{result || t("telegram.copy")}</span>
     </button>
   );
 }
 
 function GroupUsers({ groupID, busy, action }: { groupID: string; busy: string; action: Action }) {
+  const { t, language } = useTranslation();
   const users = useResource<GroupUser>(`/telegram/groups/${groupID}/users`);
   const reloadUsers = users.reload;
   useEffect(() => {
@@ -111,25 +116,22 @@ function GroupUsers({ groupID, busy, action }: { groupID: string; busy: string; 
     <section className={styles.users} aria-labelledby="telegram-users-title">
       <div className={styles.sectionHead}>
         <div>
-          <h3 id="telegram-users-title">People & seller access</h3>
-          <p>Manage who can create orders in this group.</p>
+          <h3 id="telegram-users-title">{t("telegram.people_seller_access")}</h3>
+          <p>{t("telegram.manage_seller_access")}</p>
         </div>
-        <Badge>{users.data.length} known users</Badge>
+        <Badge>{t("telegram.known_users", { count: users.data.length })}</Badge>
       </div>
-      <p className={styles.note}>
-        Telegram shares administrators and people who interact with the bot, rather than a complete
-        member list.
-      </p>
+      <p className={styles.note}>{t("telegram.users_list_note")}</p>
       {users.error ? (
         <div className="alert error" role="alert">
           {users.error}
         </div>
       ) : users.loading && !users.data.length ? (
-        <p role="status">Loading users…</p>
+        <p role="status">{t("telegram.loading_users")}</p>
       ) : !users.data.length ? (
         <div className={styles.smallEmpty}>
           <Icon name="users" size={24} />
-          <p>No users observed yet. Interact with the bot in Telegram to appear here.</p>
+          <p>{t("telegram.no_users")}</p>
         </div>
       ) : (
         <div className={styles.userList}>
@@ -139,16 +141,21 @@ function GroupUsers({ groupID, busy, action }: { groupID: string; busy: string; 
                 <Icon name="user" size={18} />
               </span>
               <div className={styles.userIdentity}>
-                <strong>{u.display_name_snapshot || "Unknown user"}</strong>
+                <strong>{u.display_name_snapshot || t("telegram.unknown_user")}</strong>
                 <small>
                   {u.username_snapshot ? `@${u.username_snapshot} · ` : ""}
-                  {readable(u.telegram_role)} · ID {u.telegram_user_id}
+                  {translatedValue(u.telegram_role, t)} ·{" "}
+                  {t("telegram.user_id", { id: u.telegram_user_id })}
                 </small>
-                <small>Last seen {date(u.last_seen_at)}</small>
+                <small>
+                  {t("telegram.last_seen", {
+                    date: date(u.last_seen_at, language, t("telegram.unavailable")),
+                  })}
+                </small>
               </div>
               <div className={styles.userAccess}>
                 <Badge tone={u.can_create_orders ? "success" : "neutral"}>
-                  {u.can_create_orders ? "Authorized" : "Revoked"}
+                  {u.can_create_orders ? t("telegram.authorized") : t("telegram.revoked")}
                 </Badge>
                 {u.can_create_orders && (
                   <button
@@ -164,7 +171,9 @@ function GroupUsers({ groupID, busy, action }: { groupID: string; busy: string; 
                       })
                     }
                   >
-                    {busy === `user-${u.telegram_user_id}` ? "Revoking…" : "Revoke access"}
+                    {busy === `user-${u.telegram_user_id}`
+                      ? t("telegram.revoking")
+                      : t("telegram.revoke_access")}
                   </button>
                 )}
               </div>
@@ -177,6 +186,7 @@ function GroupUsers({ groupID, busy, action }: { groupID: string; busy: string; 
 }
 
 export function TelegramAutomationManager() {
+  const { t } = useTranslation();
   const shops = useResource<Shop>("/shops?page_index=0&page_size=100");
   const [botName, setBotName] = useState("");
   const [botError, setBotError] = useState("");
@@ -186,15 +196,12 @@ export function TelegramAutomationManager() {
       .then((bot) => {
         if (!current) return;
         setBotName(bot.username || "");
-        if (!bot.username)
-          setBotError(
-            "Telegram bot username is not configured. Ask your administrator to configure the shared bot.",
-          );
+        if (!bot.username) setBotError("telegram.bot_not_configured");
       })
       .catch((reason) => {
         if (current)
           setBotError(
-            reason instanceof Error ? reason.message : "Could not load the Telegram bot username.",
+            reason instanceof Error ? reason.message : "telegram.bot_username_load_failed",
           );
       });
     return () => {
@@ -212,7 +219,7 @@ export function TelegramAutomationManager() {
       shopError={shops.error}
       shopsLoading={shops.loading}
       botName={botName}
-      botError={botError}
+      botError={botError.startsWith("telegram.") ? t(botError) : botError}
     />
   );
 }
@@ -234,8 +241,8 @@ function TelegramWorkspace({
   botName: string;
   botError: string;
 }) {
-  const { t } = useTranslation();
-  const { can } = useAuth();
+  const { t, language } = useTranslation();
+  const { can, isMerchant } = useAuth();
   const groups = useResource<Group>(shopID ? `/telegram/shops/${shopID}/groups` : "");
   const orders = useResource<TelegramOrder>(shopID ? "/telegram/orders" : "");
   const [selectedGroup, setSelectedGroup] = useState("");
@@ -281,29 +288,29 @@ function TelegramWorkspace({
       await run();
       await Promise.all([groups.reload(), orders.reload()]);
       setActionRevision((revision) => revision + 1);
-      setNotice("Changes saved.");
+      setNotice(t("telegram.changes_saved"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The action could not be completed.");
+      setError(reason instanceof Error ? reason.message : t("telegram.action_failed"));
     } finally {
       setBusy("");
     }
   }
   async function createPairing() {
-    if (!shopID || !botName) return;
+    if (!isMerchant || !shopID || !botName) return;
     await action("pair", async () =>
       setPairing(await post<Pairing>(`/telegram/shops/${shopID}/pairing-codes`, {})),
     );
   }
-  const connectButton = (
+  const connectButton = isMerchant ? (
     <button
       className="button button-primary"
       onClick={createPairing}
       disabled={!shopID || !botName || !!busy}
     >
       <Icon name="plus" size={17} />
-      {busy === "pair" ? "Creating code…" : "Connect Telegram group"}
+      {busy === "pair" ? t("telegram.creating_code") : t("telegram.connect_group")}
     </button>
-  );
+  ) : null;
   return (
     <div className={styles.workspace}>
       <header className={styles.header}>
@@ -312,22 +319,24 @@ function TelegramWorkspace({
             <Icon name="send" size={27} />
           </span>
           <div>
-            <span className={styles.eyebrow}>AI / Automations</span>
+            <span className={styles.eyebrow}>{t("automations.eyebrow")}</span>
             <h1>Telegram</h1>
-            <p>Your group conversations, connected to your shop.</p>
+            <p>{t("telegram.description")}</p>
           </div>
         </div>
         <div className={styles.headerActions}>
           <label className={styles.shopSelect}>
-            <span>Shop</span>
+            <span>{t("telegram.shop")}</span>
             <select
-              aria-label="Telegram shop"
+              aria-label={t("telegram.shop")}
               value={shopID}
               onChange={(e) => onShopChange(e.target.value)}
               disabled={shopsLoading && !shops.length}
             >
               {!shops.length && (
-                <option value="">{shopsLoading ? "Loading shops…" : "No shops available"}</option>
+                <option value="">
+                  {shopsLoading ? t("telegram.loading_shops") : t("telegram.no_shops")}
+                </option>
               )}
               {shops.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -356,9 +365,9 @@ function TelegramWorkspace({
             <Icon name="users" size={20} />
           </span>
           <div>
-            <p>Connected groups</p>
+            <p>{t("telegram.connected_groups")}</p>
             <strong>{groups.loading && !groups.data.length ? "—" : groups.data.length}</strong>
-            <small>{active.length} active connections</small>
+            <small>{t("telegram.active_connections", { count: active.length })}</small>
           </div>
         </article>
         <article>
@@ -366,9 +375,9 @@ function TelegramWorkspace({
             <Icon name="receipt" size={20} />
           </span>
           <div>
-            <p>Pending orders</p>
+            <p>{t("telegram.pending_orders")}</p>
             <strong>{orders.loading && !scopedOrders.length ? "—" : pending.length}</strong>
-            <small>Awaiting your confirmation</small>
+            <small>{t("telegram.awaiting_confirmation")}</small>
           </div>
         </article>
         <article>
@@ -376,31 +385,28 @@ function TelegramWorkspace({
             <Icon name={needsAttention.length ? "alert-triangle" : "check"} size={20} />
           </span>
           <div>
-            <p>Needs attention</p>
+            <p>{t("telegram.needs_attention")}</p>
             <strong>{groups.loading && !groups.data.length ? "—" : needsAttention.length}</strong>
             <small>
-              {needsAttention.length
-                ? "Check bot access or connection errors"
-                : "No bot access issues reported"}
+              {needsAttention.length ? t("telegram.check_bot_access") : t("telegram.no_bot_issues")}
             </small>
           </div>
         </article>
       </div>
-      {pairing && (
+      {isMerchant && pairing && (
         <section className={styles.pairing} aria-labelledby="pairing-title">
           <div>
             <Badge tone={pairingExpired ? "warning" : "info"}>
-              {pairingExpired ? "Code expired" : "One-time pairing code"}
+              {pairingExpired ? t("telegram.code_expired") : t("telegram.one_time_code")}
             </Badge>
             <h2 id="pairing-title">
-              {pairingExpired ? "Create a new code to connect" : "Finish connecting in Telegram"}
+              {pairingExpired ? t("telegram.create_new_code") : t("telegram.finish_connecting")}
             </h2>
-            <p>
-              Add @{botName} as a group administrator, then send the command below in that group.
-            </p>
+            <p>{t("telegram.add_bot_admin_and_send", { bot: `@${botName}` })}</p>
             <small>
-              {pairingExpired ? "Expired" : "Expires"} {date(pairing.expires_at)}. This code is
-              shown only now.
+              {t(pairingExpired ? "telegram.expired" : "telegram.expires")}{" "}
+              {date(pairing.expires_at, language, t("telegram.unavailable"))}.{" "}
+              {t("telegram.code_shown_only_now")}
             </small>
           </div>
           <div className={styles.pairingCommand}>
@@ -412,23 +418,23 @@ function TelegramWorkspace({
                 <CopyButton
                   key={pairing.code}
                   value={`/connect@${botName} ${pairing.code}`}
-                  label="Copy pairing command"
+                  label={t("telegram.copy_pairing_command")}
                 />
               )}
             </div>
             <button className={styles.textButton} onClick={() => setView("guide")}>
-              View setup instructions <Icon name="arrow" size={14} />
+              {t("telegram.view_setup_instructions")} <Icon name="arrow" size={14} />
             </button>
           </div>
         </section>
       )}
       <div className={styles.viewBar}>
-        <nav aria-label="Telegram workspace views" className={styles.views}>
+        <nav aria-label={t("telegram.workspace_views")} className={styles.views}>
           {(
             [
-              ["groups", "Groups", groups.data.length],
-              ["orders", "Orders", pending.length],
-              ["guide", "Setup guide", null],
+              ["groups", t("telegram.groups"), groups.data.length],
+              ["orders", t("telegram.orders"), pending.length],
+              ["guide", t("telegram.setup_guide"), null],
             ] as const
           ).map(([id, label, count]) => (
             <button
@@ -444,63 +450,60 @@ function TelegramWorkspace({
         </nav>
         <span className={styles.liveNote}>
           <i />
-          Updates every 3 minutes
+          {t("telegram.updates_every_3_minutes")}
         </span>
       </div>
       {view === "groups" && (
-        <section aria-label="Telegram groups">
+        <section aria-label={t("telegram.groups")}>
           {!shopID && !shopsLoading ? (
             <div className={styles.panel}>
               <EmptyState
                 icon="store"
-                title="Choose a shop to get started"
-                message="Create or select a shop before connecting a Telegram group."
+                title={t("telegram.choose_shop_to_start")}
+                message={t("telegram.choose_shop_before_connecting")}
               />
             </div>
           ) : groups.loading && !groups.data.length ? (
             <div className={styles.panel} role="status">
-              Loading Telegram groups…
+              {t("telegram.loading_groups")}
             </div>
           ) : !groups.data.length ? (
             <div className={`${styles.panel} ${styles.onboarding}`}>
               <span className={styles.emptyMark}>
                 <Icon name="send" size={34} />
               </span>
-              <span className={styles.eyebrow}>Start your first connection</span>
-              <h2>Bring your Telegram orders into one place</h2>
-              <p>
-                Connect a group to this shop, let authorized sellers create drafts, and review every
-                order before it becomes a sale.
-              </p>
+              <span className={styles.eyebrow}>{t("telegram.start_first_connection")}</span>
+              <h2>{t("telegram.bring_orders_together")}</h2>
+              <p>{t("telegram.onboarding_description")}</p>
               <div className={styles.onboardingSteps}>
                 <span>
                   <Icon name="store" size={17} />
-                  Choose your shop
+                  {t("telegram.choose_your_shop")}
                 </span>
                 <Icon name="arrow" size={16} />
                 <span>
                   <Icon name="bot" size={17} />
-                  Add your bot
+                  {t("telegram.add_your_bot")}
                 </span>
                 <Icon name="arrow" size={16} />
                 <span>
                   <Icon name="check" size={17} />
-                  Pair your group
+                  {t("telegram.pair_your_group")}
                 </span>
               </div>
               <div className={styles.emptyActions}>
                 {connectButton}
                 <button className="button button-secondary" onClick={() => setView("guide")}>
                   <Icon name="book" size={16} />
-                  Read setup guide
+                  {t("telegram.read_setup_guide")}
                 </button>
               </div>
             </div>
           ) : (
             <div className={styles.groupLayout}>
-              <aside className={styles.groupRail} aria-label="Connected groups">
+              <aside className={styles.groupRail} aria-label={t("telegram.connected_groups")}>
                 <div className={styles.railHead}>
-                  <h2>Your groups</h2>
+                  <h2>{t("telegram.your_groups")}</h2>
                   <span>{groups.data.length}</span>
                 </div>
                 {groups.data.map((g) => (
@@ -516,20 +519,22 @@ function TelegramWorkspace({
                       </span>
                       <StatusBadge
                         status={g.connection_status}
-                        label={readable(g.connection_status)}
+                        label={translatedValue(g.connection_status, t)}
                       />
                     </div>
                     <strong>{g.group_title}</strong>
                     <small>
-                      {g.group_username ? `@${g.group_username}` : readable(g.group_type)}
+                      {g.group_username ? `@${g.group_username}` : translatedValue(g.group_type, t)}
                     </small>
                     <div className={styles.groupCardFoot}>
-                      <span>{g.member_count ?? "Unknown"} members</span>
+                      <span>
+                        {g.member_count ?? t("telegram.unknown")} {t("telegram.members")}
+                      </span>
                       {!g.bot_admin_status || g.last_error ? (
-                        <span className={styles.warningText}>Check bot access</span>
+                        <span className={styles.warningText}>{t("telegram.check_bot_access")}</span>
                       ) : (
                         <span>
-                          Bot admin <Icon name="check" size={13} />
+                          {t("telegram.bot_admin")} <Icon name="check" size={13} />
                         </span>
                       )}
                     </div>
@@ -540,16 +545,17 @@ function TelegramWorkspace({
                 <article className={styles.panel}>
                   <div className={styles.sectionHead}>
                     <div>
-                      <span className={styles.eyebrow}>Group workspace</span>
+                      <span className={styles.eyebrow}>{t("telegram.group_workspace")}</span>
                       <h2>{selected.group_title}</h2>
                       <p>
                         {selected.group_username ? `@${selected.group_username} · ` : ""}
-                        {readable(selected.group_type)} · Chat ID {selected.telegram_chat_id}
+                        {translatedValue(selected.group_type, t)} ·{" "}
+                        {t("telegram.chat_id", { id: selected.telegram_chat_id })}
                       </p>
                     </div>
                     <StatusBadge
                       status={selected.connection_status}
-                      label={readable(selected.connection_status)}
+                      label={translatedValue(selected.connection_status, t)}
                     />
                   </div>
                   <div className={styles.health}>
@@ -566,12 +572,17 @@ function TelegramWorkspace({
                     <div>
                       <strong>
                         {selected.bot_admin_status
-                          ? "Bot has administrator access"
-                          : "Bot needs administrator access"}
+                          ? t("telegram.bot_admin_access")
+                          : t("telegram.bot_needs_admin")}
                       </strong>
                       <p>
-                        Membership: {readable(selected.bot_membership_status)} · Last activity{" "}
-                        {date(selected.last_seen_at)}
+                        {t("telegram.membership_status", {
+                          status: translatedValue(selected.bot_membership_status, t),
+                        })}{" "}
+                        ·{" "}
+                        {t("telegram.last_activity", {
+                          date: date(selected.last_seen_at, language, t("telegram.unavailable")),
+                        })}
                       </p>
                     </div>
                   </div>
@@ -583,11 +594,10 @@ function TelegramWorkspace({
                   <div className={styles.autoConfirm}>
                     <div>
                       <strong id={`auto-confirm-label-${selected.id}`}>
-                        Automatically Confirm Order
+                        {t("telegram.auto_confirm_order")}
                       </strong>
                       <p id={`auto-confirm-help-${selected.id}`}>
-                        New valid orders are confirmed, recorded as Paid, and deducted from stock.
-                        Existing pending orders stay pending.
+                        {t("telegram.auto_confirm_help")}
                       </p>
                     </div>
                     <button
@@ -598,7 +608,10 @@ function TelegramWorkspace({
                       aria-describedby={`auto-confirm-help-${selected.id}`}
                       className={styles.autoConfirmSwitch}
                       disabled={
-                        !!busy || !can("tenant.write") || selected.connection_status === "REVOKED"
+                        !!busy ||
+                        !isMerchant ||
+                        !can("tenant.write") ||
+                        selected.connection_status === "REVOKED"
                       }
                       onClick={() =>
                         action(`auto-confirm-${selected.id}`, () =>
@@ -611,7 +624,9 @@ function TelegramWorkspace({
                       <span className={styles.switchTrack} aria-hidden="true">
                         <span />
                       </span>
-                      <span>{selected.auto_confirm_orders ? "On" : "Off"}</span>
+                      <span>
+                        {selected.auto_confirm_orders ? t("telegram.on") : t("telegram.off")}
+                      </span>
                     </button>
                   </div>
                   <div className={styles.groupActions}>
@@ -625,7 +640,9 @@ function TelegramWorkspace({
                       }
                     >
                       <Icon name="history" size={15} />
-                      {busy === `refresh-${selected.id}` ? "Refreshing…" : "Refresh health"}
+                      {busy === `refresh-${selected.id}`
+                        ? t("telegram.refreshing")
+                        : t("telegram.refresh_health")}
                     </button>
                     <button
                       className="button button-secondary"
@@ -638,24 +655,28 @@ function TelegramWorkspace({
                         )
                       }
                     >
-                      {selected.connection_status === "PAUSED" ? "Resume" : "Pause"}
+                      {selected.connection_status === "PAUSED"
+                        ? t("telegram.resume")
+                        : t("telegram.pause")}
                     </button>
-                    <button
-                      className="button button-secondary"
-                      disabled={!!busy || !botName}
-                      onClick={() =>
-                        action(`rotate-${selected.id}`, async () =>
-                          setPairing(
-                            await post<Pairing>(
-                              `/telegram/groups/${selected.id}/rotate-pairing-code`,
-                              {},
+                    {isMerchant && (
+                      <button
+                        className="button button-secondary"
+                        disabled={!!busy || !botName}
+                        onClick={() =>
+                          action(`rotate-${selected.id}`, async () =>
+                            setPairing(
+                              await post<Pairing>(
+                                `/telegram/groups/${selected.id}/rotate-pairing-code`,
+                                {},
+                              ),
                             ),
-                          ),
-                        )
-                      }
-                    >
-                      Rotate code
-                    </button>
+                          )
+                        }
+                      >
+                        {t("telegram.rotate_code")}
+                      </button>
+                    )}
                     <button
                       className={styles.dangerLink}
                       disabled={!!busy}
@@ -666,7 +687,7 @@ function TelegramWorkspace({
                       }
                     >
                       <Icon name="trash" size={15} />
-                      Disconnect
+                      {t("telegram.disconnect")}
                     </button>
                   </div>
                   <GroupUsers
@@ -677,56 +698,55 @@ function TelegramWorkspace({
                   />
                   <details className={styles.connectionDetails}>
                     <summary>
-                      Connection details <Icon name="chevron" size={16} />
+                      {t("telegram.connection_details")} <Icon name="chevron" size={16} />
                     </summary>
                     <dl className={styles.detailGrid}>
                       <div>
-                        <dt>Connected</dt>
-                        <dd>{date(selected.connected_at)}</dd>
+                        <dt>{t("telegram.connected")}</dt>
+                        <dd>{date(selected.connected_at, language, t("telegram.unavailable"))}</dd>
                       </div>
                       <div>
-                        <dt>Connected by</dt>
-                        <dd>{selected.connected_by || "Unavailable"}</dd>
+                        <dt>{t("telegram.connected_by")}</dt>
+                        <dd>{selected.connected_by || t("telegram.unavailable")}</dd>
                       </div>
                       <div>
-                        <dt>First seen</dt>
-                        <dd>{date(selected.first_seen_at)}</dd>
+                        <dt>{t("telegram.first_seen")}</dt>
+                        <dd>{date(selected.first_seen_at, language, t("telegram.unavailable"))}</dd>
                       </div>
                       <div>
-                        <dt>Last refreshed</dt>
-                        <dd>{date(selected.last_refreshed_at)}</dd>
-                      </div>
-                      <div>
-                        <dt>Creator snapshot</dt>
+                        <dt>{t("telegram.last_refreshed")}</dt>
                         <dd>
-                          {selected.creator_display_name_snapshot || "Unavailable"}
+                          {date(selected.last_refreshed_at, language, t("telegram.unavailable"))}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{t("telegram.creator_snapshot")}</dt>
+                        <dd>
+                          {selected.creator_display_name_snapshot || t("telegram.unavailable")}
                           {selected.creator_username_snapshot
                             ? ` (@${selected.creator_username_snapshot})`
                             : ""}
                         </dd>
                       </div>
                       <div>
-                        <dt>Required permissions</dt>
-                        <dd>Manage chat; send and edit messages</dd>
+                        <dt>{t("telegram.required_permissions")}</dt>
+                        <dd>{t("telegram.required_permissions_detail")}</dd>
                       </div>
                       <div>
-                        <dt>Observed bot permissions</dt>
+                        <dt>{t("telegram.observed_bot_permissions")}</dt>
                         <dd>
                           {Object.entries(selected.bot_permission_snapshot || {})
                             .filter(([, enabled]) => enabled)
-                            .map(([name]) => readable(name))
-                            .join(", ") || "None reported"}
+                            .map(([name]) => translatedValue(name, t))
+                            .join(", ") || t("telegram.none_reported")}
                         </dd>
                       </div>
                       <div>
-                        <dt>Last error</dt>
-                        <dd>{selected.last_error || "None"}</dd>
+                        <dt>{t("telegram.last_error")}</dt>
+                        <dd>{selected.last_error || t("telegram.none")}</dd>
                       </div>
                     </dl>
-                    <p className={styles.note}>
-                      Telegram does not provide a group creation date. Connected and first-seen
-                      dates are shown instead.
-                    </p>
+                    <p className={styles.note}>{t("telegram.group_creation_date_note")}</p>
                   </details>
                 </article>
               )}
@@ -734,9 +754,9 @@ function TelegramWorkspace({
           )}
           <div className={styles.helper}>
             <Icon name="help" size={18} />
-            <p>Each Telegram group belongs to one shop. Need a hand connecting?</p>
+            <p>{t("telegram.groups_belong_to_shop")}</p>
             <button className={styles.textButton} onClick={() => setView("guide")}>
-              Open setup guide <Icon name="arrow" size={14} />
+              {t("telegram.open_setup_guide")} <Icon name="arrow" size={14} />
             </button>
           </div>
         </section>
@@ -745,16 +765,16 @@ function TelegramWorkspace({
         <section className={styles.panel} aria-labelledby="telegram-orders-title">
           <div className={styles.sectionHead}>
             <div>
-              <h2 id="telegram-orders-title">Telegram orders</h2>
-              <p>Review drafts before confirming them into your shop’s sales history.</p>
+              <h2 id="telegram-orders-title">{t("telegram.telegram_orders")}</h2>
+              <p>{t("telegram.review_drafts_description")}</p>
             </div>
-            <Badge tone="info">Shop orders</Badge>
+            <Badge tone="info">{t("telegram.shop_orders")}</Badge>
           </div>
-          <div className={styles.orderFilters} aria-label="Order status filters">
+          <div className={styles.orderFilters} aria-label={t("telegram.order_status_filters")}>
             {[
-              ["DRAFT", "Pending"],
-              ["CONFIRMED", "Confirmed"],
-              ["CANCELLED", "Cancelled & expired"],
+              ["DRAFT", t("telegram.pending")],
+              ["CONFIRMED", t("telegram.confirmed")],
+              ["CANCELLED", t("telegram.cancelled_expired")],
             ].map(([status, label]) => (
               <button
                 key={status}
@@ -775,15 +795,17 @@ function TelegramWorkspace({
             ))}
           </div>
           {orders.loading && !scopedOrders.length ? (
-            <p role="status">Loading Telegram orders…</p>
+            <p role="status">{t("telegram.loading_orders")}</p>
           ) : !visibleOrders.length ? (
             <EmptyState
               icon="receipt"
-              title={orderStatus === "DRAFT" ? "You’re all caught up" : "No orders here yet"}
+              title={
+                orderStatus === "DRAFT" ? t("telegram.all_caught_up") : t("telegram.no_orders_yet")
+              }
               message={
                 orderStatus === "DRAFT"
-                  ? "New drafts from your Telegram groups will appear here for review."
-                  : "Orders with this status will appear here."
+                  ? t("telegram.new_drafts_note")
+                  : t("telegram.status_orders_note")
               }
             />
           ) : (
@@ -794,7 +816,7 @@ function TelegramWorkspace({
                     <div>
                       <strong>{o.order_number}</strong>
                       <small>
-                        {o.group_title} · {date(o.created_at)}
+                        {o.group_title} · {date(o.created_at, language, t("telegram.unavailable"))}
                       </small>
                     </div>
                     <Badge
@@ -806,14 +828,24 @@ function TelegramWorkspace({
                             : "neutral"
                       }
                     >
-                      {o.status === "DRAFT" ? "Pending" : readable(o.status)}
+                      {translatedValue(o.status, t)}
                     </Badge>
                   </div>
                   <div className={styles.orderBody}>
                     <div>
-                      <h3>{o.customer_name ? `Customer: ${o.customer_name}` : ""}</h3>
-                      {o.payment_status && <p>Payment: {o.payment_status}</p>}
-                      {o.auto_confirmed && <p>Automatically confirmed</p>}
+                      <h3>
+                        {o.customer_name
+                          ? t("telegram.customer_name", { name: o.customer_name })
+                          : ""}
+                      </h3>
+                      {o.payment_status && (
+                        <p>
+                          {t("telegram.payment_status", {
+                            status: translatedValue(o.payment_status, t),
+                          })}
+                        </p>
+                      )}
+                      {o.auto_confirmed && <p>{t("telegram.automatically_confirmed")}</p>}
                       {(o.items?.length
                         ? o.items
                         : [
@@ -831,16 +863,27 @@ function TelegramWorkspace({
                         <div className={styles.orderItem} key={item.line_number}>
                           <strong>{item.description}</strong>
                           <p>
-                            {item.sku && `${item.sku} · `}Quantity {item.quantity} · Unit price{" "}
-                            {item.unit_price} {o.currency_code}
+                            {item.sku && `${item.sku} · `}
+                            {t("telegram.quantity", { quantity: item.quantity })} ·{" "}
+                            {t("telegram.unit_price", {
+                              price: item.unit_price,
+                              currency: o.currency_code,
+                            })}
                           </p>
                           <small>
-                            Line total {item.line_total} {o.currency_code}
+                            {t("telegram.line_total", {
+                              total: item.line_total,
+                              currency: o.currency_code,
+                            })}
                           </small>
                         </div>
                       ))}
                       {o.status === "DRAFT" && (
-                        <small>Reservation expires {date(o.expires_at)}</small>
+                        <small>
+                          {t("telegram.reservation_expires", {
+                            date: date(o.expires_at, language, t("telegram.unavailable")),
+                          })}
+                        </small>
                       )}
                     </div>
                     <strong className={styles.orderTotal}>
@@ -851,41 +894,45 @@ function TelegramWorkspace({
                   {o.last_error && <p className={styles.warningText}>{o.last_error}</p>}
                   {o.status === "DRAFT" && (
                     <div className={styles.orderActions}>
-                      <span>Reserved stock · Awaiting review</span>
-                      <div>
-                        <button
-                          className="button button-secondary"
-                          disabled={!!busy}
-                          onClick={() =>
-                            action(`cancel-${o.id}`, () =>
-                              post(`/telegram/orders/${o.id}/cancel`, {}),
-                            )
-                          }
-                        >
-                          {busy === `cancel-${o.id}` ? "Cancelling…" : "Cancel"}
-                        </button>
-                        <button
-                          className="button button-primary"
-                          disabled={!!busy}
-                          onClick={() =>
-                            action(`confirm-${o.id}`, () =>
-                              post(`/telegram/orders/${o.id}/confirm`, {}),
-                            )
-                          }
-                        >
-                          <Icon name="check" size={16} />
-                          {busy === `confirm-${o.id}` ? "Confirming…" : "Confirm order"}
-                        </button>
-                      </div>
+                      <span>{t("telegram.reserved_stock_awaiting_review")}</span>
+                      {isMerchant && (
+                        <div>
+                          <button
+                            className="button button-secondary"
+                            disabled={!!busy}
+                            onClick={() =>
+                              action(`cancel-${o.id}`, () =>
+                                post(`/telegram/orders/${o.id}/cancel`, {}),
+                              )
+                            }
+                          >
+                            {busy === `cancel-${o.id}`
+                              ? t("telegram.cancelling")
+                              : t("common.cancel")}
+                          </button>
+                          <button
+                            className="button button-primary"
+                            disabled={!!busy}
+                            onClick={() =>
+                              action(`confirm-${o.id}`, () =>
+                                post(`/telegram/orders/${o.id}/confirm`, {}),
+                              )
+                            }
+                          >
+                            <Icon name="check" size={16} />
+                            {busy === `confirm-${o.id}`
+                              ? t("telegram.confirming")
+                              : t("telegram.confirm_order")}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </article>
               ))}
             </div>
           )}
-          <p className={styles.note}>
-            Drafts reserve stock. Confirmed orders appear in your normal history and reporting.
-          </p>
+          <p className={styles.note}>{t("telegram.draft_stock_note")}</p>
         </section>
       )}
       {view === "guide" && (
@@ -893,7 +940,7 @@ function TelegramWorkspace({
           <section className={styles.panel} aria-labelledby="telegram-setup-guide-title">
             <div className={styles.sectionHead}>
               <div>
-                <span className={styles.eyebrow}>Getting started</span>
+                <span className={styles.eyebrow}>{t("telegram.getting_started")}</span>
                 <h2 id="telegram-setup-guide-title">{t("telegram_setup.title")}</h2>
                 <p>{t("telegram_setup.intro")}</p>
               </div>
@@ -906,7 +953,7 @@ function TelegramWorkspace({
                 <p>{t("telegram_setup.before_start")}</p>
                 {botName && (
                   <p>
-                    Official bot: <strong>@{botName}</strong>
+                    {t("telegram.official_bot")} <strong>@{botName}</strong>
                   </p>
                 )}
               </div>
@@ -938,7 +985,7 @@ function TelegramWorkspace({
           <aside className={styles.panel}>
             <div className={styles.sectionHead}>
               <div>
-                <span className={styles.eyebrow}>Quick reference</span>
+                <span className={styles.eyebrow}>{t("telegram.quick_reference")}</span>
                 <h2>{t("telegram_setup.seller_commands")}</h2>
               </div>
               <Icon name="send" size={21} />
@@ -947,19 +994,22 @@ function TelegramWorkspace({
             <p className={styles.note}>{t("telegram_setup.customer_name_rule")}</p>
             <div className={styles.commandList}>
               {[
-                ["By product name", "/takeorder electric wheelchair qty=2"],
-                ["By SKU", "/takeorder qty=2 WC-002"],
-                ["By name and SKU", "/takeorder electric wheelchair qty=2 WC-002"],
+                [t("telegram.example_product_name"), "/takeorder electric wheelchair qty=2"],
+                [t("telegram.example_sku"), "/takeorder qty=2 WC-002"],
+                [t("telegram.example_name_sku"), "/takeorder electric wheelchair qty=2 WC-002"],
                 [
-                  "Customer and multiple products",
+                  t("telegram.example_customer_multiple"),
                   "/takeorder\ncustomer=KyawKyaw\nwo phone qty=2\ntravel-mate-p214 qty=1",
                 ],
-                ["Cancel a draft", "/cancelorder TG-20260927-0001"],
+                [t("telegram.example_cancel_draft"), "/cancelorder TG-20260927-0001"],
               ].map(([label, command]) => (
                 <div key={command}>
                   <strong>{label}</strong>
                   <code>{command}</code>
-                  <CopyButton value={command} label={`Copy ${label.toLowerCase()} command`} />
+                  <CopyButton
+                    value={command}
+                    label={t("telegram.copy_example_command", { label })}
+                  />
                 </div>
               ))}
             </div>

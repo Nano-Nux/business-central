@@ -1,5 +1,37 @@
 # API Contract
 
+## Storage stock management
+
+Storage replaces the portal's separate stock-in screen; `/stock-in` redirects to
+`/storage`. System `merchant`/`owner` roles see the full table and may increase
+or reduce stock. Other roles receive a read-only product/unit/stock/RETAIL-price
+view; `original_price` and `profit` are omitted from their API responses.
+`GET /api/v1/inventory/storage` adds `base_unit_id`, `allows_decimal`, and
+`is_stock_tracked` to drive the merchant form without duplicating inventory rules.
+
+`POST /api/v1/inventory/stock-in` now requires merchant/owner role and
+`tenant.write`; the legacy `stock_in` permission cannot grant nonmerchant access.
+Typed `STOCK_RECEIPT` synchronization enforces the same role and shop scope.
+
+`POST /api/v1/inventory/stock-reductions` accepts `variant_id`,
+`source_location_id`, positive base-unit `quantity` (string, maximum six decimal
+places), required `reason` (maximum 1000 characters), and stable `event_key`
+(maximum 255 characters). It requires an active merchant/owner role and
+`tenant.write`. A transaction locks the location balance, rejects quantities
+above unreserved stock, appends an `ADJUSTMENT` movement, consumes FIFO cost,
+records actor/reason in `audit_events`, and publishes a shop-scoped
+`STOCK_REDUCTION` change. Responses are 201 with a movement envelope, 400 for
+invalid quantity/scope/policy, 403 for nonmerchant roles, and 409 for insufficient
+stock or an event key reused with different content. The event key protects
+retries permanently through the immutable ledger. No database migration is
+required. Direct reductions support non-batch/non-expiry/non-serial/non-asset
+stock; traceable stock requires its dedicated lifecycle.
+
+Portal temporary-offline reductions persist a payload-hashed deferred request
+and local projection together, replay this same API, and retain backend
+rejections for review. Generic sync push still rejects `STOCK_REDUCTION`
+mutations. Mobile native parity is pending; FULLY_OFFLINE remains local only.
+
 ## Telegram automation
 
 `GET /api/v1/admin/telegram/webhook` and `POST /api/v1/admin/telegram/webhook` require an authenticated platform administrator. GET reads Telegram's current webhook; POST accepts `{"url":"https://your-backend-domain/api/v1/webhooks/telegram"}`, registers it with the backend's bot token and webhook secret, then reads the status. Both return `{"data":{"url":"","pending_update_count":0,"bot_username":"NanonuxBusinessCentralBot","token_configured":true,"secret_configured":true,"suggested_url":""},"meta":{}}`, with optional `last_error_date` (Unix seconds), `last_error_message`, and `allowed_updates`. Empty `url` means not registered. Configuration booleans expose readiness only; credentials are never returned. `suggested_url` is derived from a valid public HTTPS `PUBLIC_BASE_URL`.
@@ -100,7 +132,11 @@ row, but confirmation settles their zero balance.
 orders as Paid invoices, using actual captured payments. Cancelled/expired Telegram
 orders are excluded. Invoice `channel` identifies TELEGRAM; nullable `customer`
 contains the recorded name or null. Print/PDF previews leave unnamed Telegram
-customer fields blank, while other channels retain their existing defaults.
+customer fields blank. All channels leave unnamed customers blank in the UI and
+return `customer: null` on invoices; no fallback customer name is generated.
+POS quote/checkout accepts omitted, null, empty, or whitespace-only
+`customer_name` as unnamed. Temporary-offline projections and replay requests
+store `customer_name: null` when no name is entered.
 
 This document defines the contract between `business-central-backend` and the admin, portal, and mobile clients. The backend is the authority for business behavior, validation, permissions, merchant modules, and state transitions.
 
@@ -252,6 +288,26 @@ canonical FIFO cost layers; purchase-order identifiers must still be supplied
 together when that workflow is used. `GET /api/v1/pos/catalog` supports server-side
 querying over product name, variant name, SKU, and barcode, equality filtering
 via `filter=is_stock_tracked:true`, and zero-based pagination (`page_index`, `page_size`).
+
+Stock conversion uses one rule and operation in every POS mode. Merchant users
+create or update a same-product, stock-tracked variant rule with
+`POST /api/v1/inventory/stock-conversion-rules` (`source_variant_id`,
+`destination_variant_id`, `destination_quantity`, optional `is_active`).
+`GET /api/v1/inventory/stock-conversion-rules` is available to staff and merchants.
+`GET /api/v1/inventory/stock-conversions/preview` accepts `rule_id`,
+`location_id`, and whole `quantity` and returns source/destination before and
+after quantities without changing stock; confirmation rechecks availability.
+Staff and merchants apply an active rule with
+`POST /api/v1/inventory/stock-conversions` (`rule_id`, `location_id`, positive
+whole `quantity`, optional `notes`) and a required `Idempotency-Key` header.
+`GET /api/v1/inventory/stock-conversions` returns the latest 100 applied
+shop-scoped conversions. The operation consumes source FIFO stock and creates
+destination FIFO stock at the same location atomically; reservations and
+insufficient stock reject it. Cost is split in whole cents across at most two
+output layers so total inventory value is preserved. Staff responses omit
+`total_cost`. Batch-, expiry-, serial-, and unique-asset-tracked variants are
+currently rejected. Source and destination remain separate sellable variants;
+POS mode changes do not change their IDs, stock, or conversion history.
 Service billing creation accepts an optional `promotion_id`; unscoped promotions
 can reduce a service total and are reflected in the canonical SERVICE order.
 Repair creation accepts the same field and applies the reduction to the repair
@@ -421,10 +477,12 @@ The backend provides the conversational and business analysis intelligence engin
 - **Merchant AI Usage Limit & Quota Enforcement:** Each merchant has an AI query limit (`ai_usage_limit`, default `50`) and a persistent counter of total queries executed (`ai_usage_count`). Platform administrators configure the limit and can reset the counter via `PATCH /api/v1/admin/merchants/{id}`. When `ai_usage_count >= ai_usage_limit`, subsequent `/api/v1/ai/chat` requests are blocked with HTTP 403 (`AI_USAGE_LIMIT_EXCEEDED`). Current usage and remaining query count are retrieved via `GET /api/v1/ai/usage`.
 - **User authorization:** Requires `ai.chat` permission. Granted by default to `owner`/`merchant` roles; merchant owners control the toggle for staff members under Staff Accounts settings (default off).
 - **Online-only:** AI chat and audio transcription operate strictly online and require backend connectivity.
-- **Tenant, User & Shop Scoping:** Conversations and messages are user-scoped (`merchant_id` + `membership_id`), and each conversation is scoped to a specific shop (`shop_id`). When asking business questions (orders, revenue, profit, stock, sales) without explicitly mentioning a shop name, the AI automatically scopes all database queries and response context to the active shop (`shop_id`).
-- **Staff Confidentiality Boundary (Profit & Cost Protection):** Staff users are strictly forbidden from accessing, querying, estimating, or calculating business profit (gross profit, net profit, margins, markups, daily profit) or original purchase/cost prices (`original_price`, `cost_price`, supplier purchase prices, COGS). The conversational model's prompt for staff members explicitly omits cost fields and instructs it to politely refuse profit inquiries. Deterministic backend SQL validation intercepts and rejects any query containing staff-restricted tokens before execution. In addition, raw query payloads are withheld from staff responses and history to preserve internal privacy. Merchant owners and managers retain full financial access.
+- **Mandatory tenant, membership and shop scope:** All chats require the selected `shop_id`. The backend checks current active membership/identity/shop access and exact conversation-shop equality. A prompt cannot switch shops, even when explicitly requested. Shared catalog/reference records remain merchant-scoped; operational records remain shop-scoped. Legacy conversations without a shop are hidden rather than rebound. See [AI security policy and rollout](AI_CHAT_SECURITY.md).
+- **Staff Confidentiality Boundary (Profit & Cost Protection):** Staff users are strictly forbidden from accessing, querying, estimating, or calculating business profit (gross profit, net profit, margins, markups, daily profit) or original purchase/cost prices (`original_price`, `cost_price`, supplier purchase prices, COGS). The conversational model's prompt for staff members explicitly omits cost fields and instructs it to politely refuse profit inquiries. The backend structured-read compiler excludes restricted datasets and columns from every query clause, independently of model instructions. In addition, raw query payloads are withheld from staff responses and history to preserve internal privacy. Merchant/owner roles and platform administrators retain financial access; other roles retain the existing restricted behavior.
 - **SQL Security & Concealment:** Executed SQL queries are strictly withheld from client responses across all roles (owner, manager, and staff) and never rendered in client UIs or returned in API payloads to protect internal database schema from reconnaissance and mitigate injection risks.
-- **Read-only tool calling:** Queries are executed against merchant database views via strictly validated `SELECT` / `WITH` statements in read-only transactions with timeouts and tenant constraints. Data mutations (`INSERT`, `UPDATE`, `DELETE`, etc.) are blocked at both AST parsing and transaction levels.
+- **Read-only tool calling:** The sole model tool is `read_shop_data`, a structured proposal over an explicit operational dataset catalog. The backend builds fixed projections and scope relationships, binds filter values, and executes READ ONLY transactions with timeouts, row/payload limits and current membership checks. Raw SQL, arbitrary functions, expressions, joins, user/credential tables and write tools are unavailable.
+- **Usage reservation:** The backend reserves quota atomically before planner calls. Requests that reach the model consume quota even when the provider fails or the model proposes an invalid tool. At most eight planner/transcription requests run concurrently per backend process (`429 AI_BUSY` when full). Chat and transcription share a per-membership limit of ten HTTP requests per minute per process (`429 AI_RATE_LIMITED`).
+- **Response safety:** Formatting HTML is sanitized on the server before persistence and again on history retrieval; executable/embed/URL/style content is removed. Historical financial answers are withheld after role downgrade.
 - **Semantic HTML output:** Responses are humanized and returned in semantic HTML formatting, embedding structured HTML `<table>` elements for tabular data queries.
 
 ### Endpoints
@@ -433,20 +491,20 @@ The backend provides the conversational and business analysis intelligence engin
   - Authorization: Requires authenticated merchant user with `ai.chat` permission.
   - Response: `{ "data": { "usage_count": number, "usage_limit": number, "remaining": number, "is_limit_reached": boolean, "ai_assistant_enabled": boolean }, "meta": {} }`
 - `POST /api/v1/ai/chat`
-  - Body: `{ "message": string, "conversation_id"?: string, "shop_id"?: string, "audio_base64"?: string, "audio_mime_type"?: string }`
-  - Response: `{ "data": { "conversation_id": string, "shop_id"?: string, "shop_name"?: string, "user_message": Message, "ai_message": Message, "ai_usage_count": number, "ai_usage_limit": number }, "meta": {} }`
-  - Error: HTTP 403 `AI_USAGE_LIMIT_EXCEEDED` if `ai_usage_count >= ai_usage_limit`.
+  - Body: `{ "message": string, "conversation_id"?: string, "shop_id": string, "audio_base64"?: string, "audio_mime_type"?: string }`
+  - Response: `{ "data": { "conversation_id": string, "shop_id": string, "shop_name"?: string, "user_message": Message, "ai_message": Message, "ai_usage_count": number, "ai_usage_limit": number }, "meta": {} }`
+  - Errors: HTTP 400 `SHOP_REQUIRED`, HTTP 403 `FORBIDDEN`, HTTP 404 `NOT_FOUND` for mismatched conversation shops; HTTP 403 `AI_USAGE_LIMIT_EXCEEDED` if `ai_usage_count >= ai_usage_limit`.
 - `GET /api/v1/ai/conversations`
-  - Query: `?limit=50&shop_id=UUID`
+  - Query: `?limit=50&shop_id=UUID` (`shop_id` required)
   - Response: `{ "data": AIConversation[], "meta": { "total": number } }` (includes `shop_id` and `shop_name`)
 - `POST /api/v1/ai/conversations`
-  - Body: `{ "title": string, "shop_id"?: string }`
+  - Body: `{ "title": string, "shop_id": string }`
   - Response: `{ "data": AIConversation, "meta": {} }`
-- `GET /api/v1/ai/conversations/:id/messages`
+- `GET /api/v1/ai/conversations/:id/messages?shop_id=UUID`
   - Response: `{ "data": { "conversation": AIConversation, "messages": Message[] }, "meta": { "total_messages": number } }`
-- `DELETE /api/v1/ai/conversations/:id`
+- `DELETE /api/v1/ai/conversations/:id?shop_id=UUID`
   - Response: `204 No Content`
-- `POST /api/v1/ai/transcribe`
+- `POST /api/v1/ai/transcribe?shop_id=UUID`
   - Body: `multipart/form-data` with `audio` file or JSON with `audio_base64` and `mime_type`
   - Response: `{ "data": { "text": string }, "meta": {} }`
 
@@ -470,6 +528,10 @@ Update this document, backend tests, client integration code, and affected featu
 
 Telegram automatic confirmation is saved per group as
 `telegram_group_connections.auto_confirm_orders` (BOOLEAN NOT NULL DEFAULT FALSE).
+Tenant APIs for pairing-code creation/rotation, confirming/cancelling Telegram
+orders, and changing automatic confirmation require both `tenant.write` and a
+system `merchant` or `owner` role. Staff with `tenant.write` receive 403 for
+these actions. Platform-admin routes keep platform-admin authorization.
 Migration `0051_telegram_auto_confirm` defaults existing groups to OFF; it never
 processes existing drafts. `telegram_order_sources.auto_confirmed` records how
 an order was confirmed, independent of later setting changes.
@@ -493,3 +555,58 @@ are rejected with 400. The response is the updated group envelope including
 value in audit events. Group GET/list reads expose the saved flag. Order responses
 add boolean `auto_confirmed`; receipts and web order review identify automatic
 confirmation. No SQLite schema change: Telegram configuration remains online-only.
+
+## POS Nano merchant mode
+
+`pos_complexity_level` accepts `NANO`, `MINI`, `SIMPLE`, and `COMPLEX`. Both merchant provisioning endpoints default omitted/empty mode to `NANO`. Updates retain the existing mode unless explicitly changed. Nano catalog requests use the existing managed standard variant and direct original/retail price fields, as Mini does. Opening stock uses a separate existing stock receipt operation, with its own event key and authorization; no new entity or stock API is introduced. See `business-central-portal/docs/POS_NANO.md`.
+
+## Independent POS delivery payment
+
+See [delivery payment workflow, financial rules, migration and offline behavior](DELIVERY_PAYMENT.md).
+
+## Sellable-option creation defaults
+
+`POST /api/v1/catalog/products/:id/variants` requires only a nonblank `name`.
+Omitted/blank `sku` generates `OPT-<new variant UUID without hyphens>`.
+Omitted/blank `base_unit_id` and `unit_of_measure` inherit the same product's
+managed standard variant (`STD-<product ID>`); if absent, use the lowest variant
+ID. If there are no variants, use an active merchant PCS unit, then EA. If no
+unit can be resolved, return a validation error prompting selection of a base
+unit. Explicit values override creation defaults; stored unit labels still follow
+the existing database base-unit normalization. Barcode, images and
+attributes remain optional. Inventory tracking defaults to true.
+
+`PATCH /catalog/variants/:id` keeps its existing required stored-field contract;
+the optional-input editor supplies existing values for blank edit fields.
+Database SKU/base-unit constraints and merchant SKU uniqueness remain unchanged.
+Creation through CATALOG_VARIANT synchronization applies the same defaults using
+the operation entity ID, preserving generated SKUs across retries. Legacy clients
+supplying full fields continue to work.
+
+## Transaction correction
+
+`PATCH /api/v1/pos/orders/:orderId` replaces a POS or confirmed Telegram sale;
+`DELETE /api/v1/pos/orders/:orderId` permanently removes it. Both require a
+merchant/owner role, `tenant.write`, selected `shop_id`, `expected_updated_at`
+from transaction detail and `idempotency_key`. Detail now includes
+`order.updated_at` and line `variant_id`/`asset_id` for editing. Edit accepts
+customer name/phone, note, payment method, delivery name/contact/fee/status and
+lines with variant, quantity, unit price, discount and tax. The backend computes
+totals and recreates captured merchandise payment and selected delivery payment.
+Existing refunds and payment records are replaced; no payment provider is called.
+
+Delete restores original stock/FIFO capacity and removes order lines,
+fulfillments, payment/refund records, sale stock history, related accounting,
+audit/outbox and prior sync payloads. Minimal idempotency hashes and deletion
+tombstones remain to prevent retry resurrection. Shared customer/catalog masters
+remain. Service orders use their originating workflow. Returned stock consumed
+by another transaction prevents correction until that dependency is resolved.
+Web corrections require connectivity and are not queued; embedded mobile uses
+local SQLite only. Its current line schema accepts whole quantities.
+
+Transaction History (`GET /transaction-history`) returns the existing
+`product_name` field as a comma-separated list of all order-line product names
+for `TRANSACTION` entries, ordered by `line_number`. Names resolve through
+merchant-scoped catalog joins with the line description as fallback. Embedded
+mobile history uses saved local line names. The shared Products column shows
+the full list, or an em dash for an empty list. No schema or sync change.

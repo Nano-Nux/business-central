@@ -68,6 +68,9 @@ export type CatalogImage = {
 
 export type StorageItem = {
   id: string;
+  base_unit_id?: string;
+  allows_decimal?: boolean;
+  is_stock_tracked?: boolean;
   catalog: string;
   product_name: string;
   variant_name: string;
@@ -162,7 +165,10 @@ export type Conversion = {
   sync_version?: number;
 };
 
+export type DeliveryPaymentStatus = "UN_PAID" | "COMPLETE";
+
 export type Shop = {
+  delivery_payment_status_auto_complete?: boolean;
   id: string;
   business_type_id?: string;
   business_type_name?: string;
@@ -209,7 +215,7 @@ export type Merchant = {
   legal_name?: string;
   default_currency_code: string;
   country_code?: string;
-  pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
+  pos_complexity_level: "NANO" | "SIMPLE" | "COMPLEX" | "MINI";
   business_central_pricing_model?: "starter" | "growth" | "professional" | "enterprise";
   ai_assistant_enabled?: boolean;
   ai_usage_limit?: number;
@@ -391,6 +397,12 @@ export type StockMovementDetail = {
 };
 
 export type TransactionHistoryEntry = {
+  delivery_payment_status?: DeliveryPaymentStatus;
+  payment_status?: string;
+  delivery_fee?: string;
+  paid_total?: string;
+  outstanding_total?: string;
+
   id: string;
   event_type: string;
   reference: string;
@@ -412,8 +424,16 @@ export type TransactionHistoryEntry = {
 };
 
 export type TransactionHistoryDetail = {
+  delivery_payment_pending?: boolean;
   entry: TransactionHistoryEntry;
   order?: {
+    delivery_payment_status?: DeliveryPaymentStatus;
+    payment_status?: string;
+    delivery_fee?: string;
+    paid_total?: string;
+    outstanding_total?: string;
+
+    updated_at?: string;
     id: string;
     order_number: string;
     channel: string;
@@ -426,6 +446,7 @@ export type TransactionHistoryDetail = {
     grand_total: string;
     customer_name?: string;
     customer_phone?: string;
+    shop_id?: string;
     shop_name?: string;
     delivery_name?: string;
     delivery_contact?: string;
@@ -435,6 +456,8 @@ export type TransactionHistoryDetail = {
     placed_at?: string;
   };
   lines: Array<{
+    variant_id?: string;
+    asset_id?: string;
     id: string;
     description: string;
     product_name?: string;
@@ -452,6 +475,7 @@ export type TransactionHistoryDetail = {
     gross_margin: string;
   }>;
   payments: Array<{
+    purpose?: "ORDER" | "DELIVERY";
     id: string;
     method: string;
     status: string;
@@ -619,7 +643,7 @@ export type Invoice = {
   channel?: string;
   id: string;
   number: string;
-  customer: string;
+  customer: string | null;
   merchantName?: string;
   currencyCode: string;
   shopName?: string;
@@ -687,6 +711,7 @@ export type Invoice = {
   customerPhone?: string;
   deliveryName?: string;
   deliveryFee?: number;
+  deliveryPaymentStatus?: DeliveryPaymentStatus;
   deliveryContact?: string;
   note?: string;
   paymentType?: string;

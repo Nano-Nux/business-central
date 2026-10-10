@@ -43,6 +43,89 @@ void main() {
   });
 
   test(
+    'backup restores shop delivery preference and separate receipt fields',
+    () async {
+      final preferenceKey =
+          'shop:$merchantId:$shopId:delivery_payment_status_auto_complete';
+      await database
+          .into(database.appMetadata)
+          .insert(
+            AppMetadataCompanion.insert(
+              key: preferenceKey,
+              value: 'true',
+              updatedAt: '2026-10-08',
+            ),
+          );
+      await database
+          .into(database.localOrders)
+          .insert(
+            LocalOrdersCompanion.insert(
+              id: 'delivery-order',
+              merchantId: merchantId,
+              shopId: shopId,
+              number: 'POS-DELIVERY',
+              status: 'COMPLETED',
+              currencyCode: 'USD',
+              subtotal: '100',
+              discountTotal: '10',
+              taxTotal: '9',
+              grandTotal: '106',
+              paymentMethod: 'Cash',
+              deliveryFee: const Value('7'),
+              deliveryPaymentStatus: const Value('COMPLETE'),
+              idempotencyKey: 'checkout',
+              createdAt: '2026-10-08',
+            ),
+          );
+      await database
+          .into(database.localPayments)
+          .insert(
+            LocalPaymentsCompanion.insert(
+              id: 'delivery-receipt',
+              merchantId: merchantId,
+              orderId: 'delivery-order',
+              method: 'Cash',
+              purpose: const Value('DELIVERY'),
+              status: 'COMPLETED',
+              amount: '7',
+              idempotencyKey: 'payment',
+              createdAt: '2026-10-08',
+            ),
+          );
+      final service = LocalBackupService(database);
+      final backup = await service.exportMerchant(merchantId: merchantId);
+      await (database.update(database.appMetadata)
+            ..where((t) => t.key.equals(preferenceKey)))
+          .write(const AppMetadataCompanion(value: Value('false')));
+      await (database.update(
+        database.localOrders,
+      )..where((t) => t.id.equals('delivery-order'))).write(
+        const LocalOrdersCompanion(deliveryPaymentStatus: Value('UN_PAID')),
+      );
+      await service.restoreMerchant(merchantId: merchantId, payload: backup);
+      expect(
+        (await database.select(database.localOrders).getSingle())
+            .deliveryPaymentStatus,
+        'COMPLETE',
+      );
+      expect(
+        (await database.select(database.localOrders).getSingle()).deliveryFee,
+        '7',
+      );
+      expect(
+        (await database.select(database.localPayments).getSingle()).purpose,
+        'DELIVERY',
+      );
+      expect(
+        (await (database.select(
+          database.appMetadata,
+        )..where((t) => t.key.equals(preferenceKey))).getSingle()).value,
+        'true',
+      );
+    },
+  );
+
+  test(
     'local backup round-trips merchant-scoped operational catalog data',
     () async {
       // Insert product, variant, order, order lines

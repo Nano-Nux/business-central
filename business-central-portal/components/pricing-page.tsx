@@ -31,7 +31,7 @@ import {
 function Prices({ list }: { list: PriceList }) {
   const offline = useOffline();
   const { merchant } = useAuth();
-  const simple = merchant?.pos_complexity_level === "SIMPLE";
+  const simple = merchant?.pos_complexity_level !== "COMPLEX";
   const prices = useResource<ProductPrice>(
     `/pricing/price-lists/${list.id}/prices?page_index=0&page_size=200`,
   );
@@ -47,7 +47,9 @@ function Prices({ list }: { list: PriceList }) {
     const variant = variants.data.find((item) => item.id === id);
     return variant
       ? simple
-        ? (variant.product_name ?? variant.name)
+        ? variant.name === (variant.product_name ?? variant.name)
+          ? variant.name
+          : `${variant.product_name} · ${variant.name}`
         : `${variant.name} · ${variant.sku}`
       : id;
   };
@@ -56,7 +58,11 @@ function Prices({ list }: { list: PriceList }) {
       new Map(
         variants.data.map((variant) => [
           variant.id,
-          simple ? (variant.product_name ?? variant.name) : `${variant.name} · ${variant.sku}`,
+          simple
+            ? variant.name === (variant.product_name ?? variant.name)
+              ? variant.name
+              : `${variant.product_name} · ${variant.name}`
+            : `${variant.name} · ${variant.sku}`,
         ]),
       ),
     [simple, variants.data],
@@ -267,21 +273,25 @@ function Prices({ list }: { list: PriceList }) {
         title={selected ? "Update price" : "Set product price"}
       >
         <Form onSubmit={save}>
-          <Field label={simple ? "Product" : "Variant"}>
+          <Field label={simple ? "Sellable option" : "Variant"}>
             <select
               name="variant_id"
               defaultValue={selected?.variant_id}
               disabled={!!selected}
               required
             >
-              <option value="">{simple ? "Select product" : "Select SKU"}</option>
+              <option value="">{simple ? "Select sellable option" : "Select SKU"}</option>
               {variants.data
                 .filter(
                   (item) => selected?.variant_id === item.id || !pricedVariantIDs.has(item.id),
                 )
                 .map((item) => (
                   <option value={item.id} key={item.id}>
-                    {simple ? (item.product_name ?? item.name) : `${item.name} · ${item.sku}`}
+                    {simple
+                      ? item.name === (item.product_name ?? item.name)
+                        ? item.name
+                        : `${item.product_name} · ${item.name}`
+                      : `${item.name} · ${item.sku}`}
                   </option>
                 ))}
             </select>

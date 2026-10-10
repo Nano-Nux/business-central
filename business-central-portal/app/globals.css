@@ -32,6 +32,7 @@
 @import "../themes/custom-color-theme/index.css";
 
 /* Workspace Layouts */
+@import "./spacing.css";
 @import "../layouts/default-layout/index.css";
 @import "../layouts/compact-layout/index.css";
 @import "../layouts/modern-executive-layout/index.css";
@@ -41,3 +42,189 @@
 
 /* Universal Theme-Aligned Scrollbars */
 @import "./scrollbar.css";
+
+/* POS Nano shares the active theme and responsive workspace layout. */
+.nano-tabs,
+.nano-category-chips {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  max-width: 100%;
+}
+.nano-tabs a,
+.nano-category-chips button {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+.nano-tabs a[aria-current="page"],
+.nano-category-chips button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-contrast, white);
+}
+.nano-category-create {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.nano-category-create input {
+  min-width: 0;
+  flex: 1;
+}
+.nano-products-storage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-section);
+  min-width: 0;
+}
+.nano-products-storage > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.row-actions-trigger {
+  min-width: 40px;
+  min-height: 40px;
+}
+.row-actions-menu {
+  position: fixed;
+  z-index: 1200;
+  display: grid;
+  width: min(200px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--theme-white);
+  color: var(--ink);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 15%);
+}
+.row-actions-menu button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.row-actions-menu button:hover,
+.row-actions-menu button:focus-visible {
+  background: var(--theme-gray-50);
+  outline: 2px solid var(--line);
+  outline-offset: -2px;
+}
+.row-actions-menu button.is-danger {
+  color: var(--danger, #dc2626);
+}
+.row-actions-menu button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.nano-product-form {
+  display: grid;
+  gap: var(--space-section);
+}
+
+.nano-form-section {
+  display: grid;
+  gap: 14px;
+  padding-bottom: var(--space-section);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.nano-form-section h3,
+.nano-form-section p {
+  margin: 0;
+}
+
+.nano-form-details {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.nano-form-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.nano-form-details summary span {
+  display: block;
+  margin: 4px 0 0 16px;
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nano-form-details[open] > summary {
+  margin-bottom: 16px;
+}
+
+/* Give invoice details a near-full-screen workspace without changing other dialogs. */
+.modal.invoice-detail-modal {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 96vw;
+  max-width: 96vw;
+  height: 94dvh;
+  max-height: 94dvh;
+  overflow: hidden;
+}
+
+.modal.invoice-detail-modal .modal-head {
+  position: static;
+  top: auto;
+  flex-shrink: 0;
+}
+
+.modal.invoice-detail-modal .invoice-modal-body {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: minmax(0, min(64vw, 760px)) minmax(220px, min(24vw, 340px));
+  justify-content: center;
+  overflow: auto;
+}
+
+.modal.invoice-detail-modal .invoice-modal-body > * {
+  min-width: 0;
+}
+
+.modal.invoice-detail-modal > .modal-actions {
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .modal.invoice-detail-modal {
+    width: calc(100vw - 36px);
+    max-width: calc(100vw - 36px);
+    height: 94dvh;
+    max-height: 94dvh;
+  }
+
+  .modal.invoice-detail-modal .invoice-modal-body {
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+  }
+}
+
+@media (max-width: 440px) {
+  .modal.invoice-detail-modal {
+    width: 100%;
+    max-width: 100%;
+    height: 96dvh;
+    max-height: 96dvh;
+    border-radius: 14px 14px 0 0;
+  }
+}

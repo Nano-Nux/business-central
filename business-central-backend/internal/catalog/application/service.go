@@ -83,8 +83,8 @@ func (s *Service) UpdateProduct(ctx context.Context, claims *authdto.Claims, id 
 }
 
 func (s *Service) CreateVariant(ctx context.Context, claims *authdto.Claims, productID string, request catalogdto.VariantRequest) (catalogdto.Variant, error) {
-	if _, err := domaincatalog.NewVariant(request.SKU, request.Name, request.BaseUnitID); err != nil {
-		return catalogdto.Variant{}, invalid("SKU, name, and base_unit_id are required.")
+	if !domaincatalog.Required(request.Name) {
+		return catalogdto.Variant{}, invalid("Sellable option name is required.")
 	}
 	return s.Repository.CreateVariant(ctx, claims, productID, request)
 }

@@ -1,12 +1,13 @@
 package outbound
 
 import (
+	"business-central-backend/internal/ai/domain"
 	"context"
 )
 
 type ToolCallResult struct {
 	ToolName string
-	SQLQuery string
+	Query    domain.ReadQuery
 }
 
 type ConversationMessage struct {
@@ -16,6 +17,6 @@ type ConversationMessage struct {
 
 type LLMClient interface {
 	GenerateQueryToolCall(ctx context.Context, systemPrompt string, history []ConversationMessage, userPrompt string) (directResponse string, toolCall *ToolCallResult, err error)
-	HumanizeAndFormatHTML(ctx context.Context, userPrompt string, queryData []map[string]any, executedSQL string) (string, error)
+	HumanizeAndFormatHTML(ctx context.Context, userPrompt string, queryData []map[string]any, defaultCurrency string) (string, error)
 	TranscribeAudio(ctx context.Context, audioBytes []byte, mimeType string) (string, error)
 }

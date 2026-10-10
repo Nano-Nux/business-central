@@ -73,6 +73,22 @@ canvas {
   .profile-wrap {
     min-width: 0;
   }
+  .topbar-context {
+    flex: 1;
+  }
+  .topbar-context > span:not(.live-dot) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-context .live-dot,
+  .topbar-context .sync-now,
+  .topbar .profile-wrap,
+  .topbar .sync-status-panel,
+  .topbar .topbar-lang-button {
+    flex-shrink: 0;
+  }
   .sync-status-panel > summary {
     max-width: 38vw;
     overflow: hidden;
@@ -469,6 +485,21 @@ canvas {
 }
 
 @media (max-width: 360px) {
+  /* Keep sync actions readable when a single topbar row cannot fit them. */
+  :root[data-layout] .topbar {
+    height: auto;
+    min-height: 56px;
+    padding-block: 6px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  :root[data-layout] .connectivity-context {
+    flex: 1 0 100%;
+    order: 1;
+  }
+  :root[data-layout] .connectivity-context > span:not(.live-dot) {
+    flex: 1;
+  }
   .report-summary-metrics {
     grid-template-columns: 1fr;
   }

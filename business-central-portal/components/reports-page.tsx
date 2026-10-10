@@ -3,12 +3,24 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Icon, type IconName } from "./icons";
-import { EmptyState, Loading, PageHeader, StatCard } from "./ui";
+import { EmptyState, Loading, PageHeader, Pagination, useListPagination } from "./ui";
 import { useShop } from "@/lib/shop";
-import { formatMoney } from "@/lib/currency";
+import { formatMoney, formatQuantity } from "@/lib/currency";
 import { useAuth } from "@/lib/auth";
 import { cachedApi } from "@/lib/offline-resource";
 import { useTranslation } from "@/lib/i18n";
+import { apiPage } from "@/lib/api";
+import { loadResourcePages } from "@/lib/resource-pages";
+import {
+  periodRows,
+  profitClass,
+  reportQuery,
+  type ReportDay,
+  type ReportPeriod,
+  type PeriodRow,
+} from "@/lib/report-periods";
+import { TodayOverview } from "./today-overview";
+import styles from "./reports-page.module.css";
 
 type Summary = {
   order_count: number;
@@ -24,13 +36,7 @@ type Summary = {
   gross_margin_percent: string;
 };
 
-type Day = {
-  day: string;
-  order_count: number;
-  net_sales: string;
-  cost_of_goods_sold: string;
-  gross_profit: string;
-};
+type Day = ReportDay;
 
 type Top = {
   product_name: string;
@@ -41,16 +47,8 @@ type Top = {
   gross_profit: string;
 };
 
-type PeriodRow = {
-  label: string;
-  count: number;
-  revenue: number;
-  cogs: number;
-  profit: number;
-};
-
 type ReportTab = {
-  id: "overview" | "day" | "week" | "month";
+  id: "overview" | ReportPeriod;
   label: string;
   icon: IconName;
 };
@@ -60,77 +58,11 @@ const tabs: ReportTab[] = [
   { id: "day", label: "Per day", icon: "receipt" },
   { id: "week", label: "Per week", icon: "history" },
   { id: "month", label: "Per month", icon: "box" },
+  { id: "year", label: "Per year", icon: "chart" },
 ];
 
 function numberValue(value?: string | number) {
   return Number(value ?? 0);
-}
-
-function rangeQuery(range: string, shopId?: string) {
-  const to = new Date();
-  const from = new Date(to);
-  if (range === "1") {
-    from.setHours(0, 0, 0, 0);
-  } else {
-    from.setDate(from.getDate() - Number(range));
-  }
-  const params = new URLSearchParams({
-    from: from.toISOString(),
-    to: to.toISOString(),
-  });
-  if (shopId) params.set("shop_id", shopId);
-  return `?${params.toString()}`;
-}
-
-function periodRows(days: Day[], period: "week" | "month") {
-  const grouped = new Map<string, PeriodRow>();
-  for (const day of days) {
-    const date = new Date(day.day);
-    let key: string;
-    if (period === "month") {
-      key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-01`;
-    } else {
-      const monday = new Date(date);
-      const offset = (monday.getUTCDay() + 6) % 7;
-      monday.setUTCDate(monday.getUTCDate() - offset);
-      key = monday.toISOString().slice(0, 10);
-    }
-    const current = grouped.get(key) ?? {
-      label: key,
-      count: 0,
-      revenue: 0,
-      cogs: 0,
-      profit: 0,
-    };
-    current.count += day.order_count;
-    current.revenue += numberValue(day.net_sales);
-    current.cogs += numberValue(day.cost_of_goods_sold);
-    current.profit += numberValue(day.gross_profit);
-    grouped.set(key, current);
-  }
-  return [...grouped.values()]
-    .sort((a, b) => b.label.localeCompare(a.label))
-    .map((row) => ({
-      ...row,
-      label:
-        period === "month"
-          ? new Intl.DateTimeFormat("en", {
-              month: "long",
-              year: "numeric",
-              timeZone: "UTC",
-            }).format(new Date(`${row.label}T00:00:00Z`))
-          : (() => {
-              const start = new Date(`${row.label}T00:00:00Z`);
-              const end = new Date(start);
-              end.setUTCDate(end.getUTCDate() + 6);
-              const formatter = new Intl.DateTimeFormat("en", {
-                month: "short",
-                day: "numeric",
-                timeZone: "UTC",
-              });
-              return `${formatter.format(start)} – ${formatter.format(end)}`;
-            })(),
-    }));
 }
 
 function reportTotal(rows: PeriodRow[]) {
@@ -145,39 +77,66 @@ function reportTotal(rows: PeriodRow[]) {
   );
 }
 
+function ReportMetric({
+  label,
+  value,
+  note,
+  icon,
+  profit,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  icon: IconName;
+  profit?: string | number;
+}) {
+  return (
+    <article className={styles.metric}>
+      <div className={styles.metricLabel}>
+        <span>{label}</span>
+        <Icon name={icon} size={18} />
+      </div>
+      <strong className={profit === undefined ? undefined : profitClass(profit)}>{value}</strong>
+      {note && <small>{note}</small>}
+    </article>
+  );
+}
+
 function PeriodSummary({
   label,
   rows,
   currency,
+  resetKey,
 }: {
   label: string;
   rows: PeriodRow[];
   currency?: string;
+  resetKey: string;
 }) {
+  const pagination = useListPagination(rows, 10, resetKey);
   const total = reportTotal(rows);
   const money = (value: number) => formatMoney(value, currency);
   return (
     <>
-      <article className="report-summary-banner">
+      <section className={styles.periodIntro}>
         <div>
-          <strong>{label}</strong>
-          <small>{rows.length} reporting periods</small>
+          <h2>{label}</h2>
+          <p>{rows.length} reporting periods &middot; Latest first</p>
         </div>
-        <div className="report-summary-metrics">
-          <span>
-            <small>Transactions</small>
-            <b>{total.count}</b>
-          </span>
-          <span>
-            <small>Total revenue</small>
-            <b>{money(total.revenue)}</b>
-          </span>
-          <span>
-            <small>Total profit</small>
-            <b>{money(total.profit)}</b>
-          </span>
-        </div>
-      </article>
+        <span className={styles.contextBadge}>
+          <Icon name="chart" size={14} /> Period totals
+        </span>
+      </section>
+      <section className={styles.periodMetrics} aria-label="Period totals">
+        <ReportMetric label="Transactions" value={String(total.count)} icon="receipt" />
+        <ReportMetric label="Total revenue" value={money(total.revenue)} icon="chart" />
+        <ReportMetric
+          label="Gross profit"
+          value={money(total.profit)}
+          icon="tag"
+          profit={total.profit}
+        />
+      </section>
       {rows.length === 0 ? (
         <EmptyState
           icon="chart"
@@ -185,45 +144,45 @@ function PeriodSummary({
           message="Completed transactions will appear here for the selected range."
         />
       ) : (
-        <div className="report-period-card">
+        <div className={`${styles.periodPanel} report-period-card`}>
           <div className="report-table-scroll">
             <table className="report-table">
               <thead>
                 <tr>
-                  <th>{label.replace(" Summary", "")}</th>
+                  <th scope="col">Period</th>
                   <th>Transactions</th>
                   <th>Revenue</th>
                   <th>COGS</th>
-                  <th>Gross profit</th>
-                  <th>Average order</th>
+                  <th className="report-profit-positive">Gross profit</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.label}>
+                {pagination.pageItems.map((row) => (
+                  <tr key={row.key}>
                     <td>
                       <strong>{row.label}</strong>
                     </td>
-                    <td>{row.count}</td>
-                    <td className="amount-positive">{money(row.revenue)}</td>
-                    <td className="amount-negative">{money(row.cogs)}</td>
-                    <td className="amount-positive">{money(row.profit)}</td>
-                    <td>{money(row.count ? row.revenue / row.count : 0)}</td>
+                    <td>
+                      <span className={styles.transactionCount}>
+                        {row.count}
+                        <span className={styles.mobileCountLabel}>
+                          {row.count === 1 ? " transaction" : " transactions"}
+                        </span>
+                      </span>
+                    </td>
+                    <td>{money(row.revenue)}</td>
+                    <td>{money(row.cogs)}</td>
+                    <td className={profitClass(row.profit)}>{money(row.profit)}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr>
-                  <td>Total</td>
-                  <td>{total.count}</td>
-                  <td>{money(total.revenue)}</td>
-                  <td>{money(total.cogs)}</td>
-                  <td>{money(total.profit)}</td>
-                  <td>{money(total.count ? total.revenue / total.count : 0)}</td>
-                </tr>
-              </tfoot>
             </table>
           </div>
+          <Pagination
+            {...pagination}
+            itemLabel="reporting periods"
+            onPageChange={pagination.setPageIndex}
+          />
         </div>
       )}
     </>
@@ -234,14 +193,34 @@ export function ReportsPage() {
   const { t } = useTranslation();
   const { currentShop, loading: shopsLoading } = useShop();
   const { merchant, user } = useAuth();
-  const [range, setRange] = useState("7");
   const [tab, setTab] = useState<ReportTab["id"]>("overview");
+  const [bounds, setBounds] = useState<Record<ReportTab["id"], { start: string; end: string }>>({
+    overview: { start: "", end: "" },
+    day: { start: "", end: "" },
+    week: { start: "", end: "" },
+    month: { start: "", end: "" },
+    year: { start: "", end: "" },
+  });
+  const [loadedQuery, setLoadedQuery] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [days, setDays] = useState<Day[]>([]);
   const [top, setTop] = useState<Top[]>([]);
   const [error, setError] = useState("");
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const shopId = currentShop?.id;
+  const period = tab === "overview" ? "day" : tab;
+  const { start, end } = bounds[tab];
+  const queryState = useMemo(() => {
+    try {
+      return { query: reportQuery(period, start, end, shopId ?? ""), error: "" };
+    } catch (error) {
+      return { query: "", error: error instanceof Error ? error.message : "Invalid range." };
+    }
+  }, [period, start, end, shopId]);
+  const loading = loadedQuery !== queryState.query;
+  const resetKey = `${tab}:${shopId}:${start}:${end}`;
+  const chartPagination = useListPagination(days, 10, resetKey);
+  const topPagination = useListPagination(top, 10, resetKey);
   const scope = useMemo(
     () => (user ? { merchantId: user.merchant_id, membershipId: user.membership_id } : null),
     [user],
@@ -249,29 +228,34 @@ export function ReportsPage() {
 
   useEffect(() => {
     let active = true;
-    if (shopsLoading || !shopId)
+    if (shopsLoading || !shopId || queryState.error)
       return () => {
         active = false;
       };
-    const query = rangeQuery(range, shopId);
-    const cachePrefix = `reports:${shopId}:${range}`;
+    const query = queryState.query;
+    const cachePrefix = `reports:v2:${shopId}:${query}`;
+    // Fetch every backend page before grouping, and cache only complete datasets.
+    const readAll = async <T,>(path: string) =>
+      (await loadResourcePages<T>(path, true, apiPage)).data;
     Promise.all([
       cachedApi<Summary>(scope, `/reports/sales-summary${query}`, `${cachePrefix}:summary`),
       cachedApi<Day[]>(
         scope,
         `${`/reports/sales-by-day${query}`}&page_index=0&page_size=100`,
         `${cachePrefix}:days`,
+        readAll<Day>,
       ),
       cachedApi<Top[]>(
         scope,
-        `${`/reports/top-products${query}`}&page_index=0&page_size=5`,
+        `${`/reports/top-products${query}`}&page_index=0&page_size=100`,
         `${cachePrefix}:top`,
+        readAll<Top>,
       ),
     ])
       .then(([nextSummary, nextDays, nextTop]) => {
         if (!active) return;
         setSummary(nextSummary.data);
-        setDays(nextDays.data);
+        setDays([...nextDays.data].sort((a, b) => b.day.localeCompare(a.day)));
         setTop(nextTop.data);
         setCachedAt(
           [nextSummary.cachedAt, nextDays.cachedAt, nextTop.cachedAt]
@@ -283,50 +267,41 @@ export function ReportsPage() {
       })
       .catch((reason) => {
         if (active) setError(reason instanceof Error ? reason.message : "Reports could not load.");
+      })
+      .finally(() => {
+        if (active) setLoadedQuery(query);
       });
     return () => {
       active = false;
     };
-  }, [range, scope, shopId, shopsLoading]);
+  }, [queryState, scope, shopId, shopsLoading]);
 
   const money = (value?: string | number) => formatMoney(value, merchant?.default_currency_code, 0);
   const maximum = Math.max(...days.map((day) => numberValue(day.net_sales)), 1);
-  const dailyRows = useMemo(
-    () =>
-      days.map((day) => ({
-        label: new Intl.DateTimeFormat("en", {
-          dateStyle: "medium",
-          timeZone: "UTC",
-        }).format(new Date(day.day)),
-        count: day.order_count,
-        revenue: numberValue(day.net_sales),
-        cogs: numberValue(day.cost_of_goods_sold),
-        profit: numberValue(day.gross_profit),
-      })),
-    [days],
-  );
-  const weeklyRows = useMemo(() => periodRows(days, "week"), [days]);
-  const monthlyRows = useMemo(() => periodRows(days, "month"), [days]);
+  const rows = useMemo(() => periodRows(days, period), [days, period]);
+  const periodLabel =
+    period === "day"
+      ? "Daily Summary"
+      : period === "week"
+        ? "Weekly Summary"
+        : period === "month"
+          ? "Monthly Summary"
+          : "Yearly Summary";
+  const inputType = period === "year" ? "number" : period === "day" ? "date" : period;
+  const updateBound = (name: "start" | "end", value: string) =>
+    setBounds((current) => ({
+      ...current,
+      [tab]: { ...current[tab], [name]: value },
+    }));
 
   return (
-    <>
+    <div className={styles.reports}>
       <PageHeader
         eyebrow={t("reports.eyebrow")}
         title={t("reports.financial_reports")}
         description={t("reports.financial_reports_desc")}
         action={
           <div className="report-actions">
-            <select
-              className="filter-select"
-              value={range}
-              onChange={(event) => setRange(event.target.value)}
-              aria-label="Report date range"
-            >
-              <option value="1">{t("reports.today")}</option>
-              <option value="7">{t("reports.last_7_days")}</option>
-              <option value="30">{t("reports.last_30_days")}</option>
-              <option value="90">{t("reports.last_90_days")}</option>
-            </select>
             <Link className="button button-secondary" href="/transaction-history">
               <Icon name="history" size={17} />
               {t("reports.transaction_history")}
@@ -334,26 +309,69 @@ export function ReportsPage() {
           </div>
         }
       />
-      <div className="report-tabs" role="tablist" aria-label="Financial report views">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            className={tab === item.id ? "active" : ""}
-            onClick={() => setTab(item.id)}
-            role="tab"
-            aria-selected={tab === item.id}
-          >
-            <Icon name={item.icon} size={17} />
-            {item.id === "overview"
-              ? t("reports.overview")
-              : item.id === "day"
-                ? t("reports.per_day")
-                : item.id === "week"
-                  ? t("reports.per_week")
-                  : t("reports.per_month")}
-          </button>
-        ))}
-      </div>
+      <section className={styles.toolbar}>
+        <div className="report-tabs" role="tablist" aria-label="Financial report views">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              className={tab === item.id ? "active" : ""}
+              onClick={() => setTab(item.id)}
+              role="tab"
+              aria-selected={tab === item.id}
+            >
+              <Icon name={item.icon} size={17} />
+              {item.id === "overview"
+                ? t("reports.overview")
+                : item.id === "day"
+                  ? t("reports.per_day")
+                  : item.id === "week"
+                    ? t("reports.per_week")
+                    : item.id === "month"
+                      ? t("reports.per_month")
+                      : t("reports.per_year", "Per year")}
+            </button>
+          ))}
+        </div>
+        <div className={styles.filterBar}>
+          <div className={styles.filterContext}>
+            <Icon name="history" size={17} />
+            <span>
+              {start || end ? "Custom range" : "All dates"}
+              <small>{currentShop?.name ?? "Selected shop"}</small>
+            </span>
+          </div>
+          <div className={styles.dateControls}>
+            {(["start", "end"] as const).map((name) => (
+              <label className={styles.dateField} key={`${tab}:${name}`}>
+                <span>
+                  {name === "start" ? "Start" : "End"} {period}
+                </span>
+                <input
+                  className="filter-select"
+                  type={inputType}
+                  aria-label={`${name === "start" ? "Start" : "End"} ${period}`}
+                  value={name === "start" ? start : end}
+                  min={period === "year" ? 1 : undefined}
+                  max={period === "year" ? 9998 : undefined}
+                  placeholder={period === "year" ? "YYYY" : undefined}
+                  onChange={(event) => updateBound(name, event.target.value)}
+                />
+              </label>
+            ))}
+            {(start || end) && (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() =>
+                  setBounds((current) => ({ ...current, [tab]: { start: "", end: "" } }))
+                }
+              >
+                All dates
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
       {cachedAt && (
         <p className="offline-snapshot-notice" role="status">
           Offline snapshot saved{" "}
@@ -363,7 +381,9 @@ export function ReportsPage() {
           }).format(new Date(cachedAt))}
         </p>
       )}
-      {shopsLoading ? (
+      {queryState.error ? (
+        <p role="alert">{queryState.error}</p>
+      ) : shopsLoading ? (
         <Loading />
       ) : !shopId ? (
         <EmptyState
@@ -371,40 +391,41 @@ export function ReportsPage() {
           title="No shop selected"
           message="Select an active shop before opening Financial Reports."
         />
+      ) : loading ? (
+        <Loading />
       ) : error ? (
         <EmptyState title="Reports could not load" message={error} />
       ) : tab === "overview" ? (
         <>
-          <section className="stats-grid">
-            <StatCard
+          <TodayOverview key={`${user?.merchant_id}:${user?.membership_id}:${shopId}`} />
+          <section className={styles.overviewMetrics}>
+            <ReportMetric
               label={t("reports.gross_sales")}
               value={money(summary?.gross_sales)}
               note="Total sales income"
               icon="chart"
             />
-            <StatCard
+            <ReportMetric
               label={t("reports.net_profit")}
               value={money(summary?.gross_profit)}
               note={`${summary?.gross_margin_percent ?? 0}% gross margin`}
               icon="tag"
-              tone="amber"
+              profit={summary?.gross_profit}
             />
-            <StatCard
+            <ReportMetric
               label={t("reports.cost_of_goods_sold")}
               value={money(summary?.cost_of_goods_sold)}
               note="FIFO inventory cost"
               icon="box"
-              tone="blue"
             />
-            <StatCard
+            <ReportMetric
               label={t("reports.orders_count")}
               value={String(summary?.order_count ?? 0)}
-              note={`${summary?.item_quantity ?? 0} items`}
+              note={`${formatQuantity(summary?.item_quantity)} items`}
               icon="receipt"
-              tone="purple"
             />
           </section>
-          <section className="report-breakdown card">
+          <section className={`${styles.breakdown} report-breakdown card`}>
             <div className="card-head">
               <div>
                 <h2>Financial breakdown summary</h2>
@@ -430,51 +451,46 @@ export function ReportsPage() {
               </div>
               <div>
                 <span>Gross profit (revenue − COGS − refunds)</span>
-                <strong className="amount-positive">{money(summary?.gross_profit)}</strong>
+                <strong className={profitClass(summary?.gross_profit)}>
+                  {money(summary?.gross_profit)}
+                </strong>
               </div>
             </div>
           </section>
-          <section className="grid-2 reports-grid">
-            <article className="card">
+          <section className={styles.overviewGrid}>
+            <article className={`${styles.overviewPanel} card`}>
               <div className="card-head">
                 <div>
                   <h2>Sales analysis</h2>
                   <p>Net sales and gross profit by day</p>
                 </div>
-                <div className="chart-legend">
-                  <span>
-                    <i />
-                    Net sales
-                  </span>
-                  <span>
-                    <i className="profit" />
-                    Gross profit
-                  </span>
-                </div>
+                <span className={styles.contextBadge}>Latest first</span>
               </div>
               {days.length ? (
-                <div className="report-chart">
-                  {days.map((day) => (
-                    <div className="report-bar" key={day.day}>
-                      <div>
-                        <i
-                          style={{
-                            height: `${Math.max(3, (numberValue(day.net_sales) / maximum) * 100)}%`,
-                          }}
-                        />
-                        <b
-                          style={{
-                            height: `${Math.max(2, (numberValue(day.gross_profit) / maximum) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <span>
+                <div className={styles.salesList}>
+                  {chartPagination.pageItems.map((day) => (
+                    <div className={styles.salesRow} key={day.day}>
+                      <div className={styles.salesDate}>
                         {new Intl.DateTimeFormat("en", {
                           day: "numeric",
                           month: "short",
+                          year: "numeric",
                           timeZone: "UTC",
                         }).format(new Date(day.day))}
-                      </span>
+                      </div>
+                      <div className={styles.salesTrack} aria-hidden="true">
+                        <span
+                          style={{
+                            width: `${Math.max(1, (numberValue(day.net_sales) / maximum) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <div className={styles.salesAmounts}>
+                        <strong>{money(day.net_sales)}</strong>
+                        <small className={profitClass(day.gross_profit)}>
+                          {money(day.gross_profit)} profit
+                        </small>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -485,8 +501,13 @@ export function ReportsPage() {
                   message="Complete a POS sale to start seeing your sales analysis."
                 />
               )}
+              <Pagination
+                {...chartPagination}
+                itemLabel="sales days"
+                onPageChange={chartPagination.setPageIndex}
+              />
             </article>
-            <article className="card">
+            <article className={`${styles.overviewPanel} card`}>
               <div className="card-head">
                 <div>
                   <h2>Top products</h2>
@@ -495,13 +516,13 @@ export function ReportsPage() {
               </div>
               {top.length ? (
                 <div className="rank-list">
-                  {top.map((item, index) => (
+                  {topPagination.pageItems.map((item, index) => (
                     <div className="rank-item" key={item.sku}>
-                      <span>{index + 1}</span>
+                      <span>{topPagination.pageIndex * topPagination.pageSize + index + 1}</span>
                       <div>
                         <strong>{item.product_name}</strong>
                         <small>
-                          {item.variant_name} · {item.item_quantity} sold
+                          {item.variant_name} · {formatQuantity(item.item_quantity)} sold
                         </small>
                       </div>
                       <b>{money(item.net_sales)}</b>
@@ -515,28 +536,22 @@ export function ReportsPage() {
                   message="Product performance will appear after sales."
                 />
               )}
+              <Pagination
+                {...topPagination}
+                itemLabel="products"
+                onPageChange={topPagination.setPageIndex}
+              />
             </article>
           </section>
         </>
-      ) : tab === "day" ? (
-        <PeriodSummary
-          label="Daily Summary"
-          rows={dailyRows}
-          currency={merchant?.default_currency_code}
-        />
-      ) : tab === "week" ? (
-        <PeriodSummary
-          label="Weekly Summary"
-          rows={weeklyRows}
-          currency={merchant?.default_currency_code}
-        />
       ) : (
         <PeriodSummary
-          label="Monthly Summary"
-          rows={monthlyRows}
+          label={periodLabel}
+          rows={rows}
           currency={merchant?.default_currency_code}
+          resetKey={resetKey}
         />
       )}
-    </>
+    </div>
   );
 }

@@ -238,6 +238,7 @@ const statusToneMap: Record<string, StatusTone> = {
   CANCELLED: "danger",
   CHECKING: "warning",
   COMPLETED: "success",
+  COMPLETE: "success",
   CONNECTED: "success",
   CONNECTED_AND_READY: "success",
   CONFLICT: "conflict",
@@ -269,6 +270,7 @@ const statusToneMap: Record<string, StatusTone> = {
   SYNCING: "info",
   UNAVAILABLE: "danger",
   UNPAID: "warning",
+  UN_PAID: "warning",
   TAP_TO_CONNECT: "info",
 };
 

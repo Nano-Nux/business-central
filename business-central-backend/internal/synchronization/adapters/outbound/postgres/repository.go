@@ -17,8 +17,10 @@ import (
 
 	"business-central-backend/internal/app"
 	authdto "business-central-backend/internal/auth/application/dto"
+	catalogpostgres "business-central-backend/internal/catalog/adapters/outbound/postgres"
 	pospostgres "business-central-backend/internal/pos/adapters/outbound/postgres"
 	posdto "business-central-backend/internal/pos/application/dto"
+	posdomain "business-central-backend/internal/pos/domain"
 	"business-central-backend/internal/synchronization/application/dto"
 	"business-central-backend/internal/synchronization/ports/outbound"
 	"github.com/google/uuid"
@@ -100,16 +102,17 @@ func advanceCanonicalOrderStatus(ctx context.Context, tx pgx.Tx, merchantID, ord
 }
 
 type shopSettingsPayload struct {
-	Name        *string         `json:"name"`
-	Code        *string         `json:"code"`
-	Address     json.RawMessage `json:"address"`
-	Timezone    *string         `json:"timezone"`
-	IsActive    *bool           `json:"is_active"`
-	FooterNote  *string         `json:"footer_note"`
-	IncludeTax  *bool           `json:"include_tax"`
-	TaxRate     *string         `json:"tax_rate"`
-	TaxLabel    *string         `json:"tax_label"`
-	ReceiptNote *string         `json:"receipt_note"`
+	Name                              *string         `json:"name"`
+	Code                              *string         `json:"code"`
+	Address                           json.RawMessage `json:"address"`
+	Timezone                          *string         `json:"timezone"`
+	IsActive                          *bool           `json:"is_active"`
+	FooterNote                        *string         `json:"footer_note"`
+	IncludeTax                        *bool           `json:"include_tax"`
+	TaxRate                           *string         `json:"tax_rate"`
+	TaxLabel                          *string         `json:"tax_label"`
+	DeliveryPaymentStatusAutoComplete *bool           `json:"delivery_payment_status_auto_complete"`
+	ReceiptNote                       *string         `json:"receipt_note"`
 }
 
 type deliverySyncPayload struct {
@@ -146,7 +149,7 @@ type catalogVariantSyncPayload struct {
 	Attributes     json.RawMessage `json:"attributes"`
 	UnitOfMeasure  string          `json:"unit_of_measure"`
 	BaseUnitID     string          `json:"base_unit_id"`
-	IsStockTracked bool            `json:"is_stock_tracked"`
+	IsStockTracked *bool           `json:"is_stock_tracked"`
 }
 
 type catalogAttributeDefinitionSyncPayload struct {
@@ -304,11 +307,12 @@ type repairWorkItemSyncPayload struct {
 }
 
 type offlineCheckoutSnapshot struct {
-	CurrencyCode  string `json:"currency_code"`
-	Subtotal      string `json:"subtotal"`
-	DiscountTotal string `json:"discount_total"`
-	TaxTotal      string `json:"tax_total"`
-	GrandTotal    string `json:"grand_total"`
+	DeliveryPaymentStatus string `json:"delivery_payment_status,omitempty"`
+	CurrencyCode          string `json:"currency_code"`
+	Subtotal              string `json:"subtotal"`
+	DiscountTotal         string `json:"discount_total"`
+	TaxTotal              string `json:"tax_total"`
+	GrandTotal            string `json:"grand_total"`
 }
 
 type offlineCheckoutSyncPayload struct {
@@ -446,6 +450,7 @@ func (r *Repository) applyOperation(ctx context.Context, tx pgx.Tx, claims *auth
 			existingPayload = payload
 			existingVersion = &version
 		}
+		existing.ClientOperationID = operation.ClientOperationID
 		existing.ServerOperationID = existingServerID
 		existing.ServerSequence = existingSequence
 		existing.EntityVersion = existingVersion
@@ -639,6 +644,7 @@ func (r *Repository) applyOfflineCheckoutOperation(ctx context.Context, tx pgx.T
 	if _, err := tx.Exec(ctx, `SAVEPOINT offline_checkout_attempt`); err != nil {
 		return dto.OperationResult{}, err
 	}
+	payload.Request.DeliveryPaymentStatus = posdomain.DeliveryPaymentStatusForReplay(payload.Request.DeliveryPaymentStatus, payload.Snapshot.DeliveryPaymentStatus)
 	canonical, saleErr := pospostgres.CreateSaleWithTx(ctx, tx, claims, payload.Request)
 	if saleErr != nil {
 		if _, rollbackErr := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT offline_checkout_attempt`); rollbackErr != nil {
@@ -657,6 +663,9 @@ func (r *Repository) applyOfflineCheckoutOperation(ctx context.Context, tx pgx.T
 		TaxTotal:      canonical.TaxTotal,
 		GrandTotal:    canonical.GrandTotal,
 	}
+	if payload.Snapshot.DeliveryPaymentStatus != "" {
+		authoritative.DeliveryPaymentStatus = canonical.DeliveryPaymentStatus
+	}
 	if authoritative != payload.Snapshot {
 		if _, err := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT offline_checkout_attempt`); err != nil {
 			return dto.OperationResult{}, err
@@ -667,7 +676,7 @@ func (r *Repository) applyOfflineCheckoutOperation(ctx context.Context, tx pgx.T
 			"authoritative_quote": authoritative,
 			"offline_snapshot":    payload.Snapshot,
 		})
-		return insertRejectedWithPayload(ctx, tx, claims, deviceID, sessionID, operation, "CHECKOUT_RECONCILIATION_REQUIRED", "Current price, tax, promotion, or stock rules differ from the provisional checkout.", serverPayload)
+		return insertRejectedWithPayload(ctx, tx, claims, deviceID, sessionID, operation, "CHECKOUT_RECONCILIATION_REQUIRED", "Current price, tax, promotion, stock, or delivery payment defaults differ from the provisional checkout.", serverPayload)
 	}
 	if requestedPaymentCategory != "CASH" {
 		if _, err := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT offline_checkout_attempt`); err != nil {
@@ -729,13 +738,6 @@ func validateOfflineCheckoutPayload(payload offlineCheckoutSyncPayload, expected
 func (r *Repository) applyCatalogProductOperation(ctx context.Context, tx pgx.Tx, claims *authdto.Claims, deviceID, sessionID string, operation dto.Operation) (dto.OperationResult, error) {
 	if operation.ShopID != nil {
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "UNSUPPORTED_OPERATION", "Product synchronization is merchant-scoped.")
-	}
-	var complexityLevel string
-	if err := tx.QueryRow(ctx, `SELECT pos_complexity_level FROM merchants WHERE id=$1::uuid`, claims.MerchantID).Scan(&complexityLevel); err != nil {
-		return dto.OperationResult{}, err
-	}
-	if (complexityLevel == "SIMPLE" || complexityLevel == "MINI") && operation.OperationType == "CREATE" {
-		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "ONLINE_REQUIRED", "POS simple and mini products must be created online so their standard variant is created atomically.")
 	}
 	var payload catalogProductSyncPayload
 	if err := json.Unmarshal(operation.Payload, &payload); err != nil || operation.OperationType != "DELETE" && validateCatalogProductPayload(payload) != nil {
@@ -971,18 +973,35 @@ func (r *Repository) applyCatalogVariantOperation(ctx context.Context, tx pgx.Tx
 	if operation.ShopID != nil {
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "UNSUPPORTED_OPERATION", "Variant synchronization is merchant-scoped.")
 	}
-	var complexityLevel string
-	if err := tx.QueryRow(ctx, `SELECT pos_complexity_level FROM merchants WHERE id=$1::uuid`, claims.MerchantID).Scan(&complexityLevel); err != nil {
-		return dto.OperationResult{}, err
-	}
-	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
-		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "POS_SIMPLE_VARIANT_MANAGED", "POS simple and mini standard variants are managed with their product.")
-	}
 	var payload catalogVariantSyncPayload
-	if err := json.Unmarshal(operation.Payload, &payload); err != nil || operation.OperationType != "DELETE" && validateCatalogVariantPayload(payload) != nil {
+	if err := json.Unmarshal(operation.Payload, &payload); err != nil {
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_PAYLOAD", "Variant payload is invalid.")
 	}
+	if operation.OperationType == "CREATE" {
+		if strings.TrimSpace(payload.ProductID) == "" || strings.TrimSpace(payload.Name) == "" {
+			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_PAYLOAD", "Variant product and name are required.")
+		}
+		var err error
+		payload.SKU, payload.BaseUnitID, payload.UnitOfMeasure, err = catalogpostgres.ResolveVariantDefaults(ctx, tx, claims.MerchantID, payload.ProductID, operation.EntityID, payload.SKU, payload.BaseUnitID, payload.UnitOfMeasure)
+		if err != nil {
+			var validation *app.Error
+			if errors.As(err, &validation) {
+				return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_PAYLOAD", err.Error())
+			}
+			return dto.OperationResult{}, err
+		}
+		if len(payload.Attributes) == 0 {
+			payload.Attributes = json.RawMessage(`{}`)
+		}
+		if payload.IsStockTracked == nil {
+			tracked := true
+			payload.IsStockTracked = &tracked
+		}
+	}
 	if operation.OperationType != "DELETE" {
+		if validateCatalogVariantPayload(payload) != nil {
+			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_PAYLOAD", "Variant payload is invalid.")
+		}
 		if err := validateSyncVariantAttributes(ctx, tx, claims.MerchantID, payload.Attributes); err != nil {
 			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_PAYLOAD", err.Error())
 		}
@@ -1016,10 +1035,23 @@ func (r *Repository) applyCatalogVariantOperation(ctx context.Context, tx pgx.Tx
 			}
 			payload.ProductID = existing.ProductID
 		}
+		var standard bool
+		if err := tx.QueryRow(ctx, `SELECT sku='STD-' || replace(product_id::text,'-','') FROM product_variants WHERE merchant_id=$1::uuid AND id=$2::uuid`, claims.MerchantID, operation.EntityID).Scan(&standard); err != nil {
+			return dto.OperationResult{}, err
+		}
+		if standard {
+			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "POS_SIMPLE_VARIANT_MANAGED", "The standard variant belongs to its product and cannot be removed separately.")
+		}
 	} else if operation.OperationType == "UPDATE" {
 		var existing catalogVariantSyncPayload
 		if err := json.Unmarshal(serverPayload, &existing); err == nil && existing.ProductID != payload.ProductID {
 			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_REFERENCE", "A variant cannot change its product.")
+		}
+		if payload.IsStockTracked == nil {
+			payload.IsStockTracked = existing.IsStockTracked
+		}
+		if existing.SKU == "STD-"+strings.ReplaceAll(existing.ProductID, "-", "") && payload.SKU != existing.SKU {
+			return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "POS_SIMPLE_VARIANT_MANAGED", "The managed standard variant SKU cannot be changed.")
 		}
 	}
 	var serverID string
@@ -1062,9 +1094,6 @@ func (r *Repository) applyCatalogVariantOperation(ctx context.Context, tx pgx.Tx
 		}
 	}
 	newVersion := currentVersion + 1
-	if _, err := tx.Exec(ctx, `INSERT INTO sync_entity_versions(merchant_id,entity_type,entity_id,version,updated_at) VALUES($1::uuid,'CATALOG_VARIANT',$2::uuid,$3,now()) ON CONFLICT (merchant_id,entity_type,entity_id) DO UPDATE SET version=EXCLUDED.version,updated_at=now()`, claims.MerchantID, operation.EntityID, newVersion); err != nil {
-		return dto.OperationResult{}, err
-	}
 	var updatedPayload []byte
 	if operation.OperationType == "DELETE" {
 		updatedPayload, _ = json.Marshal(map[string]any{"id": operation.EntityID, "product_id": payload.ProductID, "is_deleted": true})
@@ -1072,6 +1101,11 @@ func (r *Repository) applyCatalogVariantOperation(ctx context.Context, tx pgx.Tx
 		updatedPayload, _, _ = loadCatalogVariant(ctx, tx, claims.MerchantID, operation.EntityID)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE sync_operations SET status='APPLIED',applied_at=now(),result_payload=$3::jsonb,result_entity_version=$4 WHERE merchant_id=$1::uuid AND id=$2::uuid`, claims.MerchantID, serverID, updatedPayload, newVersion); err != nil {
+		return dto.OperationResult{}, err
+	}
+	// The status trigger compares against the previous canonical version.
+	// Finalize the operation before advancing the version, within the same transaction.
+	if _, err := tx.Exec(ctx, `INSERT INTO sync_entity_versions(merchant_id,entity_type,entity_id,version,updated_at) VALUES($1::uuid,'CATALOG_VARIANT',$2::uuid,$3,now()) ON CONFLICT (merchant_id,entity_type,entity_id) DO UPDATE SET version=EXCLUDED.version,updated_at=now()`, claims.MerchantID, operation.EntityID, newVersion); err != nil {
 		return dto.OperationResult{}, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO sync_changes(merchant_id,server_sequence,entity_type,entity_id,entity_version,operation_id,operation_type,payload) VALUES($1::uuid,$2,'CATALOG_VARIANT',$3::uuid,$4,$5::uuid,$6,$7::jsonb)`, claims.MerchantID, sequence, operation.EntityID, newVersion, serverID, operation.OperationType, updatedPayload); err != nil {
@@ -1780,6 +1814,13 @@ func loadCatalogMeasurement(ctx context.Context, tx pgx.Tx, merchantID, entityID
 }
 
 func (r *Repository) applyStockReceiptOperation(ctx context.Context, tx pgx.Tx, claims *authdto.Claims, deviceID, sessionID string, operation dto.Operation) (dto.OperationResult, error) {
+	var merchantRole bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM user_memberships um JOIN membership_roles mr ON mr.merchant_id=um.merchant_id AND mr.membership_id=um.id JOIN roles role ON role.merchant_id=mr.merchant_id AND role.id=mr.role_id WHERE um.merchant_id=$1::uuid AND um.id=$2::uuid AND um.identity_id=$3::uuid AND um.is_active AND (mr.valid_until IS NULL OR mr.valid_until>=now()) AND role.code IN ('merchant','owner'))`, claims.MerchantID, claims.MembershipID, claims.IdentityID).Scan(&merchantRole); err != nil {
+		return dto.OperationResult{}, err
+	}
+	if claims.PlatformAdmin || !merchantRole {
+		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "MERCHANT_ONLY", "Only the merchant owner can receive stock.")
+	}
 	if operation.ShopID == nil || operation.OperationType != "CREATE" {
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "UNSUPPORTED_OPERATION", "Offline stock receiving supports shop-scoped direct receipts only.")
 	}
@@ -1788,7 +1829,7 @@ func (r *Repository) applyStockReceiptOperation(ctx context.Context, tx pgx.Tx, 
 		return insertRejected(ctx, tx, claims, deviceID, sessionID, operation, "INVALID_PAYLOAD", "Stock receipt payload is invalid.")
 	}
 	var allowed bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM user_memberships um JOIN locations l ON l.merchant_id=um.merchant_id AND l.id=$3::uuid WHERE um.merchant_id=$1::uuid AND um.id=$2::uuid AND um.is_active AND (um.shop_id IS NULL OR l.shop_id=um.shop_id) AND l.is_active)`, claims.MerchantID, claims.MembershipID, payload.DestinationLocationID).Scan(&allowed); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM user_memberships um JOIN locations l ON l.merchant_id=um.merchant_id AND l.id=$3::uuid WHERE um.merchant_id=$1::uuid AND um.id=$2::uuid AND um.is_active AND (um.shop_id IS NULL OR l.shop_id=um.shop_id) AND l.is_active AND l.shop_id=$4::uuid)`, claims.MerchantID, claims.MembershipID, payload.DestinationLocationID, *operation.ShopID).Scan(&allowed); err != nil {
 		return dto.OperationResult{}, err
 	}
 	if !allowed {
@@ -3461,7 +3502,7 @@ func validateShopSettings(payload shopSettingsPayload) error {
 func loadShopSettings(ctx context.Context, tx pgx.Tx, merchantID, shopID string) (json.RawMessage, int64, error) {
 	var payload []byte
 	if err := tx.QueryRow(ctx, `
-		SELECT json_build_object('id',s.id,'merchant_id',s.merchant_id,'name',s.name,'code',s.code,'address',s.address,'timezone',s.timezone,'is_active',s.is_active,'footer_note',s.footer_note,'include_tax',COALESCE(ps.include_tax,FALSE),'tax_rate',COALESCE(ps.tax_rate,0)::text,'tax_label',COALESCE(ps.tax_label,'Tax'),'receipt_note',COALESCE(ps.receipt_note,''))
+		SELECT json_build_object('id',s.id,'merchant_id',s.merchant_id,'name',s.name,'code',s.code,'address',s.address,'timezone',s.timezone,'is_active',s.is_active,'footer_note',s.footer_note,'include_tax',COALESCE(ps.include_tax,FALSE),'tax_rate',COALESCE(ps.tax_rate,0)::text,'tax_label',COALESCE(ps.tax_label,'Tax'),'receipt_note',COALESCE(ps.receipt_note,''),'delivery_payment_status_auto_complete',COALESCE(ps.delivery_payment_status_auto_complete,FALSE))
 		FROM shops s LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id
 		WHERE s.merchant_id=$1::uuid AND s.id=$2::uuid
 		FOR UPDATE OF s`, merchantID, shopID).Scan(&payload); err != nil {
@@ -3485,9 +3526,9 @@ func updateShopSettings(ctx context.Context, tx pgx.Tx, merchantID, shopID strin
 		return err
 	}
 	_, err := tx.Exec(ctx, `
-		INSERT INTO payment_settings(merchant_id,shop_id,include_tax,tax_rate,tax_label,receipt_note)
-		VALUES($1::uuid,$2::uuid,COALESCE($3,FALSE),COALESCE(NULLIF($4,'')::numeric,0),COALESCE(NULLIF($5,''),'Tax'),COALESCE($6,''))
-		ON CONFLICT (merchant_id,shop_id) DO UPDATE SET include_tax=COALESCE($3,payment_settings.include_tax),tax_rate=COALESCE(NULLIF($4,'')::numeric,payment_settings.tax_rate),tax_label=COALESCE($5,payment_settings.tax_label),receipt_note=COALESCE($6,payment_settings.receipt_note)`, merchantID, shopID, payload.IncludeTax, trimPointer(payload.TaxRate), trimPointer(payload.TaxLabel), trimPointer(payload.ReceiptNote))
+		INSERT INTO payment_settings(merchant_id,shop_id,include_tax,tax_rate,tax_label,receipt_note,delivery_payment_status_auto_complete)
+		VALUES($1::uuid,$2::uuid,COALESCE($3,FALSE),COALESCE(NULLIF($4,'')::numeric,0),COALESCE(NULLIF($5,''),'Tax'),COALESCE($6,''),COALESCE($7,FALSE))
+		ON CONFLICT (merchant_id,shop_id) DO UPDATE SET include_tax=COALESCE($3,payment_settings.include_tax),tax_rate=COALESCE(NULLIF($4,'')::numeric,payment_settings.tax_rate),tax_label=COALESCE($5,payment_settings.tax_label),receipt_note=COALESCE($6,payment_settings.receipt_note),delivery_payment_status_auto_complete=COALESCE($7,payment_settings.delivery_payment_status_auto_complete)`, merchantID, shopID, payload.IncludeTax, trimPointer(payload.TaxRate), trimPointer(payload.TaxLabel), trimPointer(payload.ReceiptNote), payload.DeliveryPaymentStatusAutoComplete)
 	return err
 }
 

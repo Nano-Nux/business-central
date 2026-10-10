@@ -1,9 +1,18 @@
-const CACHE = "business-central-shell-v5";
+const CACHE = "business-central-shell-v6";
 const SHELL_PAGES = [
   "/login",
   "/offline",
   "/dashboard",
   "/catalog",
+  "/products-and-storage",
+  "/storage",
+  "/history",
+  "/catalog/variant-attributes",
+  "/stock-barcodes",
+  "/stock-history",
+  "/staff-accounts",
+  "/customers-and-deliveries",
+  "/customers-and-deliveries/deliveries",
   "/categories",
   "/products",
   "/units",

@@ -255,11 +255,7 @@ function drawPosInvoice(painter: ReceiptPainter, invoice: Invoice, logo: HTMLIma
   drawHeader(painter, invoice, "Sales invoice", logo);
   painter.row("Invoice", invoice.number, { bold: true });
   painter.row("Date", formatShopDateTime(invoice.createdAt, invoice.shopTimezone));
-  painter.row(
-    "Customer",
-    invoice.customer || (invoice.channel === "TELEGRAM" ? "" : "Walk-in customer"),
-    { bold: true },
-  );
+  painter.row("Customer", invoice.customer?.trim() || "", { bold: true });
   if (invoice.customerPhone) painter.row("Customer phone", invoice.customerPhone);
   if (invoice.deliveryName) painter.row("Delivery", invoice.deliveryName, { bold: true });
   if (invoice.deliveryContact) painter.row("Delivery contact", invoice.deliveryContact);
@@ -284,6 +280,12 @@ function drawPosInvoice(painter: ReceiptPainter, invoice: Invoice, logo: HTMLIma
   if (invoice.deliveryFee)
     painter.row("Delivery fee", formatMoney(invoice.deliveryFee, invoice.currencyCode));
   painter.row("TOTAL", formatMoney(invoice.total, invoice.currencyCode), { bold: true, size: 18 });
+  if (invoice.deliveryPaymentStatus) {
+    painter.row(
+      "Delivery payment",
+      invoice.deliveryPaymentStatus === "COMPLETE" ? "Complete" : "Un-paid",
+    );
+  }
   if (invoice.note) {
     painter.rule();
     painter.heading("Note");
@@ -327,7 +329,7 @@ function drawRepairInvoice(
   drawHeader(painter, invoice, "Repair ticket invoice", logo);
   const nameLabel = invoice.showFullCustomerLabels ? "Customer Name" : "Name";
   const phoneLabel = invoice.showFullCustomerLabels ? "Customer Phone" : "Phone";
-  painter.row(nameLabel, invoice.customer || "Not recorded", { bold: true });
+  painter.row(nameLabel, invoice.customer?.trim() || "", { bold: true });
   painter.row(phoneLabel, invoice.customerPhone || "Not recorded");
   painter.row("Date", formatShopDateTime(invoice.createdAt, invoice.shopTimezone));
   if (invoice.showRepairTicketId) {

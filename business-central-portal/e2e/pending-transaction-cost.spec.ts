@@ -154,9 +154,13 @@ test("marks unposted FIFO cost and profit as pending", async ({ page }) => {
 
   await page.goto("/transaction-history/order-id");
   await expect(page.getByText("Inventory cost and profit are not final yet.")).toBeVisible();
-  await expect(page.getByText("Pending fulfillment")).toHaveCount(3);
+  await expect(page.getByText("Pending fulfillment", { exact: true })).toHaveCount(4);
   await expect(page.getByText("100%", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("row").filter({ hasText: "Repair service" })).toContainText(
-    "MMK 0.00",
-  );
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Repair service" }).first(),
+  ).toContainText("MMK 0.00");
+  await page.getByText("Item cost breakdown", { exact: true }).click();
+  const partCost = page.getByRole("listitem").filter({ hasText: "MacBook Air" }).last();
+  await expect(partCost).toContainText("Pending fulfillment");
+  await expect(partCost).toContainText("Not final");
 });
