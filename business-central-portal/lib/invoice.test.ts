@@ -256,3 +256,36 @@ describe("Telegram sales invoices", () => {
     });
   }
 });
+
+describe("unnamed invoice customers", () => {
+  for (const kind of ["pos", "service", "repair"] as const) {
+    it.each([null, "", "   "])(`leaves the ${kind} customer name blank (%s)`, async (customer) => {
+      const { renderedText, restore } = setupMockCanvas();
+      try {
+        await invoiceCanvas({
+          id: "unnamed",
+          number: "INV-1",
+          customer,
+          kind: kind === "service" ? "pos" : kind,
+          channel: "POS",
+          currencyCode: "USD",
+          status: "Paid",
+          createdAt: "2026-10-08T00:00:00Z",
+          subtotal: 10,
+          discount: 0,
+          tax: 0,
+          total: 10,
+          items: [{ name: "Widget", quantity: 1, price: 10 }],
+        });
+        expect(renderedText).toContain(kind === "repair" ? "Name" : "Customer");
+        expect(renderedText).not.toContain("Walk-in customer");
+        expect(renderedText).not.toContain("Customer not recorded");
+        const labelIndex = renderedText.indexOf(kind === "repair" ? "Name" : "Customer");
+        expect(renderedText[labelIndex + 1]).toBe(kind === "repair" ? "Phone" : "ITEMS");
+        expect(renderedText).not.toContain("null");
+      } finally {
+        restore();
+      }
+    });
+  }
+});

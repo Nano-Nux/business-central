@@ -352,6 +352,9 @@ class LocalDeliveries extends Table {
 }
 
 class LocalOrders extends Table {
+  TextColumn get deliveryPaymentStatus =>
+      text().withDefault(const Constant("COMPLETE"))();
+  TextColumn get deliveryFee => text().withDefault(const Constant("0.00"))();
   TextColumn get id => text()();
   TextColumn get merchantId => text()();
   TextColumn get shopId => text()();
@@ -530,6 +533,7 @@ class LocalInventoryCostAllocations extends Table {
 }
 
 class LocalPayments extends Table {
+  TextColumn get purpose => text().withDefault(const Constant("ORDER"))();
   TextColumn get id => text()();
   TextColumn get merchantId => text()();
   TextColumn get orderId => text()();
@@ -825,7 +829,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openDatabaseExecutor(encryptionKey: encryptionKey));
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -962,6 +966,14 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 26) {
         await m.addColumn(localRepairRecords, localRepairRecords.ticketFields);
+      }
+      if (from < 28) {
+        await m.addColumn(localOrders, localOrders.deliveryPaymentStatus);
+        await m.addColumn(localOrders, localOrders.deliveryFee);
+        await m.addColumn(localPayments, localPayments.purpose);
+        await customStatement(
+          "UPDATE local_orders SET delivery_fee=printf('%.2f',MAX(0,CAST(grand_total AS REAL)-CAST(subtotal AS REAL)+CAST(discount_total AS REAL)-CAST(tax_total AS REAL)))",
+        );
       }
       if (from < 27) {
         await m.addColumn(localRepairRecords, localRepairRecords.workItemId);

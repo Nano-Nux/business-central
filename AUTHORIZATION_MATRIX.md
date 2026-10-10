@@ -47,6 +47,9 @@ The current portal uses the implemented baseline codes `tenant.read`, `tenant.wr
 | Manage products | No | Yes | Configurable | Configurable |
 | Operate POS | No | Yes | Yes | Configurable |
 | Manage inventory | No | Yes | Configurable | Configurable |
+| Receive or reduce stock in Storage (including queued receipts) | No | Yes | No | No |
+| Set pack conversion ratios | No | Yes | No | No |
+| Break packs at an assigned shop | No | Yes | Configurable through `tenant.write` | Yes when `tenant.write` is assigned |
 | Manage service orders | No | Yes | Configurable | Configurable |
 | Manage repair orders | No | Yes | Configurable | Configurable |
 | Manage merchant payment types | No | Yes | Configurable through `membership.manage` | No |
@@ -56,7 +59,10 @@ The current portal uses the implemented baseline codes `tenant.read`, `tenant.wr
 
 ## Enforcement rules
 
+- Storage modification and direct stock receiving require an active system `merchant` or `owner` role. `tenant.write` or legacy `stock_in` alone never grants these actions. Receipt synchronization applies the same role and location/shop checks; nonmerchant Storage responses omit original price and profit. The portal has no staff stock-in permission switch.
+
 - Shared Telegram webhook status and registration (`GET/POST /api/v1/admin/telegram/webhook`) require `claims.PlatformAdmin`; merchant permissions do not grant access. Registration applies to the shared bot across all merchants, while group/order operations retain their existing tenant scope.
+- Tenant Telegram pairing-code creation and rotation, order Confirm/Cancel, and automatic-confirmation setting require both `tenant.write` and the system `merchant` or `owner` role. Staff with `tenant.write` may still review groups and orders but cannot perform those actions. Platform-admin Telegram routes retain their platform-admin authorization.
 
 - Every permission check must include merchant scope.
 - Module permissions are ineffective when the merchant module is disabled.
@@ -68,3 +74,20 @@ The current portal uses the implemented baseline codes `tenant.read`, `tenant.wr
 - Merchant and shop settings require `membership.manage`; hiding routes in the portal is not the security boundary.
 - Sensitive operations such as refunds, inventory adjustments, repair approvals, and module changes require audit events.
 - Portal and mobile must consume the same permission results and feature flags.
+
+- POS delivery collection/reversal requires the system merchant/owner role plus
+  `tenant.write`, merchant scope, and assigned-shop scope. The Deliveries shop
+  default uses existing shop-settings synchronization (`tenant.write`); direct
+  shop settings retain their existing permissions. See [delivery payment](DELIVERY_PAYMENT.md).
+
+Transaction correction (`PATCH`/`DELETE /pos/orders/:orderId`) requires a
+merchant or owner role plus `tenant.write`. Merchant and selected-shop scope,
+optimistic version and idempotency are enforced by the backend; permanent ledger
+purge additionally validates owner membership in PostgreSQL. The SQLite bridge
+checks active local membership, owner role, permission and assigned-shop scope.
+Staff do not receive transaction detail edit/delete controls.
+
+
+## AI data-read policy
+
+`ai.chat` and merchant enablement remain required. Every AI chat is constrained to one accessible, active shop and its current authenticated membership; owner prompts cannot widen that scope. Merchant/owner roles and platform administrators may use financial datasets, while other roles retain existing cost/profit restrictions. Employee identities/contacts, credentials, tokens, roles and arbitrary configuration/payload data are excluded for everyone. Approved customers and delivery contacts are permitted within shop relationships. See [AI security policy](AI_CHAT_SECURITY.md).

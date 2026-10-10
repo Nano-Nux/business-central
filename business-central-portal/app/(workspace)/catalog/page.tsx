@@ -5,6 +5,28 @@ import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useTranslation } from "@/lib/i18n";
+import { NanoProductsStoragePage } from "@/components/nano-workspace-pages";
+
+const miniStockAreas = [
+  {
+    href: "/stock-conversions",
+    icon: "swap" as const,
+    titleKey: "nav.stock_conversion",
+    titleFallback: "Stock conversion",
+    descKey: "catalog.stock_conversion_description",
+    descFallback: "Convert stock between sellable pack sizes",
+    color: "amber",
+  },
+  {
+    href: "/stock-barcodes",
+    icon: "box" as const,
+    titleKey: "nav.stock_barcodes",
+    titleFallback: "Stock barcodes",
+    descKey: "catalog.stock_barcodes_description",
+    descFallback: "Assign and manage individual stock barcodes",
+    color: "blue",
+  },
+];
 
 const secondaryAreas = [
   {
@@ -55,13 +77,17 @@ const secondaryAreas = [
 ];
 
 export default function CatalogPage() {
-  const { merchant } = useAuth();
+  const { merchant, can } = useAuth();
   const { t } = useTranslation();
+  if (merchant?.pos_complexity_level === "NANO") return <NanoProductsStoragePage />;
   const mini = merchant?.pos_complexity_level === "MINI";
   const simple = merchant?.pos_complexity_level === "SIMPLE";
 
   const visibleSecondary = mini
-    ? secondaryAreas.filter((area) => ["/categories", "/brands"].includes(area.href))
+    ? [
+        ...secondaryAreas.filter((area) => ["/categories", "/brands"].includes(area.href)),
+        ...(can("tenant.write") ? miniStockAreas : []),
+      ]
     : simple
       ? secondaryAreas.filter((area) =>
           ["/categories", "/brands", "/pricing", "/units"].includes(area.href),
@@ -81,31 +107,33 @@ export default function CatalogPage() {
         title="Catalog"
         description={
           mini
-            ? "Create products with direct original and sell prices."
+            ? "Manage categories, brands, stock conversion and barcodes."
             : simple
               ? "Create products and set the prices used at checkout."
               : "Keep everything you sell organized in one place."
         }
       />
       <div className="catalog-grid">
-        <Link className="catalog-card product-hero-card" href="/products">
-          <span className="stat-icon blue product-hero-icon">
-            <Icon name="box" />
-          </span>
-          <div className="product-hero-content">
-            <div className="product-hero-header">
-              <h2>{t("catalog.products_title", "Products")}</h2>
-              <span className="product-hero-badge">
-                {t("catalog.primary_catalog", "Primary catalog")}
-              </span>
+        {!mini && (
+          <Link className="catalog-card product-hero-card" href="/products">
+            <span className="stat-icon blue product-hero-icon">
+              <Icon name="box" />
+            </span>
+            <div className="product-hero-content">
+              <div className="product-hero-header">
+                <h2>{t("catalog.products_title", "Products")}</h2>
+                <span className="product-hero-badge">
+                  {t("catalog.primary_catalog", "Primary catalog")}
+                </span>
+              </div>
+              <p>{productDescription}</p>
             </div>
-            <p>{productDescription}</p>
-          </div>
-          <div className="product-hero-action">
-            <span>{t("catalog.open_products", "Open products")}</span>
-            <Icon name="arrow" />
-          </div>
-        </Link>
+            <div className="product-hero-action">
+              <span>{t("catalog.open_products", "Open products")}</span>
+              <Icon name="arrow" />
+            </div>
+          </Link>
+        )}
         {visibleSecondary.map((area) => (
           <Link className="catalog-card" href={area.href} key={area.href}>
             <span className={`stat-icon ${area.color}`}>

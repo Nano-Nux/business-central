@@ -9,68 +9,73 @@ import { Badge } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { AIConversation, AIMessage, AIUsage } from "@/lib/types";
 
-/**
- * Strict client-side HTML sanitizer to eliminate XSS vectors from AI/database outputs.
- * Allows formatting, tables, lists, cards, badges.
- * Strips script, style, iframe, object, embed, forms, inline event handlers (on*), and javascript: URIs.
- */
+// Defense in depth for server-sanitized responses, including legacy chats.
 function sanitizeAiHtml(raw: string): string {
-  if (typeof window === "undefined" || !raw) return raw || "";
-
+  if (!raw) return "";
+  if (typeof window === "undefined") return "";
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(raw, "text/html");
-
-    // Remove dangerous executable or embedding tags
-    const dangerousSelectors = [
-      "script",
-      "style",
-      "iframe",
-      "object",
-      "embed",
-      "form",
-      "input",
-      "button",
-      "link",
-      "meta",
-      "base",
-      "svg",
-    ];
-    doc.querySelectorAll(dangerousSelectors.join(",")).forEach((el) => el.remove());
-
-    // Iterate through all remaining elements and strip unsafe attributes
-    const allElements = doc.querySelectorAll("*");
-    allElements.forEach((el) => {
-      const attrs = Array.from(el.attributes);
-      for (const attr of attrs) {
-        const name = attr.name.toLowerCase();
-        const value = attr.value.toLowerCase().trim();
-
-        // Remove all on* event handlers (e.g. onerror, onload, onclick)
-        if (name.startsWith("on")) {
-          el.removeAttribute(attr.name);
-        }
-        // Remove javascript: and data: URLs in href/src
-        if (
-          (name === "href" || name === "src") &&
-          (value.startsWith("javascript:") || value.startsWith("data:text/html"))
-        ) {
-          el.removeAttribute(attr.name);
-        }
+    const doc = new DOMParser().parseFromString(raw, "text/html");
+    const allowed = new Set([
+      "P",
+      "BR",
+      "STRONG",
+      "B",
+      "EM",
+      "I",
+      "U",
+      "DIV",
+      "SPAN",
+      "TABLE",
+      "THEAD",
+      "TBODY",
+      "TFOOT",
+      "TR",
+      "TH",
+      "TD",
+      "UL",
+      "OL",
+      "LI",
+      "H2",
+      "H3",
+      "H4",
+      "BLOCKQUOTE",
+      "CODE",
+      "PRE",
+      "HR",
+    ]);
+    const classes = new Set(["ai-stat-card", "stat-label", "ai-restriction-box", "ai-error"]);
+    doc
+      .querySelectorAll("script,style,svg,math,iframe,object,embed,form,template,noscript")
+      .forEach((el) => el.remove());
+    doc.body.querySelectorAll("*").forEach((el) => {
+      if (!allowed.has(el.tagName)) {
+        el.replaceWith(...Array.from(el.childNodes));
+        return;
       }
+      const safeClass = Array.from(el.classList)
+        .filter((c) => classes.has(c))
+        .join(" ");
+      Array.from(el.attributes).forEach((attr) => el.removeAttribute(attr.name));
+      if (safeClass) el.setAttribute("class", safeClass);
     });
-
     return doc.body.innerHTML;
   } catch {
-    // Fallback basic regex cleanup if DOMParser fails
-    return raw
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-      .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+    return "";
   }
 }
 
 export function AIAssistantPage() {
-  const { isMerchant, can, merchant } = useAuth();
+  const { merchant, user } = useAuth();
+  const { currentShop } = useShop();
+  return (
+    <AIAssistantShopChat
+      key={`${merchant?.id ?? ""}/${user?.membership_id ?? ""}/${currentShop?.id ?? ""}/${JSON.stringify(user?.roles ?? [])}`}
+    />
+  );
+}
+
+function AIAssistantShopChat() {
+  const { isMerchant, can, merchant, user } = useAuth();
   const offline = useOffline();
   const { currentShop } = useShop();
 
@@ -106,10 +111,12 @@ export function AIAssistantPage() {
     interimResults?: boolean;
     lang?: string;
     onstart?: (() => void) | null;
-    onresult?: ((event: {
-      resultIndex: number;
-      results: ArrayLike<{ isFinal: boolean; [index: number]: { transcript: string } }>;
-    }) => void) | null;
+    onresult?:
+      | ((event: {
+          resultIndex: number;
+          results: ArrayLike<{ isFinal: boolean; [index: number]: { transcript: string } }>;
+        }) => void)
+      | null;
     onerror?: ((event: { error: string }) => void) | null;
     onend?: (() => void) | null;
   } | null>(null);
@@ -124,23 +131,37 @@ export function AIAssistantPage() {
   const isEnabledForMerchant = merchant?.ai_assistant_enabled ?? false;
   const isAllowedForUser = isMerchant || can("ai.chat");
 
+  const scopeKey = `${merchant?.id ?? ""}/${user?.membership_id ?? ""}/${currentShop?.id ?? ""}`;
+  const liveScope = useRef(scopeKey);
+  useEffect(() => {
+    liveScope.current = scopeKey;
+    return () => {
+      liveScope.current = "";
+      speechRecognitionRef.current?.stop();
+      mediaRecorderRef.current?.stop();
+    };
+  }, [scopeKey]);
+
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
 
   const loadConversations = useCallback(async () => {
-    if (!isOnline || !isEnabledForMerchant || !isAllowedForUser) return [];
+    if (!currentShop || !isOnline || !isEnabledForMerchant || !isAllowedForUser) return [];
     try {
-      const res = await api<AIConversation[]>("/ai/conversations?limit=50");
+      const res = await api<AIConversation[]>(
+        `/ai/conversations?limit=50&shop_id=${encodeURIComponent(currentShop!.id)}`,
+      );
+      if (liveScope.current !== scopeKey) return [];
       setConversations(res);
       return res;
     } catch {
       return [];
     }
-  }, [isOnline, isEnabledForMerchant, isAllowedForUser]);
+  }, [isOnline, isEnabledForMerchant, isAllowedForUser, currentShop, scopeKey]);
 
   // Fetch real-time AI usage
   useEffect(() => {
     let active = true;
-    if (!isOnline || !isEnabledForMerchant || !isAllowedForUser) return;
+    if (!currentShop || !isOnline || !isEnabledForMerchant || !isAllowedForUser) return;
     api<AIUsage>("/ai/usage")
       .then((data) => {
         if (active && data) {
@@ -153,16 +174,18 @@ export function AIAssistantPage() {
     return () => {
       active = false;
     };
-  }, [isOnline, isEnabledForMerchant, isAllowedForUser]);
+  }, [isOnline, isEnabledForMerchant, isAllowedForUser, currentShop, scopeKey]);
 
   // Load conversations on mount
   useEffect(() => {
     let active = true;
-    if (!isOnline || !isEnabledForMerchant || !isAllowedForUser) return;
+    if (!currentShop || !isOnline || !isEnabledForMerchant || !isAllowedForUser) return;
 
     const fetchInitialConversations = async () => {
       try {
-        const res = await api<AIConversation[]>("/ai/conversations?limit=50");
+        const res = await api<AIConversation[]>(
+          `/ai/conversations?limit=50&shop_id=${encodeURIComponent(currentShop!.id)}`,
+        );
         if (!active) return;
         setConversations(res);
         if (res && res.length > 0) {
@@ -178,14 +201,20 @@ export function AIAssistantPage() {
     return () => {
       active = false;
     };
-  }, [isOnline, isEnabledForMerchant, isAllowedForUser]);
+  }, [isOnline, isEnabledForMerchant, isAllowedForUser, currentShop, scopeKey]);
 
   // Load messages when active conversation changes
   useEffect(() => {
-    if (!activeConversationId || !isOnline) return;
+    if (
+      !currentShop ||
+      !activeConversationId ||
+      !isOnline ||
+      !conversations.some((c) => c.id === activeConversationId && c.shop_id === currentShop.id)
+    )
+      return;
     let active = true;
     void api<{ conversation: AIConversation; messages: AIMessage[] }>(
-      `/ai/conversations/${activeConversationId}/messages`,
+      `/ai/conversations/${activeConversationId}/messages?shop_id=${encodeURIComponent(currentShop!.id)}`,
     )
       .then((res) => {
         if (!active) return;
@@ -198,7 +227,7 @@ export function AIAssistantPage() {
     return () => {
       active = false;
     };
-  }, [activeConversationId, isOnline]);
+  }, [activeConversationId, isOnline, currentShop, conversations]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -238,10 +267,14 @@ export function AIAssistantPage() {
   }
 
   async function handleDeleteConversation(e: React.MouseEvent, conversationId: string) {
+    if (!currentShop) return;
     e.stopPropagation();
     if (!window.confirm("Are you sure you want to delete this conversation?")) return;
     try {
-      await api<void>(`/ai/conversations/${conversationId}`, { method: "DELETE" });
+      await api<void>(
+        `/ai/conversations/${conversationId}?shop_id=${encodeURIComponent(currentShop!.id)}`,
+        { method: "DELETE" },
+      );
       setConversations((prev) => prev.filter((c) => c.id !== conversationId));
       if (activeConversationId === conversationId) {
         setActiveConversationId(null);
@@ -254,10 +287,12 @@ export function AIAssistantPage() {
 
   async function handleSendMessage(promptText?: string) {
     const textToSend = (promptText ?? inputText).trim();
-    if (!textToSend || isProcessing || !isOnline) return;
+    if (!currentShop || !textToSend || isProcessing || !isOnline) return;
 
     if (usage.is_limit_reached) {
-      setStatusMessage(`AI usage limit reached (${usage.usage_count}/${usage.usage_limit}). Please contact your administrator.`);
+      setStatusMessage(
+        `AI usage limit reached (${usage.usage_count}/${usage.usage_limit}). Please contact your administrator.`,
+      );
       return;
     }
 
@@ -279,7 +314,7 @@ export function AIAssistantPage() {
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
-      const targetShopId = activeConversation?.shop_id || currentShop?.id || undefined;
+      const targetShopId = currentShop.id;
       const res = await api<{
         conversation_id: string;
         shop_id?: string | null;
@@ -297,6 +332,7 @@ export function AIAssistantPage() {
         }),
       });
 
+      if (liveScope.current !== scopeKey) return;
       if (typeof res.ai_usage_count === "number") {
         const newCount = res.ai_usage_count;
         const newLimit = res.ai_usage_limit ?? usage.usage_limit;
@@ -322,6 +358,7 @@ export function AIAssistantPage() {
         ]);
       });
     } catch (err) {
+      if (liveScope.current !== scopeKey) return;
       const errorMsg = err instanceof Error ? err.message : "Failed to generate response.";
       const errorAIMsg: AIMessage = {
         id: "err-" + Date.now(),
@@ -332,12 +369,18 @@ export function AIAssistantPage() {
         content: `<div class="ai-error-box"><p style="color:var(--danger,#ef4444);font-weight:600;">Error: ${errorMsg}</p><p style="font-size:12px;color:var(--muted);">Please ensure your internet connection is stable and try again.</p></div>`,
         created_at: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev.filter((m) => m.id !== tempUserMsg.id), tempUserMsg, errorAIMsg]);
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== tempUserMsg.id),
+        tempUserMsg,
+        errorAIMsg,
+      ]);
     } finally {
-      setIsProcessing(false);
-      setStatusMessage("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
+      if (liveScope.current === scopeKey) {
+        setIsProcessing(false);
+        setStatusMessage("");
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
       }
     }
   }
@@ -352,12 +395,17 @@ export function AIAssistantPage() {
   }
 
   function startVoiceRecording() {
+    if (!currentShop) return;
     setVoiceError("");
     setVoiceInterimText("");
 
-    const windowWithSpeech = typeof window !== "undefined"
-      ? (window as unknown as Record<string, (new () => NonNullable<(typeof speechRecognitionRef)["current"]>) | undefined>)
-      : {};
+    const windowWithSpeech =
+      typeof window !== "undefined"
+        ? (window as unknown as Record<
+            string,
+            (new () => NonNullable<(typeof speechRecognitionRef)["current"]>) | undefined
+          >)
+        : {};
     const SpeechRecognition =
       windowWithSpeech.SpeechRecognition || windowWithSpeech.webkitSpeechRecognition;
 
@@ -378,6 +426,7 @@ export function AIAssistantPage() {
         };
 
         recognition.onresult = (event) => {
+          if (liveScope.current !== scopeKey) return;
           let interim = "";
           let finalTranscript = "";
           for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -431,24 +480,31 @@ export function AIAssistantPage() {
           mediaRecorder.onstop = async () => {
             const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
             stream.getTracks().forEach((track) => track.stop());
-            if (audioBlob.size > 0) {
+            if (audioBlob.size > 0 && liveScope.current === scopeKey) {
               setIsProcessing(true);
               setStatusMessage("Transcribing audio with Nanonux AI…");
               try {
                 const formData = new FormData();
                 formData.append("audio", audioBlob, "recording.webm");
-                const res = await api<{ text: string }>("/ai/transcribe", {
-                  method: "POST",
-                  body: formData,
-                });
+                const res = await api<{ text: string }>(
+                  `/ai/transcribe?shop_id=${encodeURIComponent(currentShop!.id)}`,
+                  {
+                    method: "POST",
+                    body: formData,
+                  },
+                );
+                if (liveScope.current !== scopeKey) return;
                 if (res.text) {
                   setInputText(res.text);
                 }
               } catch (err) {
+                if (liveScope.current !== scopeKey) return;
                 setVoiceError(err instanceof Error ? err.message : "Transcription failed.");
               } finally {
-                setIsProcessing(false);
-                setStatusMessage("");
+                if (liveScope.current === scopeKey) {
+                  setIsProcessing(false);
+                  setStatusMessage("");
+                }
               }
             }
           };
@@ -480,7 +536,7 @@ export function AIAssistantPage() {
   function handleCopy(id: string, htmlContent: string) {
     // Extract readable text from HTML for clipboard
     const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = htmlContent;
+    tempDiv.innerHTML = sanitizeAiHtml(htmlContent);
     const text = tempDiv.innerText || tempDiv.textContent || "";
     navigator.clipboard.writeText(text);
     setCopiedMessageId(id);
@@ -491,13 +547,19 @@ export function AIAssistantPage() {
     ? [
         { title: "Price Query", prompt: "What is the sell price of red hair clip?" },
         { title: "Today's Profit", prompt: "What is the profit of today?" },
-        { title: "Low Stock Alert", prompt: "Show all products with low or zero stock in a table." },
+        {
+          title: "Low Stock Alert",
+          prompt: "Show all products with low or zero stock in a table.",
+        },
         { title: "Sales Overview", prompt: "Summarize today's sales and completed orders." },
       ]
     : [
         { title: "Price Query", prompt: "What is the sell price of red hair clip?" },
         { title: "Stock Check", prompt: "Check stock availability for products." },
-        { title: "Low Stock Alert", prompt: "Show all products with low or zero stock in a table." },
+        {
+          title: "Low Stock Alert",
+          prompt: "Show all products with low or zero stock in a table.",
+        },
         { title: "Today's Orders", prompt: "List completed orders from today." },
       ];
 
@@ -508,13 +570,19 @@ export function AIAssistantPage() {
   // Gate 1: Offline check
   if (!isOnline) {
     return (
-      <main className="ai-assistant-container screen-center" style={{ padding: "2rem" }}>
-        <div className="card" style={{ maxWidth: 520, textAlign: "center", padding: "2.5rem" }}>
+      <main
+        className="ai-assistant-container screen-center"
+        style={{ padding: "var(--space-panel)" }}
+      >
+        <div
+          className="card"
+          style={{ maxWidth: 520, textAlign: "center", padding: "var(--space-panel)" }}
+        >
           <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>⚡</div>
           <h2>Nanonux AI Requires Active Connection</h2>
           <p style={{ color: "var(--muted)", margin: "1rem 0 1.5rem" }}>
-            Nanonux AI Assistant analyzes real-time merchant database metrics and requires an active internet connection.
-            Please connect your workstation to the internet to resume AI chat.
+            Nanonux AI Assistant analyzes real-time merchant database metrics and requires an active
+            internet connection. Please connect your workstation to the internet to resume AI chat.
           </p>
           <Badge tone="warning">Offline Mode</Badge>
         </div>
@@ -525,12 +593,19 @@ export function AIAssistantPage() {
   // Gate 2: Merchant AI enabled check (Admin permission)
   if (!isEnabledForMerchant) {
     return (
-      <main className="ai-assistant-container screen-center" style={{ padding: "2rem" }}>
-        <div className="card" style={{ maxWidth: 520, textAlign: "center", padding: "2.5rem" }}>
+      <main
+        className="ai-assistant-container screen-center"
+        style={{ padding: "var(--space-panel)" }}
+      >
+        <div
+          className="card"
+          style={{ maxWidth: 520, textAlign: "center", padding: "var(--space-panel)" }}
+        >
           <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🤖</div>
           <h2>Nanonux AI Assistant Not Enabled</h2>
           <p style={{ color: "var(--muted)", margin: "1rem 0 1.5rem" }}>
-            Nanonux AI Assistant is not enabled for your store. Platform administrators can activate this feature from the Business Central Platform Admin console.
+            Nanonux AI Assistant is not enabled for your store. Platform administrators can activate
+            this feature from the Business Central Platform Admin console.
           </p>
           <Badge tone="neutral">Module Inactive</Badge>
         </div>
@@ -541,12 +616,20 @@ export function AIAssistantPage() {
   // Gate 3: User permission check (Staff permission)
   if (!isAllowedForUser) {
     return (
-      <main className="ai-assistant-container screen-center" style={{ padding: "2rem" }}>
-        <div className="card" style={{ maxWidth: 520, textAlign: "center", padding: "2.5rem" }}>
+      <main
+        className="ai-assistant-container screen-center"
+        style={{ padding: "var(--space-panel)" }}
+      >
+        <div
+          className="card"
+          style={{ maxWidth: 520, textAlign: "center", padding: "var(--space-panel)" }}
+        >
           <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔒</div>
           <h2>Staff Access Restricted</h2>
           <p style={{ color: "var(--muted)", margin: "1rem 0 1.5rem" }}>
-            You do not have permission to access Nanonux AI Assistant. Your merchant owner or manager can grant you the <strong>Staff Nanonux AI Permission</strong> in the Staff Accounts settings.
+            You do not have permission to access Nanonux AI Assistant. Your merchant owner or
+            manager can grant you the <strong>Staff Nanonux AI Permission</strong> in the Staff
+            Accounts settings.
           </p>
           <Badge tone="danger">Permission Required</Badge>
         </div>
@@ -666,8 +749,8 @@ export function AIAssistantPage() {
                 usage.is_limit_reached
                   ? "danger"
                   : usage.usage_count / Math.max(1, usage.usage_limit) >= 0.8
-                  ? "warning"
-                  : "normal"
+                    ? "warning"
+                    : "normal"
               }`}
               style={{
                 width: `${Math.min(100, Math.round((usage.usage_count / Math.max(1, usage.usage_limit)) * 100))}%`,
@@ -675,8 +758,16 @@ export function AIAssistantPage() {
             />
           </div>
           <div className="quota-footer">
-            <small>{usage.usage_count} / {usage.usage_limit} used</small>
-            <small>{Math.min(100, Math.round((usage.usage_count / Math.max(1, usage.usage_limit)) * 100))}%</small>
+            <small>
+              {usage.usage_count} / {usage.usage_limit} used
+            </small>
+            <small>
+              {Math.min(
+                100,
+                Math.round((usage.usage_count / Math.max(1, usage.usage_limit)) * 100),
+              )}
+              %
+            </small>
           </div>
         </div>
       </aside>
@@ -749,12 +840,12 @@ export function AIAssistantPage() {
               <h1>Nanonux AI</h1>
               <p className="hero-subtitle">
                 {currentShop
-                  ? (isMerchant
-                      ? `Analyzing metrics for ${currentShop.name}. Ask anything about prices, today’s profits, low inventory, top products, or sales.`
-                      : `Analyzing store catalog and stock for ${currentShop.name}. Ask about selling prices, inventory levels, order lookups, or product details.`)
-                  : (isMerchant
-                      ? "Ask anything about prices, today’s profits, low inventory, top products, or sales analysis."
-                      : "Ask anything about selling prices, inventory levels, order lookups, or product catalog.")}
+                  ? isMerchant
+                    ? `Analyzing metrics for ${currentShop.name}. Ask anything about prices, today’s profits, low inventory, top products, or sales.`
+                    : `Analyzing store catalog and stock for ${currentShop.name}. Ask about selling prices, inventory levels, order lookups, or product details.`
+                  : isMerchant
+                    ? "Ask anything about prices, today’s profits, low inventory, top products, or sales analysis."
+                    : "Ask anything about selling prices, inventory levels, order lookups, or product catalog."}
               </p>
 
               <div className="suggested-prompts-grid">
@@ -876,7 +967,11 @@ export function AIAssistantPage() {
             <div className="ai-limit-reached-banner">
               <Icon name="alert-triangle" size={16} />
               <span>
-                <strong>AI usage limit reached ({usage.usage_count}/{usage.usage_limit}).</strong> You have used all allocated AI queries for this merchant. Please contact your platform administrator to increase your limit.
+                <strong>
+                  AI usage limit reached ({usage.usage_count}/{usage.usage_limit}).
+                </strong>{" "}
+                You have used all allocated AI queries for this merchant. Please contact your
+                platform administrator to increase your limit.
               </span>
             </div>
           )}
@@ -890,8 +985,8 @@ export function AIAssistantPage() {
                 usage.is_limit_reached
                   ? "AI usage limit reached"
                   : isListening
-                  ? "Stop listening"
-                  : "Speak your query (Voice Input)"
+                    ? "Stop listening"
+                    : "Speak your query (Voice Input)"
               }
               aria-label="Voice input"
               disabled={isProcessing || usage.is_limit_reached}
@@ -938,7 +1033,9 @@ export function AIAssistantPage() {
             </button>
           </div>
           <div className="input-hint">
-            <span>Press <strong>Enter</strong> to send, <strong>Shift+Enter</strong> for newline</span>
+            <span>
+              Press <strong>Enter</strong> to send, <strong>Shift+Enter</strong> for newline
+            </span>
             <span>Online Mode Active</span>
           </div>
         </div>
@@ -1010,7 +1107,9 @@ export function AIAssistantPage() {
           border-right: 1px solid var(--border, #e2e8f0);
           display: flex;
           flex-direction: column;
-          transition: width 0.25s ease, transform 0.25s ease;
+          transition:
+            width 0.25s ease,
+            transform 0.25s ease;
           overflow: hidden;
           z-index: 10;
         }
@@ -1452,7 +1551,7 @@ export function AIAssistantPage() {
 
         .suggested-prompts-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
           gap: 12px;
           text-align: left;
         }
@@ -1639,7 +1738,11 @@ export function AIAssistantPage() {
         .ai-stat-card {
           display: inline-flex;
           flex-direction: column;
-          background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+          background: linear-gradient(
+            135deg,
+            rgba(59, 130, 246, 0.08) 0%,
+            rgba(139, 92, 246, 0.08) 100%
+          );
           border: 1px solid rgba(59, 130, 246, 0.2);
           border-radius: 10px;
           padding: 10px 16px;
@@ -1707,8 +1810,14 @@ export function AIAssistantPage() {
         }
 
         @keyframes bounce {
-          0%, 80%, 100% { transform: translateY(0); }
-          40% { transform: translateY(-6px); }
+          0%,
+          80%,
+          100% {
+            transform: translateY(0);
+          }
+          40% {
+            transform: translateY(-6px);
+          }
         }
 
         .thinking-label {
@@ -1747,9 +1856,15 @@ export function AIAssistantPage() {
         }
 
         @keyframes pulseMic {
-          0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-          70% { box-shadow: 0 0 0 16px rgba(239, 68, 68, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+          0% {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+          }
+          70% {
+            box-shadow: 0 0 0 16px rgba(239, 68, 68, 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+          }
         }
 
         .voice-listening-overlay h4 {
@@ -1814,7 +1929,9 @@ export function AIAssistantPage() {
           border: 1px solid var(--border, #cbd5e1);
           border-radius: 14px;
           padding: 6px 12px;
-          transition: border-color 0.2s, box-shadow 0.2s;
+          transition:
+            border-color 0.2s,
+            box-shadow 0.2s;
         }
 
         .input-box-wrapper:focus-within {
@@ -1844,7 +1961,9 @@ export function AIAssistantPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: color 0.15s, background 0.15s;
+          transition:
+            color 0.15s,
+            background 0.15s;
         }
 
         .mic-btn:hover {
@@ -1868,7 +1987,9 @@ export function AIAssistantPage() {
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: opacity 0.15s, transform 0.15s;
+          transition:
+            opacity 0.15s,
+            transform 0.15s;
         }
 
         .send-btn:disabled {

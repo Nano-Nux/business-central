@@ -76,3 +76,17 @@ The mobile foundation uses the portal's terminology while adapting the first-run
 offline setup to a touch form with explicit local-only messaging. Authenticated
 operational screens must continue to use the same labels, status colors, and
 permission meanings as the portal.
+
+## Delivery payment
+
+[Delivery payment](DELIVERY_PAYMENT.md) defines the shared four-mode workflow.
+Portal and mobile use the same embedded screens, terminology and permissions.
+Mobile FULLY_OFFLINE stores transitions in SQLite without backend traffic; ONLINE
+uses canonical APIs and synchronization.
+
+Transaction detail header uses Edit, Delete and Back to history in web and
+embedded mobile. The responsive edit dialog covers all sale fields and item
+changes; the Delete dialog explicitly describes irreversible history removal,
+stock restoration and no payment-provider refund. Busy states prevent duplicate
+requests and closing an in-flight correction; visible conflicts permit refresh
+and retry. Staff cannot access these controls.

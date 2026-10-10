@@ -40,9 +40,9 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/app-icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
-        name: "Today",
-        short_name: "Dashboard",
-        url: "/dashboard",
+        name: "Reports",
+        short_name: "Reports",
+        url: "/reports",
         icons: [{ src: "/app-icon-192.png", sizes: "192x192", type: "image/png" }],
       },
     ],

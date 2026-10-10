@@ -97,7 +97,8 @@ inside the existing `shops.address` JSON snapshot.
 `merchants.pos_complexity_level` is `SIMPLE`, `COMPLEX`, or `MINI`. It changes the
 merchant workflow only: SIMPLE and MINI products still use `product_variants` as the
 canonical sellable, priced, and stock-tracked record, with exactly one standard
-variant created by the backend. MINI mode automates default unit creation, bundles cost
+variant initially created by the backend. More variants may be added for pack
+sizes and remain intact across POS mode changes. MINI mode automates default unit creation, bundles cost
 and retail price configuration into product creation, hides standalone pricing/units,
 and organizes repair sub-pages under a unified repair hub.
 
@@ -110,3 +111,17 @@ The ERD intentionally shows the core system of record. Channel-specific UI, ship
 `repair_work_item_devices` stores `waiting_start_date` and `waiting_end_date`.
 Waiting days and the whole-ticket waiting range are derived projections, so no
 duplicate ticket-level waiting columns are stored.
+
+POS Nano: migration `0053_pos_nano_mode` expands `merchants.pos_complexity_level` to include `NANO` and makes it the default for future inserts. Existing merchant modes and canonical product/variant/inventory records remain unchanged.
+
+## Independent POS delivery payment
+
+See [delivery payment workflow, financial rules, migration and offline behavior](DELIVERY_PAYMENT.md).
+
+Migration 0055 adds guarded permanent transaction correction functions and an
+order-delete trigger; no canonical table or column is added. Transaction detail
+exposes existing order `updated_at` and line variant/asset identities. Permanent
+corrections remove owned order/line/payment/refund/fulfillment, accounting and
+stock-history dependencies after restoring stock/FIFO values. Shared catalog and
+customer records remain. SQLite uses scoped metadata for correction versions and
+idempotency, with no schema-version change.

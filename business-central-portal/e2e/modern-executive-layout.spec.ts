@@ -283,6 +283,7 @@ test.describe("Modern Executive Layout ('Million Dollar UI')", () => {
       await page.goto("/pos");
       await page.waitForLoadState("networkidle");
 
+      await expect(page.locator(".pos-page")).toBeVisible();
       const posMetrics = await page.evaluate(() => {
         const content = document.querySelector(".content");
         const cartPanel = document.querySelector(".cart-panel");

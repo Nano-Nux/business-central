@@ -57,7 +57,13 @@ func (h *Handler) RegisterRoutes(r fiber.Router) {
 	r.Get("/transaction-history/:id", h.getTransactionHistoryDetail)
 	r.Get("/inventory/receivable-lines", h.listReceivableLines)
 	r.Post("/inventory/stock-in", h.stockIn)
+	r.Post("/inventory/stock-reductions", h.reduceStock)
 	r.Post("/inventory/stock-checkout", h.stockOut)
+	r.Get("/inventory/stock-conversion-rules", h.listStockConversionRules)
+	r.Post("/inventory/stock-conversion-rules", h.saveStockConversionRule)
+	r.Get("/inventory/stock-conversions/preview", h.previewStockConversion)
+	r.Get("/inventory/stock-conversions", h.listStockConversions)
+	r.Post("/inventory/stock-conversions", h.applyStockConversion)
 	r.Get("/custom-themes", h.listCustomThemes)
 	r.Get("/custom-themes/:id", h.getCustomTheme)
 	r.Post("/custom-themes", h.createCustomTheme)
@@ -505,12 +511,22 @@ func (h *Handler) getTransactionHistoryDetail(c fiber.Ctx) error {
 }
 
 func (h *Handler) stockIn(c fiber.Ctx) error {
-	if err := h.requirePermission(c, "stock_in"); err != nil {
+	if err := h.requireMerchant(c); err != nil {
 		return err
 	}
 	var r operationsdto.StockInRequest
 	return h.operationsCreateStatus(c, &r, func(ctx context.Context, r any) (any, error) {
 		return h.Operations.StockIn(ctx, claims(c), *r.(*operationsdto.StockInRequest))
+	}, 201)
+}
+
+func (h *Handler) reduceStock(c fiber.Ctx) error {
+	if err := h.requireMerchant(c); err != nil {
+		return err
+	}
+	var request operationsdto.StockReductionRequest
+	return h.operationsCreateStatus(c, &request, func(ctx context.Context, r any) (any, error) {
+		return h.Operations.ReduceStock(ctx, claims(c), *r.(*operationsdto.StockReductionRequest))
 	}, 201)
 }
 
@@ -605,7 +621,7 @@ func (h *Handler) requireMerchant(c fiber.Ctx) error {
 		return app.Internal(err)
 	}
 	if !allowed {
-		return app.NewError("FORBIDDEN", "Only the merchant owner can manage custom themes.", 403)
+		return app.NewError("FORBIDDEN", "Only the merchant owner can perform this action.", 403)
 	}
 	return nil
 }

@@ -1,5 +1,27 @@
 # Offline Synchronization Protocol
 
+## Storage receipts and reductions
+
+Only active system merchant/owner roles may queue and apply receipts; granting
+`stock_in` or `tenant.write` to staff/manager does not bypass this rule. Typed
+`STOCK_RECEIPT` push validates both membership scope and the operation shop
+against its destination location. Forbidden queued receipts become durable
+`MERCHANT_ONLY` rejections.
+
+Portal stock reductions use the existing deferred-request outbox policy and
+replay `POST /inventory/stock-reductions` with a permanent `event_key` plus the
+stable replay idempotency header. Generic push is not enabled for reduction
+mutations. A reduction waits for earlier pending receipts or reductions of the
+same variant at the same location. A rejected receipt blocks dependent reductions
+for review. Storage derives provisional count deltas from its durable outbox;
+rejections/discards remove those deltas without modifying cached server
+balances. Pending reductions also reduce device-local POS availability within
+their shop. Backend FIFO, tenant/location scope and unreserved quantities are
+rechecked on replay. Applied reductions publish shop-scoped `STOCK_REDUCTION`
+pull changes; native mobile must revalidate affected inventory on those events
+when parity is implemented. No SQLite schema change is introduced in this
+portal/backend increment; FULLY_OFFLINE must never replay to the backend.
+
 This document describes the backend-authoritative temporary-offline contract
 for the `business_central_mobile` ONLINE runtime and the installable
 `business-central-portal` PWA. The portal has no FULLY_OFFLINE runtime.
@@ -81,6 +103,16 @@ receiving, batch/expiry receipts, transfers, and adjustments remain unsupported
 offline. Receipt payloads may omit `unit_cost`; during replay the backend reuses
 the merchant variant's latest canonical receipt cost. A first receipt without a
 cost is rejected for review instead of creating a zero-cost layer.
+
+Stock conversion is currently an online-only portal action. There is no
+`STOCK_CONVERSION` outbox operation or SQLite transformation projection yet;
+the portal disables confirmation while disconnected. Before enabling it in
+ONLINE temporary-offline or mobile FULLY_OFFLINE mode, add the same
+merchant-scoped variant rule, transformation header/lines, linked movement,
+FIFO cost allocation, and cent-preserving output layers to SQLite. ONLINE
+replay must carry a stable operation ID, reject changed/inadequate source stock
+for user review, and never apply only one side. FULLY_OFFLINE mode must apply
+the same atomic local rule without any backend contact or synchronization.
 
 `CATALOG_PRODUCT` deletion removes the product's variants and configuration as
 one aggregate when they have no stock or immutable business-history references.
@@ -246,3 +278,34 @@ queue.
 - Android APK verification remains environment-blocked when the local Android
   NDK lacks `source.properties`; this is an SDK installation issue, not a
   Flutter source compilation error.
+
+## Independent POS delivery payment
+
+See [delivery payment workflow, financial rules, migration and offline behavior](DELIVERY_PAYMENT.md).
+
+## Sellable-option creation defaults
+
+CATALOG_VARIANT CREATE may omit or leave blank SKU, base_unit_id and
+unit_of_measure. The backend resolves the same defaults as catalog API creation:
+`OPT-<operation entity UUID without hyphens>` and the product's managed standard
+variant units (otherwise lowest variant ID; first-option fallback PCS then EA).
+Attributes default to `{}` and inventory tracking to true. UPDATE validation is
+unchanged. Payload hashes still describe the original submitted payload;
+canonical server payloads carry resolved values. No protocol/schema version
+change is needed. The portal projects the stable generated SKU while pending and
+copies available default units for local display. FULLY_OFFLINE adds no network
+calls or synchronization; native acceptance remains pending.
+
+Variant replay finalizes the operation against the preceding canonical version,
+then advances the entity version in the same transaction. This avoids the status
+trigger turning a successful save into a conflict. Idempotent results echo the
+original client operation ID and retain the generated SKU and applied status.
+
+Transaction correction is not a deferred web mutation. Web Edit/Delete require
+connectivity and refreshed `order.updated_at`. The server publishes ORDER
+UPDATE/DELETE invalidations; the portal clears affected history/invoice/report/
+stock snapshots and the order's delivery projection. Permanent deletes purge
+prior sync payloads but retain minimal tombstones and hashed idempotency markers
+to prevent old checkout retries recreating the sale. Fully offline embedded
+mobile performs correction atomically in SQLite with no backend/sync call and
+uses scoped metadata for version conflicts and idempotency.

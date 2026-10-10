@@ -1,4 +1,6 @@
 import type { ApiEnvelope, Session } from "./types";
+import { nativeDeliveryApi } from "./native-delivery-api";
+import { usingFullyOfflineNativeDatabase } from "./native-database";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
 
@@ -95,6 +97,13 @@ async function request<T>(
   init: RequestInit = {},
   retried = false,
 ): Promise<ApiEnvelope<T>> {
+  if (usingFullyOfflineNativeDatabase()) {
+    const native = await nativeDeliveryApi<T>(path, init);
+    if (native) return native;
+    throw new NetworkUnavailableError(
+      "FULLY_OFFLINE mode uses local SQLite and cannot connect to the backend.",
+    );
+  }
   const method = (init.method ?? "GET").toUpperCase();
   if (
     method !== "GET" &&

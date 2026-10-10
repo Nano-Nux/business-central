@@ -11,7 +11,14 @@ import { useResource } from "@/lib/use-resource";
 import { queueDeliveryUpdate } from "@/lib/offline-deliveries";
 import { formatMoney } from "@/lib/currency";
 import { formatDateOnly, formatShopDateTime } from "@/lib/date-time";
-import type { Customer, Delivery, PaymentType, Promotion, RepairOrder, RepairPayment } from "@/lib/types";
+import type {
+  Customer,
+  Delivery,
+  PaymentType,
+  Promotion,
+  RepairOrder,
+  RepairPayment,
+} from "@/lib/types";
 import { Button, EmptyState, Field, Form, Loading, PageHeader, StatusBadge } from "./ui";
 import { RepairWaitingFields } from "./repair-waiting-fields";
 
@@ -125,7 +132,7 @@ function CustomerForm({ customer }: { customer: Customer }) {
         phone: String(form.get("phone") || "").trim() || undefined,
         loyalty_identifier: String(form.get("loyalty_identifier") || "").trim() || undefined,
       });
-      router.push("/customers");
+      router.push("/customers-and-deliveries");
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Customer could not be updated.");
@@ -162,7 +169,7 @@ function CustomerForm({ customer }: { customer: Customer }) {
         </Field>
         {error && <div className="form-error wide">{error}</div>}
         <div className="modal-actions wide">
-          <Link className="button button-secondary" href="/customers">
+          <Link className="button button-secondary" href="/customers-and-deliveries">
             Cancel
           </Link>
           <Button type="submit" disabled={busy}>
@@ -224,7 +231,7 @@ function DeliveryForm({ delivery }: { delivery: Delivery }) {
         String(form.get("contact_info")).trim(),
       );
       if (navigator.onLine) await offline.syncNow();
-      router.push("/deliveries");
+      router.push("/customers-and-deliveries/deliveries");
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Delivery could not be updated.");
@@ -248,7 +255,7 @@ function DeliveryForm({ delivery }: { delivery: Delivery }) {
         </Field>
         {error && <div className="form-error wide">{error}</div>}
         <div className="modal-actions wide">
-          <Link className="button button-secondary" href="/deliveries">
+          <Link className="button button-secondary" href="/customers-and-deliveries/deliveries">
             Cancel
           </Link>
           <Button type="submit" disabled={busy}>
@@ -867,8 +874,16 @@ function RepairForm({ repair }: { repair: RepairOrder }) {
               />
             </Field>
             <Field label="Payment type">
-              <select name="payment_type_id" defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id} required>
-                {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
+              <select
+                name="payment_type_id"
+                defaultValue={usablePaymentTypes.find((item) => item.category_code === "CASH")?.id}
+                required
+              >
+                {usablePaymentTypes.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name} · {item.category_code}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>

@@ -1,5 +1,9 @@
 "use client";
 
+import { queueShopSettingsUpdate } from "@/lib/offline-settings";
+import { usingFullyOfflineNativeDatabase } from "@/lib/native-database";
+import { saveNativeDeliveryPreference } from "@/lib/native-delivery-settings";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useResource } from "@/lib/use-resource";
@@ -121,7 +125,10 @@ export function CustomersPage() {
                   <td>{item.repair_count}</td>
                   <td>
                     {isMerchant ? (
-                      <Link className="text-link" href={`/customers/${item.id}/edit`}>
+                      <Link
+                        className="text-link"
+                        href={`/customers-and-deliveries/${item.id}/edit`}
+                      >
                         {t("common.edit")}
                       </Link>
                     ) : (
@@ -149,11 +156,16 @@ export function CustomersPage() {
 export function DeliveriesPage() {
   const { t } = useTranslation();
   const { currentShop } = useShop();
-  const { isMerchant } = useAuth();
+  const { isMerchant, can } = useAuth();
   const offline = useOffline();
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [message, setMessage] = useState("");
+  const [preferenceBusy, setPreferenceBusy] = useState(false);
+  const [preferenceOverride, setPreferenceOverride] = useState<{
+    shopId: string;
+    enabled: boolean;
+  } | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [sort, setSort] = useState("NAME_ASC");
@@ -230,6 +242,65 @@ export function DeliveriesPage() {
         title={t("deliveries.title")}
         description={t("deliveries.description")}
       />
+      {currentShop && (
+        <section className="card">
+          <label className="toggle-row">
+            <span>
+              Automatically complete delivery payment{" "}
+              <small>Applies to new checkouts in this shop.</small>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              disabled={preferenceBusy || !can("tenant.write")}
+              checked={
+                preferenceOverride?.shopId === currentShop.id
+                  ? preferenceOverride.enabled
+                  : (currentShop.delivery_payment_status_auto_complete ?? false)
+              }
+              onChange={async (event) => {
+                const enabled = event.target.checked;
+                setPreferenceBusy(true);
+                setPreferenceOverride({ shopId: currentShop.id, enabled });
+                try {
+                  if (
+                    !offline.scope ||
+                    (!offline.storageAvailable && !usingFullyOfflineNativeDatabase())
+                  )
+                    throw new Error("Offline storage is required to save this shop preference.");
+                  if (usingFullyOfflineNativeDatabase())
+                    await saveNativeDeliveryPreference(offline.scope, currentShop, enabled);
+                  else
+                    await queueShopSettingsUpdate(offline.scope, currentShop, {
+                      name: currentShop.name,
+                      code: currentShop.code,
+                      address: currentShop.address ?? {},
+                      timezone: currentShop.timezone,
+                      is_active: currentShop.is_active,
+                      footer_note: currentShop.footer_note,
+                      include_tax: currentShop.include_tax,
+                      tax_rate: currentShop.tax_rate,
+                      tax_label: currentShop.tax_label ?? "Tax",
+                      receipt_note: currentShop.receipt_note ?? "",
+                      delivery_payment_status_auto_complete: enabled,
+                    });
+                  setMessage("Delivery payment preference saved for this shop.");
+                  if (navigator.onLine && !usingFullyOfflineNativeDatabase())
+                    await offline.syncNow();
+                } catch (reason) {
+                  setPreferenceOverride(null);
+                  setMessage(
+                    reason instanceof Error ? reason.message : "Unable to save preference.",
+                  );
+                } finally {
+                  setPreferenceBusy(false);
+                }
+              }}
+            />
+          </label>
+        </section>
+      )}
+
       <Form className="card form-grid" onSubmit={save}>
         <Field label={t("deliveries.delivery_name")}>
           <input
@@ -247,9 +318,24 @@ export function DeliveriesPage() {
             placeholder={t("deliveries.delivery_contact")}
           />
         </Field>
-        <div className="wide form-inline-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "10px", flexWrap: "wrap" }}>
-          <Button type="submit" icon="plus">{t("deliveries.save_delivery")}</Button>
-          {message && <p className="notice" style={{ margin: 0 }}>{message}</p>}
+        <div
+          className="wide form-inline-actions"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-start",
+            gap: "10px",
+            flexWrap: "wrap",
+          }}
+        >
+          <Button type="submit" icon="plus">
+            {t("deliveries.save_delivery")}
+          </Button>
+          {message && (
+            <p className="notice" style={{ margin: 0 }}>
+              {message}
+            </p>
+          )}
         </div>
       </Form>
       <ListControls
@@ -299,7 +385,10 @@ export function DeliveriesPage() {
                   <td>
                     {isMerchant && (
                       <>
-                        <Link className="text-link" href={`/deliveries/${item.id}/edit`}>
+                        <Link
+                          className="text-link"
+                          href={`/customers-and-deliveries/deliveries/${item.id}/edit`}
+                        >
                           {t("common.edit")}
                         </Link>
                         {" · "}

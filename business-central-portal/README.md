@@ -1,7 +1,7 @@
 # Business Central Portal
 
 Next.js progressive web application for merchant owners and shop-assigned
-staff. It provides daily dashboards, catalog and inventory operations, POS,
+staff. It provides report overviews, catalog and inventory operations, POS,
 repairs, reports, invoices, promotions, account management, and settings.
 
 Available features, views, and actions depend on the authenticated user's role/permissions and the merchant's enabled modules. The backend is authoritative for these decisions.
@@ -19,6 +19,10 @@ customer name appear under one order total and one Confirm/Cancel action set.
 Existing single-product commands still work. Each order links a guest customer and preserves its entered name. Omitted
 names stay blank/null. Invoices are Pending until merchant confirmation records
 full payment and makes them Paid. Telegram remains online-only.
+
+Only merchant owners (system `merchant` or `owner` role) see Telegram pairing
+and order Confirm/Cancel controls. Staff can review groups and orders. This is
+enforced by the backend as well, even if staff have general `tenant.write`.
 
 Use `qty=` for quantity; the existing `quantity=` spelling also works.
 Each product line requires exactly one quantity token, using either spelling.
@@ -109,15 +113,15 @@ The portal appearance is organized into two independent, modular categories:
    - `layouts/default-layout/`: Standard balanced workspace with spacious density across all viewports.
      - `shell.css`: 250px full sidebar on Desktop; smooth off-canvas drawer on Tablet and Mobile (`transform: translateX(-105%)`).
      - `pos.css`: 2-column balanced register grid on Desktop (`minmax(0, 1fr) 410px`) and Tablet (`minmax(0, 1fr) 340px`); clean stacked catalog and fluid mobile cart on Mobile.
-     - `index.css`: Layout entrypoint.    - `layouts/compact-layout/`: Streamlined, high-density workspace maximizing data visibility across all viewports.
-      - `shell.css`: 72px icon rail on Desktop; compact 240px drawer on Tablet; high-density 80vw drawer and condensed header on Mobile.
-      - `pos.css`: High-density 2-column register on Desktop and Tablet (`minmax(0, 1fr) 310px`); scan-first dense catalog grid (`repeat(auto-fill, minmax(110px, 1fr))`) and compact mobile cart bar on Mobile.
-      - `index.css`: Layout entrypoint.
-    - `layouts/modern-executive-layout/`: Ultra-premium floating island architecture with glassmorphic command deck, elevated capsule navigation, spatial card depth, and ergonomic high-yield registers ("Million Dollar UI").
-      - `shell.css`: Floating island sidebar (`border-radius: 20px`, glassmorphic blur) on Desktop; floating glass topbar; elevated capsule navigation; responsive off-canvas drawer on Tablet and Mobile.
-      - `pos.css`: Ergonomic split-canvas register with tactile product tiles (`border-radius: 16px`), pill price chips, round steppers, and sticky glassmorphic checkout terminal.
-      - `pages.css`: Comprehensive high-end styling across Dashboard KPI cards, Products & Catalog tables, Repairs Kanban columns & job cards, Invoices rows, and Settings tabs.
-      - `index.css`: Layout entrypoint.
+     - `index.css`: Layout entrypoint. - `layouts/compact-layout/`: Streamlined, high-density workspace maximizing data visibility across all viewports.
+     - `shell.css`: 72px icon rail on Desktop; compact 240px drawer on Tablet; high-density 80vw drawer and condensed header on Mobile.
+     - `pos.css`: High-density 2-column register on Desktop and Tablet (`minmax(0, 1fr) 310px`); scan-first dense catalog grid (`repeat(auto-fill, minmax(110px, 1fr))`) and compact mobile cart bar on Mobile.
+     - `index.css`: Layout entrypoint.
+   - `layouts/modern-executive-layout/`: Ultra-premium floating island architecture with glassmorphic command deck, elevated capsule navigation, spatial card depth, and ergonomic high-yield registers ("Million Dollar UI").
+     - `shell.css`: Floating island sidebar (`border-radius: 20px`, glassmorphic blur) on Desktop; floating glass topbar; elevated capsule navigation; responsive off-canvas drawer on Tablet and Mobile.
+     - `pos.css`: Ergonomic split-canvas register with tactile product tiles (`border-radius: 16px`), pill price chips, round steppers, and sticky glassmorphic checkout terminal.
+     - `pages.css`: Comprehensive high-end styling across Dashboard KPI cards, Products & Catalog tables, Repairs Kanban columns & job cards, Invoices rows, and Settings tabs.
+     - `index.css`: Layout entrypoint.
 
 Available themes and layouts are imported in `app/globals.css`:
 
@@ -295,3 +299,169 @@ must correct the issue and send a new command. The existing outbox retries only
 receipt delivery for successfully committed orders, never the commerce operation.
 Turning OFF restores manual confirmation for subsequent orders. Existing pending
 orders remain pending, and already confirmed orders remain confirmed.
+
+## Storage stock management ? 2026-10-02
+
+The portal combines receiving and stock checking in Storage (/stock-in redirects there). Only active merchant/owner roles can receive or reduce stock and see original cost/profit. Staff, managers and custom roles cannot modify stock through Storage or the stock-in API, even with legacy stock_in permission. Reductions append audited immutable ADJUSTMENT movements and consume FIFO cost while preserving reservations. Portal reductions queue through deferred API replay; receipts retain typed synchronization with merchant-only role and shop checks. No schema migration is required; native mobile parity remains pending.
+
+## POS Nano
+
+New merchants default to POS Nano. Nine core sidebar pages include Invoices and merchant-only Reports, combine Products & storage and Customers & deliveries, retain enabled service pages, and omit AI setup. See [POS Nano workflows and limitations](docs/POS_NANO.md). Existing merchants keep their selected mode.
+
+## Optional checkout customer names
+
+All POS modes (including Nano), temporary-offline checkout, and sales/service/repair
+invoices leave missing customer names blank. Invoice APIs return `customer: null`
+for unnamed customers; previews, PDF, browser and thermal printing do not insert
+a fallback name. Whitespace-only POS names are treated as missing. Existing
+explicitly recorded customer names are preserved. No database migration is needed.
+
+## Manual POS delivery charge
+
+In every POS mode, **Add more detail** always exposes **Delivery fee**.
+A nonnegative manual charge does not require a delivery name. It is included
+in the online or temporary-offline total and invoice delivery-fee breakdown.
+Offline receipts retain the charge independently of optional delivery details.
+
+## Independent POS delivery payment
+
+See [delivery payment workflow, financial rules, migration and offline behavior](../DELIVERY_PAYMENT.md).
+
+## Stock conversion setup
+
+All four POS modes share a product-first workflow with inline sellable-option
+creation, clear pack ratios and preview before conversion. See
+[Stock conversion workflow and acceptance](docs/STOCK_CONVERSION.md).
+
+## Selected-shop stock actions
+
+Stock conversion and Storage increase/reduce dialogs use the shop selected
+before entering the workspace in every POS mode. They do not ask users to select
+another stock location. Internal ledger location IDs remain scoped to that shop,
+matching POS location ordering; missing shop stock configuration disables writes.
+Quantity displays omit trailing decimal zeros while retaining fractional stock.
+The embedded mobile portal shares these controls.
+
+## Financial report periods
+
+Reports opens all history for the selected shop. Overview uses optional start/end
+dates; Per day, Per week, Per month and Per year use matching period selectors.
+Blank bounds are unbounded, and the ending period is inclusive. Weeks start on
+Monday and use ISO week selection; dates follow the backend's UTC daily buckets.
+Period tables show 10 rows per indexed page, newest first, without a total row or
+Average order column. Gross profit is green when positive, red when negative,
+and the theme text color when zero. Overview sales days and product rankings are
+also paginated; overview totals cover the full selected range.
+
+All backend daily/product pages are read before presentation grouping. Complete
+merchant/membership/shop/range snapshots retain the existing offline behavior;
+partial reads are never saved as complete reports. Embedded mobile shares these
+views; native Flutter period/year/pagination parity remains pending.
+
+Report presentation uses a shared tab/filter toolbar, full-value metric cards,
+compact period tables on desktop, and compact labeled period rows on mobile.
+Overview includes readable daily revenue tracks with signed profit values.
+All five report views adapt to narrow phones, tablets, and desktop layouts.
+
+Transaction history lists one row per canonical order with its order total,
+customer, payment status and delivery payment summary. Product quantities and
+individual items appear in order details, alongside payments and refunds. The
+list requests the TRANSACTION filter before server pagination; embedded mobile
+uses the same view against local orders without network access.
+
+Transaction detail now offers merchant-owner Edit and Delete for POS and
+Telegram sales. Edit covers customer, note, items, quantities, prices, item
+discounts/tax, payment type and delivery information. Delete requires an explicit
+permanent-deletion confirmation, restores stock, and removes transaction history
+from invoices/reports. Corrections require `tenant.write`; web writes require
+connectivity and are not queued. The embedded SQLite bridge implements local
+correction. Deploy backend migration 0055 with the portal update.
+
+## Workspace spacing
+
+Portal layouts retain their existing navigation, themes, typography and workflows
+with tighter page gutters, panel padding and section gaps. Shared spacing tokens
+live in `app/spacing.css`: desktop gutters scale from 16 to 24 px, panel and
+section spacing use 16 px, and phones use 12 px with 10 px grid gaps. The compact
+POS keeps its existing density. POS cart clearance, safe areas, print layouts and
+touch control sizes remain independently defined. Embedded mobile receives the
+same presentation through its portal bundle.
+
+`e2e/workspace-spacing.spec.ts` checks workspace routes at 320/390 px phone,
+768 px tablet and 1280 px desktop widths in all three layouts, checks that sync
+controls fit without overlapping, and saves representative screenshots.
+
+Invoice previews are opened from Transaction History > Actions > View invoice.
+The three-dot menu also offers merchant-only View detail. The standalone
+Invoices navigation entry is removed; old `/invoices?invoice=...` links redirect
+to Transaction History and open the same receipt, thermal proof, PDF, and print
+popup. Embedded mobile uses this shared portal workflow.
+
+Today dashboard is consolidated into Reports > Overview in Nano, Mini, Simple and Complex. Today totals, seven-day sales rhythm and enabled repair activity remain selected-shop scoped and support cached offline reads. Today is removed from navigation and landing choices. Legacy dashboard links redirect to Reports for merchants with read access and to an allowed operational page for staff. Reports retains merchant-only access. Embedded mobile uses the same portal bundle.
+
+## POS Mini workspace organization
+
+Mini Catalog now contains categories, brands, stock conversion and stock barcodes,
+with no Products shortcut. Products & storage at `/products-and-storage` reuses Nano's combined
+product, opening-stock and stock-editing workflow, with the same merchant controls.
+Mini product forms select existing categories and brands; creation stays in Catalog.
+Nano retains inline category and brand creation.
+History at `/history` has separate stock movement and transaction tabs. Existing
+`/stock-history` and `/transaction-history` links retain the Mini history tab bar,
+including invoice query links. Simple/Complex stock and transaction pages remain
+separate. Customers & deliveries shares route-based tabs in every POS mode;
+delivery writes retain `tenant.write`. Promotions appears under Operations in
+Mini/Simple/Complex; Nano keeps its Workspace organization. Embedded mobile uses
+these shared views; standalone native navigation parity is pending. Browser
+acceptance is recorded in `e2e/nano.spec.ts` and permission/landing checks in
+`lib/navigation.test.ts`.
+
+## Workspace URL naming
+
+Nano and Mini use `/products-and-storage` for Products & storage; Simple and
+Complex retain separate `/catalog` and `/storage` pages. All modes use
+`/customers-and-deliveries` with `/customers-and-deliveries/deliveries` for its
+Deliveries tab. Navigation also uses `/stock-barcodes`, `/stock-history`,
+`/staff-accounts`, and `/catalog/variant-attributes` where available.
+
+Legacy browser URLs remain routable and are replaced with their canonical URL
+once merchant configuration and the selected shop are ready. Queries, fragments,
+customer edit links, and stock history detail links survive this replacement.
+Saved shop landing choices are normalized before selecting or displaying them;
+role, permission and module rules stay the same. API paths are unchanged.
+The PWA shell precaches the new pages, and the embedded mobile portal bundle
+inherits the same routes. `lib/workspace-routes.test.ts` and
+`e2e/workspace-routes.spec.ts` cover all four modes.
+
+## Transaction history header filters
+
+Every transaction table header includes a text filter, including the actions
+available to the current role. Filters combine with search and the date range;
+customer filters include phone numbers, money filters accept formatted amounts,
+and date filters match the displayed shop timezone. Filtering and sorting run
+before ten-row pagination. Empty results keep the header controls available;
+Clear column filters resets only these filters. On phones the headers form a
+two-column filter grid, shared by the embedded mobile portal.
+
+The portal reads all pages in the selected shop/date/search scope through the
+existing API and caches that collection separately for offline reads. Initial
+load time grows with the number of orders; offline filtering requires this
+collection to have been cached. Pending delivery changes are projected before
+filtering. API contracts, authorization and synchronization rules are unchanged.
+Standalone native mobile parity remains pending in `../PORTAL_MOBILE_PARITY.md`.
+Acceptance is covered in `e2e/transaction-history-filters.spec.ts` and
+`lib/transaction-history-filters.test.ts`.
+
+## Merchant AI navigation
+
+The existing Admin AI toggle (`ai_assistant_enabled`) controls the entire AI
+section, including Nanonux AI, Automations and automation subpages, in Nano,
+Mini, Simple and Complex. Missing or disabled enablement hides AI navigation
+and landing choices and redirects direct links without rendering those pages.
+Existing `ai.chat`, merchant-only and `tenant.read` filters still apply.
+The embedded mobile WebView shares this UI; standalone native parity is pending.
+
+
+## AI chat shop scope
+
+All chat/history/delete/transcription requests carry the selected shop. Changing shop or merchant remounts the chat workspace and discards stale async responses. The backend enforces data access; server and client sanitize formatting HTML. Deploy with the matching backend; see [AI contract and rollout](../AI_CHAT_SECURITY.md).

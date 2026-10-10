@@ -298,7 +298,9 @@
 .history-detail-btn svg {
   flex-shrink: 0;
   color: var(--muted);
-  transition: color 160ms ease, transform 160ms ease;
+  transition:
+    color 160ms ease,
+    transform 160ms ease;
 }
 .history-detail-btn:hover svg {
   color: var(--color-brand);
@@ -761,10 +763,10 @@
 .order-details-form {
   display: flex;
   flex-direction: column;
-  gap: 19px;
+  gap: var(--space-section);
 }
 .order-details-section {
-  padding-bottom: 17px;
+  padding-bottom: var(--space-section);
   border-bottom: 1px solid var(--line);
 }
 .order-details-section:last-of-type {
@@ -1091,7 +1093,7 @@
 .stock-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(360px, 1fr);
-  gap: 20px;
+  gap: var(--space-section);
   align-items: start;
 }
 .stock-assets-layout {
@@ -1327,7 +1329,7 @@ code {
 .breakdown-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 26px;
+  gap: 0 var(--space-section);
 }
 .breakdown-list > div {
   display: flex;
@@ -1359,9 +1361,9 @@ code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--space-section);
   margin-bottom: 13px;
-  padding: 17px 20px;
+  padding: var(--space-section) var(--space-section);
   border: 1px solid var(--theme-gray-100);
   border-radius: 13px;
   background: var(--theme-gray-100);
@@ -1382,7 +1384,7 @@ code {
 .report-summary-metrics {
   display: flex;
   align-items: center;
-  gap: 27px;
+  gap: var(--space-section);
 }
 .report-summary-metrics span {
   display: flex;

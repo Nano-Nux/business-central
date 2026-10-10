@@ -12,6 +12,7 @@ import { queueDeferredMutation } from "./offline-deferred";
 import { resolvePortalConflict, synchronizePortal } from "./portal-sync";
 import { api, post, upload } from "./api";
 import { imageUploadMarker, PORTAL_IMAGE_UPLOADS } from "./offline-images";
+import { queueStockReceipt, queueStockReduction } from "./offline-stock";
 
 vi.mock("./api", () => ({
   api: vi.fn(),
@@ -49,6 +50,64 @@ beforeEach(async () => {
 });
 
 describe("portal synchronization", () => {
+  for (const receiptAccepted of [true, false]) {
+    it(`replays a dependent stock reduction only after an accepted receipt (${receiptAccepted})`, async () => {
+      const shop = "00000000-0000-0000-0000-000000000003";
+      const variant = "00000000-0000-0000-0000-000000000004";
+      const location = "00000000-0000-0000-0000-000000000005";
+      const receipt = await queueStockReceipt(scope, shop, {
+        variant_id: variant,
+        destination_location_id: location,
+        unit_id: "",
+        quantity: "3",
+        event_key: "storage-receive:sync",
+      });
+      await queueStockReduction(scope, shop, {
+        variant_id: variant,
+        source_location_id: location,
+        quantity: "2",
+        reason: "Damage",
+        event_key: "storage-reduce:sync",
+      });
+      let pushedReceipt = false;
+      mockedPost.mockImplementation(async (path) => {
+        if (path === "/sync/handshake")
+          return {
+            protocol_version: "1",
+            schema_version: "1",
+            server_sequence: 0,
+            device: { id: "device" },
+            session: { id: "session" },
+          };
+        if (path === "/sync/push") {
+          pushedReceipt = true;
+          return {
+            results: [
+              {
+                operation_id: receipt.operationId,
+                status: receiptAccepted ? "APPLIED" : "REJECTED",
+                code: receiptAccepted ? undefined : "MERCHANT_ONLY",
+                message: "Receipt authorization",
+                entity_version: 1,
+              },
+            ],
+          };
+        }
+        return { changes: [], next_sequence: 0, current_sequence: 0, has_more: false };
+      });
+      mockedApi.mockImplementation(async (path) => {
+        expect(pushedReceipt).toBe(true);
+        expect(path).toBe("/inventory/stock-reductions");
+        return { id: "canonical-reduction" };
+      });
+      await synchronizePortal(scope);
+      expect(mockedApi).toHaveBeenCalledTimes(receiptAccepted ? 1 : 0);
+      const reduction = (await listOperations(scope)).find(
+        (row) => row.entityType === "STOCK_REDUCTION",
+      );
+      expect(reduction?.status).toBe(receiptAccepted ? "SYNCED" : "BLOCKED");
+    });
+  }
   it("uploads an offline image before replaying a deferred image mutation", async () => {
     const uploadID = "offline-repair-image";
     const queued = await queueDeferredMutation(

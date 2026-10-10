@@ -82,17 +82,24 @@ async function mockTelegram(
     failPairing = false,
     failAutoConfirm = false,
     readOnly = false,
+    staffWithWrite = false,
     botName = "NanonuxBusinessCentralBot",
   } = {},
 ) {
-  const mockUser = readOnly
-    ? {
-        ...user,
-        roles: [
-          { ...user.roles[0], code: "staff", name: "Staff", permission_codes: ["tenant.read"] },
-        ],
-      }
-    : user;
+  const mockUser =
+    readOnly || staffWithWrite
+      ? {
+          ...user,
+          roles: [
+            {
+              ...user.roles[0],
+              code: "staff",
+              name: "Staff",
+              permission_codes: staffWithWrite ? ["tenant.read", "tenant.write"] : ["tenant.read"],
+            },
+          ],
+        }
+      : user;
   let groups = empty
     ? []
     : [
@@ -493,24 +500,38 @@ test("Telegram invoices keep unnamed customers blank and become Paid after confi
   page,
 }) => {
   await mockTelegram(page);
-  await page.goto("/invoices");
-  const named = page.getByRole("row", { name: "Open TG-1001", exact: true });
-  const unnamed = page.getByRole("row", { name: "Open TG-1002", exact: true });
-  await expect(named).toContainText("Ma Hnin");
-  await expect(named).toContainText("Pending");
-  await expect(unnamed.getByRole("cell").nth(1)).toHaveText("");
-  await expect(unnamed).not.toContainText("Walk-in customer");
-  await expect(unnamed).not.toContainText("Online-Telegram-Customer");
+  // The receipt is rendered on canvas; capture the actual text painted into it.
+  await page.addInitScript(() => {
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
+      document.documentElement.dataset.receiptText = `${document.documentElement.dataset.receiptText ?? ""}\n${text}`;
+      if (maxWidth === undefined) original.call(this, text, x, y);
+      else original.call(this, text, x, y, maxWidth);
+    };
+  });
+  await page.goto("/transaction-history?invoice=1001");
+  const invoice = page.getByRole("dialog", { name: "Invoice details" });
+  await expect(page.locator("html")).toHaveAttribute("data-receipt-text", /Ma Hnin/);
+  await expect(page.locator("html")).toHaveAttribute("data-receipt-text", /Pending/);
+  await page.goto("/transaction-history?invoice=1002");
+  await expect(invoice).toContainText("TG-1002");
+  await expect(invoice).not.toContainText("Walk-in customer");
+  await expect(invoice).not.toContainText("Online-Telegram-Customer");
   await page.goto("/automations/telegram");
   await page.getByRole("button", { name: /^Orders/ }).click();
   await expect(page.locator("article").filter({ hasText: "TG-1001" })).toContainText(
     "Payment: Pending",
   );
   await page.getByRole("button", { name: "Confirm order", exact: true }).first().click();
-  await page.goto("/invoices");
-  await expect(named).toContainText("Paid");
-  await expect(named).toContainText("Ma Hnin");
-  await expect(unnamed.getByRole("cell").nth(1)).toHaveText("");
+  await page.goto("/transaction-history?invoice=1001");
+  await expect(page.locator("html")).toHaveAttribute("data-receipt-text", /Paid/);
+  await expect(page.locator("html")).toHaveAttribute("data-receipt-text", /Ma Hnin/);
+  await page.goto("/transaction-history?invoice=1002");
+  await expect(invoice.locator("canvas")).toBeVisible();
+  await expect(page.locator("html")).not.toHaveAttribute(
+    "data-receipt-text",
+    /Ma Hnin|Walk-in customer|Online-Telegram-Customer/,
+  );
 });
 
 test("Automatic confirmation defaults OFF, persists, and leaves old drafts pending", async ({
@@ -555,4 +576,33 @@ test("Read-only users cannot change automatic confirmation", async ({ page }) =>
   await mockTelegram(page, { readOnly: true });
   await page.goto("/automations/telegram");
   await expect(page.getByRole("switch", { name: "Automatically Confirm Order" })).toBeDisabled();
+});
+
+test("Staff with tenant write can review Telegram but cannot connect or approve orders", async ({
+  page,
+}) => {
+  const calls = await mockTelegram(page, { staffWithWrite: true });
+  await page.goto("/automations/telegram");
+  await expect(page.getByRole("heading", { name: group.group_title })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect Telegram group", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Rotate code", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: "Automatically Confirm Order" })).toBeDisabled();
+  await page.getByRole("button", { name: /^Orders/ }).click();
+  await expect(page.getByRole("heading", { name: "Customer: Ma Hnin" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm order", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toHaveCount(0);
+  expect(calls.some((call) => /pairing-code|\/confirm|\/cancel/.test(call))).toBe(false);
+});
+
+test("Staff cannot start the first Telegram group connection", async ({ page }) => {
+  await mockTelegram(page, { empty: true, staffWithWrite: true });
+  await page.goto("/automations/telegram");
+  await expect(
+    page.getByRole("heading", { name: "Bring your Telegram orders into one place" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect Telegram group", exact: true }),
+  ).toHaveCount(0);
 });

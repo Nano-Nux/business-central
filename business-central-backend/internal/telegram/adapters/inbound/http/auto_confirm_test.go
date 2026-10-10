@@ -16,11 +16,15 @@ import (
 
 type autoConfirmAuthorization struct {
 	authinbound.Authentication
-	allowed bool
+	allowed  bool
+	merchant bool
 }
 
 func (a autoConfirmAuthorization) HasPermission(_ context.Context, _ *authdto.Claims, code string) (bool, error) {
 	return a.allowed && code == "tenant.write", nil
+}
+func (a autoConfirmAuthorization) HasAnyRole(_ context.Context, _ *authdto.Claims, codes ...string) (bool, error) {
+	return a.merchant, nil
 }
 
 type autoConfirmService struct {
@@ -36,17 +40,18 @@ func (s *autoConfirmService) SetAutoConfirm(_ context.Context, _ *authdto.Claims
 }
 func TestAutomaticConfirmationSettingRequiresWritePermissionAndBoolean(t *testing.T) {
 	for _, tc := range []struct {
-		name, body     string
-		allowed, admin bool
-		want           int
+		name, body               string
+		allowed, merchant, admin bool
+		want                     int
 	}{
-		{"enable", `{"auto_confirm_orders":true}`, true, false, 200},
-		{"disable", `{"auto_confirm_orders":false}`, true, false, 200},
-		{"read_only", `{"auto_confirm_orders":true}`, false, false, 403},
-		{"missing", `{}`, true, false, 400},
-		{"null", `{"auto_confirm_orders":null}`, true, false, 400},
-		{"string", `{"auto_confirm_orders":"true"}`, true, false, 400},
-		{"admin_enable", `{"auto_confirm_orders":true}`, false, true, 200},
+		{"enable", `{"auto_confirm_orders":true}`, true, true, false, 200},
+		{"disable", `{"auto_confirm_orders":false}`, true, true, false, 200},
+		{"read_only", `{"auto_confirm_orders":true}`, false, false, false, 403},
+		{"staff_with_write", `{"auto_confirm_orders":true}`, true, false, false, 403},
+		{"missing", `{}`, true, true, false, 400},
+		{"null", `{"auto_confirm_orders":null}`, true, true, false, 400},
+		{"string", `{"auto_confirm_orders":"true"}`, true, true, false, 400},
+		{"admin_enable", `{"auto_confirm_orders":true}`, false, false, true, 200},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := fiber.New(fiber.Config{ErrorHandler: func(c fiber.Ctx, err error) error {
@@ -58,7 +63,7 @@ func TestAutomaticConfirmationSettingRequiresWritePermissionAndBoolean(t *testin
 			}})
 			server.Use(func(c fiber.Ctx) error { c.Locals("claims", &authdto.Claims{PlatformAdmin: tc.admin}); return c.Next() })
 			service := &autoConfirmService{}
-			NewHandler(service, autoConfirmAuthorization{allowed: tc.allowed}).RegisterRoutes(server.Group("/api/v1"))
+			NewHandler(service, autoConfirmAuthorization{allowed: tc.allowed, merchant: tc.merchant}).RegisterRoutes(server.Group("/api/v1"))
 			path := "/api/v1/telegram/groups/group/auto-confirm"
 			if tc.admin {
 				path = "/api/v1/admin/telegram/groups/group/auto-confirm"

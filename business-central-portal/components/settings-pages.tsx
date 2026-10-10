@@ -28,7 +28,8 @@ import { imageUploadMarker } from "@/lib/offline-images";
 import { putCachedResource } from "@/lib/offline-db";
 import { formatShopAddress } from "@/lib/shop-address";
 import { currencyLabel } from "@/lib/currency";
-import { formatPosModeName, getLandingPageOptions } from "@/lib/navigation";
+import { getCanonicalWorkspaceHref } from "@/lib/workspace-routes";
+import { formatPosModeName, getLandingPageOptions, isAiWorkspacePath } from "@/lib/navigation";
 import {
   AVAILABLE_THEMES,
   AVAILABLE_LAYOUTS,
@@ -62,8 +63,14 @@ export function SettingsPage() {
         title={t("settings.page_title", "Settings")}
         description={
           isMerchant
-            ? t("settings.page_description_merchant", "Manage your business details, language preferences, and how invoices are printed.")
-            : t("settings.page_description_staff", "Manage workspace language, thermal printer connection, and receipt printing preferences for your workstation.")
+            ? t(
+                "settings.page_description_merchant",
+                "Manage your business details, language preferences, and how invoices are printed.",
+              )
+            : t(
+                "settings.page_description_staff",
+                "Manage workspace language, thermal printer connection, and receipt printing preferences for your workstation.",
+              )
         }
       />
       <div className="settings-grid">
@@ -74,7 +81,12 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>{t("settings.cards.payment_types.title", "Payment types")}</h2>
-              <p>{t("settings.cards.payment_types.description", "Merchant-wide Cash, Online, and future Digital payment choices.")}</p>
+              <p>
+                {t(
+                  "settings.cards.payment_types.description",
+                  "Merchant-wide Cash, Online, and future Digital payment choices.",
+                )}
+              </p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -86,7 +98,12 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>{t("settings.cards.merchant_shops.title", "Merchant & shops")}</h2>
-              <p>{t("settings.cards.merchant_shops.description", "Business identity, contact details, shops and operating timezone.")}</p>
+              <p>
+                {t(
+                  "settings.cards.merchant_shops.description",
+                  "Business identity, contact details, shops and operating timezone.",
+                )}
+              </p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -97,7 +114,12 @@ export function SettingsPage() {
           </span>
           <div>
             <h2>{t("settings.cards.printer.title", "Printer")}</h2>
-            <p>{t("settings.cards.printer.description", "Bluetooth permission, device connection, image proof and font sizing.")}</p>
+            <p>
+              {t(
+                "settings.cards.printer.description",
+                "Bluetooth permission, device connection, image proof and font sizing.",
+              )}
+            </p>
           </div>
           <Icon name="arrow" />
         </Link>
@@ -107,7 +129,12 @@ export function SettingsPage() {
           </span>
           <div>
             <h2>{t("settings.cards.theme.title", "Theme")}</h2>
-            <p>{t("settings.cards.theme.description", "Visual theme appearance and interface styling preferences.")}</p>
+            <p>
+              {t(
+                "settings.cards.theme.description",
+                "Visual theme appearance and interface styling preferences.",
+              )}
+            </p>
           </div>
           <Icon name="arrow" />
         </Link>
@@ -117,7 +144,12 @@ export function SettingsPage() {
           </span>
           <div>
             <h2>{t("settings.cards.language.title", "Language setting")}</h2>
-            <p>{t("settings.cards.language.description", "Choose workspace language: English, Myanmar, or Thai.")}</p>
+            <p>
+              {t(
+                "settings.cards.language.description",
+                "Choose workspace language: English, Myanmar, or Thai.",
+              )}
+            </p>
           </div>
           <Icon name="arrow" />
         </Link>
@@ -128,7 +160,12 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>{t("settings.cards.application.title", "Application")}</h2>
-              <p>{t("settings.cards.application.description", "Startup behavior, confirmations and operational display preferences.")}</p>
+              <p>
+                {t(
+                  "settings.cards.application.description",
+                  "Startup behavior, confirmations and operational display preferences.",
+                )}
+              </p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -140,7 +177,12 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>{t("settings.cards.tax_notes.title", "Tax & receipt notes")}</h2>
-              <p>{t("settings.cards.tax_notes.description", "Receipt wording, tax display and customer-facing notes.")}</p>
+              <p>
+                {t(
+                  "settings.cards.tax_notes.description",
+                  "Receipt wording, tax display and customer-facing notes.",
+                )}
+              </p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -152,7 +194,12 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>{t("settings.cards.repair_specs.title", "Repair specifications")}</h2>
-              <p>{t("settings.cards.repair_specs.description", "Fault presets and repair intake defaults.")}</p>
+              <p>
+                {t(
+                  "settings.cards.repair_specs.description",
+                  "Fault presets and repair intake defaults.",
+                )}
+              </p>
             </div>
             <Icon name="arrow" />
           </Link>
@@ -194,8 +241,15 @@ export function OperationalSettingsPage({
         isMerchant,
         can,
         moduleCodes: currentShop?.module_codes,
+        aiAssistantEnabled: merchant?.ai_assistant_enabled,
       }),
-    [merchant?.pos_complexity_level, isMerchant, can, currentShop?.module_codes],
+    [
+      merchant?.pos_complexity_level,
+      merchant?.ai_assistant_enabled,
+      isMerchant,
+      can,
+      currentShop?.module_codes,
+    ],
   );
 
   const allLandingHrefs = useMemo(
@@ -207,9 +261,22 @@ export function OperationalSettingsPage({
     if (!currentShop) return;
     const timer = window.setTimeout(() => {
       if (section === "application") {
+        const savedView = currentShop.default_view || currentShop.address?.default_view;
+        const saved = savedView
+          ? getCanonicalWorkspaceHref(savedView, merchant?.pos_complexity_level)
+          : undefined;
+        const home = isMerchant && can("tenant.read") ? "/reports" : "/pos";
         setValues({
           defaultView:
-            currentShop.default_view ?? currentShop.address?.default_view ?? "/dashboard",
+            saved &&
+            (["/dashboard", "/merchant/dashboard", "/staff/dashboard"].includes(saved) ||
+              (isAiWorkspacePath(saved) && !allLandingHrefs.has(saved)))
+              ? home
+              : merchant?.pos_complexity_level === "NANO"
+                ? allLandingHrefs.has(saved || "")
+                  ? saved!
+                  : "/pos"
+                : saved || home,
         });
       } else if (section === "staff") {
         setValues({
@@ -227,7 +294,7 @@ export function OperationalSettingsPage({
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [currentShop, section]);
+  }, [currentShop, section, merchant?.pos_complexity_level, allLandingHrefs, isMerchant, can]);
 
   if (section === "repair-specs") return <RepairFormSettingsPage />;
 
@@ -249,7 +316,7 @@ export function OperationalSettingsPage({
       if (section === "application") {
         updateAddress = {
           ...updateAddress,
-          default_view: values.defaultView || "/dashboard",
+          default_view: values.defaultView || "/reports",
         };
         successMsg = "Application settings saved and recorded in the database for this shop.";
       } else if (section === "staff") {
@@ -398,7 +465,7 @@ export function OperationalSettingsPage({
             hint={`Available options adapt to ${posMode.name} (${posMode.code}) and match your sidebar navigation.`}
           >
             <select
-              value={values.defaultView ?? "/dashboard"}
+              value={values.defaultView ?? "/reports"}
               onChange={(event) => setValues({ ...values, defaultView: event.target.value })}
             >
               {landingPageGroups.map((group) => (
@@ -605,7 +672,12 @@ function RepairFormSettingsPage() {
       />
       <div
         className="button-group"
-        style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}
+        style={{
+          marginBottom: "var(--space-section)",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+        }}
       >
         <Link href="/repairs/issue-presets" className="button secondary">
           Manage Issue Presets
@@ -1251,7 +1323,7 @@ export function PrinterSettingsPage() {
     ...sharedPreview,
     id: "pos-preview",
     number: "POS-PREVIEW",
-    customer: "Walk-in customer",
+    customer: null,
     subtotal: 24,
     discount: 0,
     tax: currentShop?.include_tax ? (24 * Number(currentShop.tax_rate || 0)) / 100 : 0,
@@ -1262,7 +1334,7 @@ export function PrinterSettingsPage() {
     ...sharedPreview,
     id: "repair-preview",
     number: "REPAIR-PREVIEW",
-    customer: "Repair customer",
+    customer: null,
     kind: "repair",
     paymentStatus: "Deposit",
     modelNumber: [
@@ -2186,8 +2258,9 @@ export function ThemeSettingsPage() {
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           gap: "8px",
-          marginBottom: "20px",
+          marginBottom: "var(--space-section)",
           borderBottom: "1px solid var(--line)",
           paddingBottom: "12px",
         }}
@@ -2199,7 +2272,7 @@ export function ThemeSettingsPage() {
             background: activeCategory === "theme" ? "var(--accent, #2563eb)" : "transparent",
             color: activeCategory === "theme" ? "#ffffff" : "var(--muted)",
             border: activeCategory === "theme" ? "none" : "1px solid var(--line)",
-            padding: "8px 18px",
+            padding: "8px 12px",
             fontWeight: 700,
             fontSize: "13px",
             borderRadius: "8px",
@@ -2216,7 +2289,7 @@ export function ThemeSettingsPage() {
             background: activeCategory === "layout" ? "var(--accent, #2563eb)" : "transparent",
             color: activeCategory === "layout" ? "#ffffff" : "var(--muted)",
             border: activeCategory === "layout" ? "none" : "1px solid var(--line)",
-            padding: "8px 18px",
+            padding: "8px 12px",
             fontWeight: 700,
             fontSize: "13px",
             borderRadius: "8px",
@@ -2233,7 +2306,7 @@ export function ThemeSettingsPage() {
             background: activeCategory === "studio" ? "var(--accent, #2563eb)" : "transparent",
             color: activeCategory === "studio" ? "#ffffff" : "var(--muted)",
             border: activeCategory === "studio" ? "none" : "1px solid var(--line)",
-            padding: "8px 18px",
+            padding: "8px 12px",
             fontWeight: 700,
             fontSize: "13px",
             borderRadius: "8px",
@@ -2264,7 +2337,7 @@ export function ThemeSettingsPage() {
             style={{
               display: "grid",
               gap: "16px",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
             }}
           >
             {AVAILABLE_THEMES.map((theme) => {
@@ -2408,7 +2481,7 @@ export function ThemeSettingsPage() {
             style={{
               display: "grid",
               gap: "16px",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
             }}
           >
             {AVAILABLE_LAYOUTS.map((layout) => {

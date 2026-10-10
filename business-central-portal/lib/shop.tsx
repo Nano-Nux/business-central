@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { list, NetworkUnavailableError } from "./api";
 import { useAuth } from "./auth";
 import type { Shop } from "./types";
+import { applyNativeDeliverySettings } from "./native-delivery-settings";
 import {
   getCachedEntities,
   getCachedResource,
@@ -69,13 +70,12 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
         default_status: shop.default_status ?? shop.address?.default_status,
         confirmation: shop.confirmation ?? shop.address?.confirmation,
         show_repair_ticket_id:
-          shop.show_repair_ticket_id ??
-          shop.address?.show_repair_ticket_id === "true",
-        waiting_time_format:
-          (shop.waiting_time_format ?? shop.address?.waiting_time_format ?? "DAYS") as "DAYS" | "DATE_RANGE",
+          shop.show_repair_ticket_id ?? shop.address?.show_repair_ticket_id === "true",
+        waiting_time_format: (shop.waiting_time_format ??
+          shop.address?.waiting_time_format ??
+          "DAYS") as "DAYS" | "DATE_RANGE",
         show_full_customer_labels:
-          shop.show_full_customer_labels ??
-          shop.address?.show_full_customer_labels === "true",
+          shop.show_full_customer_labels ?? shop.address?.show_full_customer_labels === "true",
         show_model_label:
           shop.show_model_label !== undefined
             ? shop.show_model_label
@@ -96,10 +96,13 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     const overrides = new Map(settings.map((entry) => [entry.entityId, entry.payload]));
     return {
       shops: normalize(
-        resource.data.map((shop) => ({
-          ...shop,
-          ...(overrides.get(shop.id) ?? {}),
-        })),
+        await applyNativeDeliverySettings(
+          scope.merchantId,
+          resource.data.map((shop) => ({
+            ...shop,
+            ...(overrides.get(shop.id) ?? {}),
+          })),
+        ),
       ),
       cachedAt: resource.cachedAt,
     };
@@ -109,7 +112,8 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     let active = true;
     list<Shop>(path)
-      .then((items) => {
+      .then(async (loadedItems) => {
+        const items = await applyNativeDeliverySettings(user.merchant_id, loadedItems);
         if (!active) return;
         setError("");
         setCachedAt(null);
@@ -143,6 +147,19 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
   }, [loadCached, normalize, scope, user]);
 
   useEffect(() => {
+    const updateDeliveryPreference = (event: Event) => {
+      const preference = (
+        event as CustomEvent<{ merchantId: string; shopId: string; enabled: boolean }>
+      ).detail;
+      if (preference?.merchantId !== scope?.merchantId) return;
+      setShops((current) =>
+        current.map((shop) =>
+          shop.id === preference.shopId
+            ? { ...shop, delivery_payment_status_auto_complete: preference.enabled }
+            : shop,
+        ),
+      );
+    };
     const refreshCached = () => {
       void loadCached().then((cached) => {
         if (!cached) return;
@@ -151,8 +168,14 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       });
     };
     window.addEventListener("bc-offline-data-changed", refreshCached);
-    return () => window.removeEventListener("bc-offline-data-changed", refreshCached);
-  }, [loadCached]);
+    window.addEventListener("business-central-native-database-ready", refreshCached);
+    window.addEventListener("bc-delivery-preference-changed", updateDeliveryPreference);
+    return () => {
+      window.removeEventListener("bc-offline-data-changed", refreshCached);
+      window.removeEventListener("business-central-native-database-ready", refreshCached);
+      window.removeEventListener("bc-delivery-preference-changed", updateDeliveryPreference);
+    };
+  }, [loadCached, scope]);
 
   const selectShop = useCallback(
     (shopId: string) => {

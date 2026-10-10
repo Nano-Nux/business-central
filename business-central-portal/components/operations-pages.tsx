@@ -1,8 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Icon } from "./icons";
 import {
   Badge,
@@ -24,34 +23,10 @@ import { useResource } from "@/lib/use-resource";
 import { useAuth } from "@/lib/auth";
 import { useShop } from "@/lib/shop";
 import { useOffline } from "@/lib/offline";
-import { queueStockReceipt, type StockReceiptMutation } from "@/lib/offline-stock";
-import { currencyLabel, formatMoney, formatQuantity } from "@/lib/currency";
+import { formatMoney, formatQuantity } from "@/lib/currency";
 import { formatShopDateTime } from "@/lib/date-time";
-import type {
-  Location,
-  Movement,
-  PriceList,
-  ProductPrice,
-  Role,
-  Shop,
-  User,
-  Variant,
-  StockAsset,
-  Unit,
-} from "@/lib/types";
+import type { Location, Movement, Role, Shop, User, Variant, StockAsset } from "@/lib/types";
 import { BarcodeScanner } from "./barcode-scanner";
-
-type StockItem = {
-  id: string;
-  product_id: string;
-  product_name: string;
-  name: string;
-  sku: string;
-  barcode?: string;
-  base_unit_id: string;
-  quantity_on_hand: string;
-  is_stock_tracked: boolean;
-};
 
 export function StockAssetsPage() {
   const { t } = useTranslation();
@@ -199,7 +174,9 @@ export function StockAssetsPage() {
                     </small>
                   </span>
                   <span className="stock-product-balance">
-                    <small>{asset.barcode ? t("catalog.barcode") : t("inventory.missing_barcode")}</small>
+                    <small>
+                      {asset.barcode ? t("catalog.barcode") : t("inventory.missing_barcode")}
+                    </small>
                     {asset.barcode ? (
                       <strong>{asset.barcode}</strong>
                     ) : (
@@ -277,619 +254,6 @@ export function StockAssetsPage() {
                 )}
               </div>
             </>
-          )}
-        </section>
-      </div>
-    </>
-  );
-}
-
-function CurrentPriceList({ list, variantId }: { list: PriceList; variantId: string }) {
-  const prices = useResource<ProductPrice>(
-    `/pricing/price-lists/${list.id}/prices?page_index=0&page_size=500`,
-  );
-  const [currentTimestamp] = useState(() => Date.now());
-  const currentPrices = useMemo(() => {
-    const latest = new Map<string, ProductPrice>();
-    for (const price of prices.data) {
-      const validFrom = Date.parse(price.valid_from);
-      const validUntil = price.valid_until
-        ? Date.parse(price.valid_until)
-        : Number.POSITIVE_INFINITY;
-      if (
-        !Number.isFinite(validFrom) ||
-        validFrom > currentTimestamp ||
-        validUntil <= currentTimestamp
-      ) {
-        continue;
-      }
-      const previous = latest.get(price.variant_id);
-      if (!previous || Date.parse(previous.valid_from) < validFrom) {
-        latest.set(price.variant_id, price);
-      }
-    }
-    return latest;
-  }, [currentTimestamp, prices.data]);
-  const selectedPrice = currentPrices.get(variantId);
-
-  return (
-    <div className="stock-price-list-row">
-      <span>
-        <strong>{list.code}</strong>
-        <small>{currentPrices.size.toLocaleString()} items</small>
-      </span>
-      <strong>
-        {prices.loading
-          ? "Loading…"
-          : selectedPrice
-            ? formatMoney(selectedPrice.amount, list.currency_code)
-            : "Not set"}
-      </strong>
-    </div>
-  );
-}
-
-function CurrentPriceLists({
-  lists,
-  loading,
-  error,
-  variantId,
-  quantityOnHand,
-  unitLabel,
-}: {
-  lists: PriceList[];
-  loading: boolean;
-  error: string;
-  variantId: string;
-  quantityOnHand: string;
-  unitLabel?: string;
-}) {
-  return (
-    <div className="stock-price-lists">
-      <div className="stock-price-lists-head">
-        <small>Current price lists</small>
-        <small>
-          {formatQuantity(quantityOnHand)}
-          {unitLabel ? ` ${unitLabel}` : ""} in stock
-        </small>
-      </div>
-      {loading ? (
-        <span className="stock-price-list-empty">Loading price lists…</span>
-      ) : error ? (
-        <span className="stock-price-list-empty">Price lists unavailable.</span>
-      ) : lists.length === 0 ? (
-        <span className="stock-price-list-empty">No price lists configured.</span>
-      ) : (
-        lists.map((list) => <CurrentPriceList key={list.id} list={list} variantId={variantId} />)
-      )}
-    </div>
-  );
-}
-
-export function StockInPage() {
-  const { t } = useTranslation();
-  const { merchant, isMerchant, can } = useAuth();
-  const router = useRouter();
-  const mini = merchant?.pos_complexity_level === "MINI";
-  const simple = merchant?.pos_complexity_level === "SIMPLE" || mini;
-  const { currentShop } = useShop();
-  const offline = useOffline();
-
-  useEffect(() => {
-    if (!can("stock_in")) {
-      router.replace(isMerchant ? "/merchant/dashboard" : "/staff/dashboard");
-    }
-  }, [can, isMerchant, router]);
-
-  const [pageIndex, setPageIndex] = useState(0);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
-  const [mobileStep, setMobileStep] = useState<"select" | "form">("select");
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(searchTerm.trim());
-      setPageIndex(0);
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const pageSize = 10;
-  const catalogPath = useMemo(() => {
-    const params = new URLSearchParams({
-      page_index: String(pageIndex),
-      page_size: String(pageSize),
-      filter: "is_stock_tracked:true",
-    });
-    if (debouncedQuery) params.set("query", debouncedQuery);
-    if (currentShop) params.set("shop_id", currentShop.id);
-    return `/pos/catalog?${params.toString()}`;
-  }, [currentShop, debouncedQuery, pageIndex, pageSize]);
-
-  const catalogCacheKey = `pos-catalog:stock-in:${currentShop?.id ?? "all"}:${debouncedQuery}:${pageIndex}`;
-  const items = useResource<StockItem>(catalogPath, catalogCacheKey);
-  const units = useResource<Unit>("/units?page_index=0&page_size=100");
-  const priceLists = useResource<PriceList>(
-    isMerchant ? "/pricing/price-lists?page_index=0&page_size=100" : "",
-  );
-  const locations = useResource<Location>("/inventory/locations?page_index=0&page_size=200");
-
-  const unitMap = useMemo(() => {
-    const map = new Map<string, Unit>();
-    for (const unit of units.data) {
-      map.set(unit.id, unit);
-    }
-    return map;
-  }, [units.data]);
-
-  const selectedUnit = selectedProduct ? unitMap.get(selectedProduct.base_unit_id) : undefined;
-  const selectedUnitLabel = selectedUnit?.symbol || selectedUnit?.code || "";
-  const allowsDecimal = selectedUnit ? selectedUnit.allows_decimal : true;
-
-  const shopLocations = useMemo(
-    () =>
-      locations.data.filter(
-        (location) => location.is_active && (!currentShop || location.shop_id === currentShop.id),
-      ),
-    [currentShop, locations.data],
-  );
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedProduct) return;
-    const formElement = event.currentTarget;
-    setBusy(true);
-    setError("");
-    setSuccess("");
-    const form = new FormData(formElement);
-    const rawQuantity = String(form.get("quantity") ?? "").trim();
-    const qtyNumber = Number(rawQuantity);
-
-    if (!rawQuantity || isNaN(qtyNumber) || qtyNumber <= 0) {
-      setError("Please enter a valid positive quantity.");
-      setBusy(false);
-      return;
-    }
-
-    if (!allowsDecimal && !Number.isInteger(qtyNumber)) {
-      setError(
-        `This unit (${selectedUnitLabel || "whole unit"}) only allows whole quantities. Please enter an integer value.`,
-      );
-      setBusy(false);
-      return;
-    }
-
-    try {
-      const payload: StockReceiptMutation = {
-        variant_id: selectedProduct.id,
-        destination_location_id: String(form.get("destination_location_id")),
-        unit_id: selectedProduct.base_unit_id,
-        quantity: rawQuantity,
-        event_key: `direct-stock-in:${crypto.randomUUID()}`,
-      };
-      const unitCost = !mini ? String(form.get("unit_cost") ?? "").trim() : "";
-      if (unitCost) payload.unit_cost = unitCost;
-      if (
-        offline.status === "offline" &&
-        (!offline.scope || !offline.storageAvailable || !currentShop)
-      ) {
-        throw new Error(
-          "Offline storage and an assigned shop are required to receive stock while disconnected.",
-        );
-      }
-      if (offline.scope && offline.storageAvailable && currentShop) {
-        await queueStockReceipt(offline.scope, currentShop.id, payload);
-        if (navigator.onLine) await offline.syncNow();
-      } else await post("/inventory/stock-in", payload);
-
-      const addedQty = qtyNumber;
-      const unitLabel = selectedUnitLabel || "units";
-      setSuccess(
-        `${selectedProduct.product_name}${!simple && selectedProduct.name ? ` · ${selectedProduct.name}` : ""} was added to stock (+${formatQuantity(payload.quantity)} ${unitLabel}).`,
-      );
-      formElement.reset();
-      await items.reload();
-      setSelectedProduct((prev) =>
-        prev
-          ? {
-              ...prev,
-              quantity_on_hand: String(Number(prev.quantity_on_hand || 0) + addedQty),
-            }
-          : null,
-      );
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to receive stock.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!can("stock_in")) {
-    return (
-      <EmptyState
-        icon="lock"
-        title="Access restricted"
-        message="Your account does not have permission to perform stock-in operations."
-      />
-    );
-  }
-
-  return (
-    <>
-      <PageHeader
-        eyebrow={t("nav.inventory")}
-        title={t("inventory.stock_in_title")}
-        description={t("inventory.stock_in_desc")}
-      />
-
-      {/* Mobile Step Navigator: only visible on mobile screens <= 800px */}
-      <div className="stock-mobile-nav">
-        <div className="segmented">
-          <button
-            type="button"
-            className={mobileStep === "select" ? "active" : ""}
-            onClick={() => setMobileStep("select")}
-          >
-            {t("inventory.stock_in_step_select")}{selectedProduct ? " (1 selected)" : ""}
-          </button>
-          <button
-            type="button"
-            className={mobileStep === "form" ? "active" : ""}
-            onClick={() => setMobileStep("form")}
-            disabled={!selectedProduct}
-          >
-            {t("inventory.stock_in_step_receive")}
-          </button>
-        </div>
-      </div>
-
-      <div className="stock-layout" data-mobile-step={mobileStep}>
-        {/* Left Column: Product Catalog Browser */}
-        <section
-          className={`card stock-catalog-card stock-catalog-pane ${
-            mobileStep !== "select" ? "mobile-hidden" : ""
-          }`}
-          aria-label={t("inventory.select_product_prompt")}
-        >
-          <div className="card-head">
-            <div>
-              <h2>{t("inventory.select_product_prompt")}</h2>
-              <p>{t("inventory.select_product_desc")}</p>
-            </div>
-          </div>
-
-          <div className="search-box stock-search">
-            <Icon name="search" size={17} />
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={t("pos.search_placeholder")}
-              aria-label={t("common.search")}
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => {
-                  setSearchTerm("");
-                  setDebouncedQuery("");
-                  setPageIndex(0);
-                }}
-                aria-label="Clear search"
-              >
-                <Icon name="close" size={14} />
-              </button>
-            )}
-          </div>
-
-          {items.loading ? (
-            <Loading />
-          ) : items.error ? (
-            <EmptyState title="Stock-in catalog could not load" message={items.error} />
-          ) : items.data.length === 0 && !debouncedQuery ? (
-            <EmptyState
-              icon="package"
-              title={t("catalog.no_products")}
-              message={t("catalog.no_products_desc")}
-            />
-          ) : items.data.length === 0 && debouncedQuery ? (
-            <div className="stock-no-match">
-              <p>No products match &ldquo;{debouncedQuery}&rdquo;.</p>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setSearchTerm("");
-                  setDebouncedQuery("");
-                  setPageIndex(0);
-                }}
-              >
-                {t("common.clear")}
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="stock-catalog-list" role="listbox" aria-label="Tracked products">
-                {items.data.map((item) => {
-                  const isSelected = selectedProduct?.id === item.id;
-                  const qtyOnHand = Number(item.quantity_on_hand) || 0;
-                  const itemUnit = unitMap.get(item.base_unit_id);
-                  const itemUnitLabel = itemUnit?.symbol || itemUnit?.code || "";
-                  return (
-                    <button
-                      type="button"
-                      key={item.id}
-                      className={`stock-product-card ${isSelected ? "selected" : ""}`}
-                      onClick={() => {
-                        setSelectedProduct(item);
-                        setError("");
-                        setSuccess("");
-                        setMobileStep("form");
-                      }}
-                      role="option"
-                      aria-selected={isSelected}
-                    >
-                      <span className={`stock-product-icon ${isSelected ? "selected" : ""}`}>
-                        <Icon name="package" size={18} />
-                      </span>
-                      <div className="stock-product-main">
-                        <div className="stock-product-title-row">
-                          <strong className="stock-product-name">{item.product_name}</strong>
-                          <span
-                            className={`stock-qty-badge ${qtyOnHand > 0 ? "in-stock" : "out-of-stock"}`}
-                          >
-                            <strong>{formatQuantity(item.quantity_on_hand)}</strong>
-                            {itemUnitLabel ? ` ${itemUnitLabel}` : ""}
-                          </span>
-                        </div>
-                        {!simple && (
-                          <div className="stock-product-meta">
-                            <span className="stock-variant-name">{item.name}</span>
-                            {item.sku && <span className="stock-meta-pill">SKU {item.sku}</span>}
-                            {item.barcode && (
-                              <span className="stock-meta-pill">Barcode {item.barcode}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <span className="stock-select-indicator" aria-hidden="true">
-                        <Icon name={isSelected ? "check" : "chevron"} size={16} />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <Pagination
-                pageIndex={pageIndex}
-                pageSize={pageSize}
-                totalItems={items.meta?.total ?? items.data.length}
-                totalPages={items.meta?.total_pages ?? 1}
-                itemLabel={t("common.products")}
-                onPageChange={setPageIndex}
-              />
-            </>
-          )}
-        </section>
-
-        {/* Right Column: Stock In Details & Receipt Form */}
-        <section
-          className={`card stock-receipt-card stock-receipt-pane ${
-            mobileStep !== "form" ? "mobile-hidden" : ""
-          }`}
-          aria-label={t("inventory.receive_stock_prompt")}
-        >
-          <div className="card-head">
-            <div>
-              <h2>{t("inventory.receive_stock_prompt")}</h2>
-              <p>
-                {selectedProduct
-                  ? `Entering received inventory for ${selectedProduct.product_name}.`
-                  : t("inventory.choose_product_prompt")}
-              </p>
-            </div>
-            {selectedProduct && (
-              <button
-                type="button"
-                className="stock-change-btn"
-                onClick={() => {
-                  setSelectedProduct(null);
-                  setMobileStep("select");
-                }}
-                aria-label={t("inventory.change_product")}
-              >
-                <Icon name="close" size={14} />
-                <span>{t("inventory.change_product")}</span>
-              </button>
-            )}
-          </div>
-
-          {success && (
-            <div className="success-message" role="status">
-              <Icon name="check" size={17} />
-              {success}
-            </div>
-          )}
-
-          {error && (
-            <div className="form-error" role="alert">
-              <Icon name="close" size={16} />
-              {error}
-            </div>
-          )}
-
-          {!selectedProduct ? (
-            <div className="stock-prompt-state">
-              <span className="stock-prompt-icon">
-                <Icon name="package" size={28} />
-              </span>
-              <h3>{t("inventory.no_product_selected")}</h3>
-              <p>{t("inventory.no_product_selected_desc")}</p>
-              <aside className="stock-tip-embedded">
-                <h4>
-                  <Icon name="package" size={15} />
-                  {t("inventory.original_price_info_title")}
-                </h4>
-                <p>{t("inventory.original_price_info_desc")}</p>
-                <ul>
-                  <li>{t("inventory.original_price_bullet_1")}</li>
-                  <li>{t("inventory.original_price_bullet_2")}</li>
-                  <li>{t("inventory.original_price_bullet_3")}</li>
-                </ul>
-              </aside>
-            </div>
-          ) : (
-            <Form className="stock-receipt-form" onSubmit={submit}>
-              {/* Selected Product Spotlight */}
-              <div className="stock-selected-spotlight">
-                <div className="spotlight-header">
-                  <span className="stock-product-icon selected">
-                    <Icon name="package" size={20} />
-                  </span>
-                  <div className="spotlight-title">
-                    <small>{t("catalog.product_name")}</small>
-                    <strong>{selectedProduct.product_name}</strong>
-                    {!simple && <span className="spotlight-variant">{selectedProduct.name}</span>}
-                  </div>
-                  <div className="spotlight-stock">
-                    <small>{t("catalog.stock_quantity")}</small>
-                    <strong>
-                      {formatQuantity(selectedProduct.quantity_on_hand)}
-                      {selectedUnitLabel ? ` ${selectedUnitLabel}` : ""}
-                    </strong>
-                  </div>
-                </div>
-                {!simple && (selectedProduct.sku || selectedProduct.barcode) && (
-                  <div className="spotlight-pills">
-                    {selectedProduct.sku && (
-                      <span className="stock-meta-pill">SKU {selectedProduct.sku}</span>
-                    )}
-                    {selectedProduct.barcode && (
-                      <span className="stock-meta-pill">Barcode {selectedProduct.barcode}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="form-grid">
-                <Field label={t("inventory.stock_location")}>
-                  <select
-                    name="destination_location_id"
-                    defaultValue={shopLocations.length === 1 ? shopLocations[0].id : ""}
-                    required
-                    disabled={shopLocations.length === 0}
-                  >
-                    <option value="">{t("inventory.select_location")}</option>
-                    {shopLocations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field
-                  label={
-                    selectedUnitLabel
-                      ? `${t("inventory.quantity_received")} (${selectedUnitLabel})`
-                      : t("inventory.quantity_received")
-                  }
-                  hint={
-                    selectedUnit && !allowsDecimal
-                      ? "Whole units only for this product."
-                      : selectedUnit
-                      ? "Decimal quantities are allowed for this unit."
-                      : undefined
-                  }
-                >
-                  <input
-                    name="quantity"
-                    type="number"
-                    step={allowsDecimal ? "0.001" : "1"}
-                    min={allowsDecimal ? "0.001" : "1"}
-                    required
-                    placeholder={allowsDecimal ? "0.000" : "0"}
-                    autoFocus
-                  />
-                </Field>
-
-                {isMerchant && !mini && (
-                  <Field
-                    label={t("inventory.original_price_per_unit")}
-                    hint="Optional after the first stock-in; leave blank to reuse the latest cost."
-                  >
-                    <div className="money-field">
-                      <span>{currencyLabel(merchant?.default_currency_code)}</span>
-                      <input
-                        name="unit_cost"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        key={selectedProduct.id}
-                        placeholder={t("inventory.use_latest_cost")}
-                      />
-                    </div>
-                    <CurrentPriceLists
-                      lists={priceLists.data}
-                      loading={priceLists.loading}
-                      error={priceLists.error}
-                      variantId={selectedProduct.id}
-                      quantityOnHand={selectedProduct.quantity_on_hand}
-                      unitLabel={selectedUnitLabel}
-                    />
-                  </Field>
-                )}
-              </div>
-
-              {shopLocations.length === 0 && (
-                <div className="form-error">
-                  <Icon name="close" size={16} />
-                  This shop has no active stock location.
-                </div>
-              )}
-
-              <div className="modal-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setSelectedProduct(null);
-                    setMobileStep("select");
-                  }}
-                >
-                  {t("common.clear")}
-                </Button>
-                <Button
-                  type="submit"
-                  icon="package"
-                  disabled={
-                    busy ||
-                    shopLocations.length === 0 ||
-                    (offline.status === "offline" && !offline.storageAvailable)
-                  }
-                >
-                  {busy ? t("inventory.adding_stock") : t("inventory.add_to_stock")}
-                </Button>
-              </div>
-
-              <aside className="stock-tip-embedded mt-12">
-                <h4>
-                  <Icon name="package" size={15} />
-                  {t("inventory.original_price_info_title")}
-                </h4>
-                <p>{t("inventory.original_price_info_desc")}</p>
-                <ul>
-                  <li>{t("inventory.original_price_bullet_1")}</li>
-                  <li>{t("inventory.original_price_bullet_2")}</li>
-                  <li>{t("inventory.original_price_bullet_3")}</li>
-                </ul>
-              </aside>
-            </Form>
           )}
         </section>
       </div>
@@ -1052,7 +416,7 @@ export function MovementsPage() {
                     {isMerchant && (
                       <Link
                         className="history-detail-btn"
-                        href={`/stock-movements/${item.id}`}
+                        href={`/stock-history/${item.id}`}
                         style={{ marginLeft: "8px" }}
                         aria-label={`View detail for ${item.event_key}`}
                       >
@@ -1093,39 +457,6 @@ export function AccountsPage() {
     () => roles.data.find((role) => role.code?.toLowerCase() === "staff"),
     [roles.data],
   );
-
-  const isStockInAllowed = Boolean(staffRole?.permission_codes?.includes("stock_in"));
-
-  async function handleToggleStockIn(checked: boolean) {
-    if (!isMerchant) return;
-    if (!staffRole) {
-      setPermissionError("Staff role could not be loaded for this merchant.");
-      return;
-    }
-    if (offline.status === "offline") {
-      setPermissionError("Role permission changes require an active connection.");
-      return;
-    }
-    setPermissionBusy(true);
-    setPermissionError("");
-    try {
-      const existingCodes = staffRole.permission_codes || [];
-      const updatedCodes = checked
-        ? Array.from(new Set([...existingCodes, "stock_in"]))
-        : existingCodes.filter((code) => code !== "stock_in");
-
-      await patch(`/roles/${staffRole.id}`, {
-        permission_codes: updatedCodes,
-      });
-      await roles.reload();
-    } catch (err) {
-      setPermissionError(
-        err instanceof Error ? err.message : "Failed to update staff stock-in permission.",
-      );
-    } finally {
-      setPermissionBusy(false);
-    }
-  }
 
   const isAiChatAllowed = Boolean(staffRole?.permission_codes?.includes("ai.chat"));
 
@@ -1300,54 +631,10 @@ export function AccountsPage() {
               <input
                 type="checkbox"
                 role="switch"
-                checked={isStockInAllowed}
-                disabled={!isMerchant || offline.status === "offline" || permissionBusy || roles.loading}
-                onChange={(event) => handleToggleStockIn(event.target.checked)}
-                aria-label={t("accounts.staff_stock_in_permission")}
-              />
-              <span>
-                <strong style={{ fontSize: 13, fontWeight: 600 }}>{t("accounts.staff_stock_in_permission")}</strong>
-                <small style={{ fontSize: 11, color: "var(--muted)" }}>
-                  {t("accounts.staff_stock_in_desc")}
-                </small>
-              </span>
-            </label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Badge tone={isStockInAllowed ? "success" : "neutral"}>
-                {permissionBusy
-                  ? t("common.loading")
-                  : isStockInAllowed
-                    ? t("accounts.stock_in_enabled")
-                    : t("accounts.stock_in_disabled")}
-              </Badge>
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 16,
-              flexWrap: "wrap",
-              paddingTop: 12,
-              marginTop: 12,
-              borderTop: "1px solid var(--border)",
-            }}
-          >
-            <label
-              className="check-field switch-field"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 14,
-                cursor: isMerchant ? "pointer" : "default",
-              }}
-            >
-              <input
-                type="checkbox"
-                role="switch"
                 checked={isAiChatAllowed}
-                disabled={!isMerchant || offline.status === "offline" || permissionBusy || roles.loading}
+                disabled={
+                  !isMerchant || offline.status === "offline" || permissionBusy || roles.loading
+                }
                 onChange={(event) => handleToggleAiChat(event.target.checked)}
                 aria-label={t("accounts.staff_ai_chat_permission", "Staff Nanonux AI Permission")}
               />
@@ -1356,7 +643,10 @@ export function AccountsPage() {
                   {t("accounts.staff_ai_chat_permission", "Staff Nanonux AI Permission")}
                 </strong>
                 <small style={{ fontSize: 11, color: "var(--muted)" }}>
-                  {t("accounts.staff_ai_chat_desc", "Allow staff to access Nanonux AI Assistant for operational queries and inventory analysis.")}
+                  {t(
+                    "accounts.staff_ai_chat_desc",
+                    "Allow staff to access Nanonux AI Assistant for operational queries and inventory analysis.",
+                  )}
                 </small>
               </span>
             </label>
@@ -1457,7 +747,8 @@ export function AccountsPage() {
                         ))}
                       </select>
                     ) : (
-                      (shops.data.find((shop) => shop.id === user.shop_id)?.name ?? t("accounts.all_shops"))
+                      (shops.data.find((shop) => shop.id === user.shop_id)?.name ??
+                      t("accounts.all_shops"))
                     )}
                   </td>
                   <td>

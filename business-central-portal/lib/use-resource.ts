@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { apiPage, NetworkUnavailableError } from "./api";
+import { loadResourcePages } from "./resource-pages";
 import type { ApiEnvelope } from "./types";
 import { useAuth } from "./auth";
 import { getCachedResource, putCachedResource } from "./offline-db";
@@ -29,7 +30,7 @@ function reportStorageError(error: unknown) {
   );
 }
 
-export function useResource<T>(path: string, cacheKey = path) {
+export function useResource<T>(path: string, cacheKey = path, allPages = false) {
   const { user } = useAuth();
   const instanceId = useId();
   const [data, setData] = useState<T[]>([]);
@@ -54,7 +55,7 @@ export function useResource<T>(path: string, cacheKey = path) {
     setLoading(true);
     setError("");
     try {
-      const response = await apiPage<T[]>(path);
+      const response = await loadResourcePages<T>(path, allPages, apiPage);
       setData(response.data);
       setMeta(response.meta);
       setCachedAt(null);
@@ -81,7 +82,7 @@ export function useResource<T>(path: string, cacheKey = path) {
     } finally {
       setLoading(false);
     }
-  }, [cacheKey, instanceId, path, scope]);
+  }, [allPages, cacheKey, instanceId, path, scope]);
   const updateLocal = useCallback(
     (update: (current: T[]) => T[]) => setData((current) => update(current)),
     [],
@@ -104,7 +105,7 @@ export function useResource<T>(path: string, cacheKey = path) {
         reportCacheState(instanceId, path, null);
       };
     }
-    apiPage<T[]>(path)
+    loadResourcePages<T>(path, allPages, apiPage)
       .then((response) => {
         if (current) {
           setData(response.data);
@@ -142,7 +143,7 @@ export function useResource<T>(path: string, cacheKey = path) {
       current = false;
       reportCacheState(instanceId, path, null);
     };
-  }, [cacheKey, instanceId, path, scope]);
+  }, [allPages, cacheKey, instanceId, path, scope]);
 
   useEffect(() => {
     const refreshOnline = () => void reload();

@@ -21,7 +21,11 @@ export function LanguageSettingsPage() {
   return (
     <>
       <div style={{ marginBottom: "0.75rem" }}>
-        <Link href="/settings" className="button secondary" style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
+        <Link
+          href="/settings"
+          className="button secondary"
+          style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}
+        >
           <span style={{ transform: "rotate(180deg)", display: "inline-block" }}>
             <Icon name="arrow" size={16} />
           </span>
@@ -39,21 +43,37 @@ export function LanguageSettingsPage() {
       />
 
       {justSwitched && (
-        <div className="notice success" style={{ marginBottom: "1.25rem" }}>
+        <div className="notice success" style={{ marginBottom: "var(--space-panel)" }}>
           <Icon name="check" size={18} />
-          <span>{t("settings.language.save_note", "Language preference is saved locally and applies instantly.")}</span>
+          <span>
+            {t(
+              "settings.language.save_note",
+              "Language preference is saved locally and applies instantly.",
+            )}
+          </span>
         </div>
       )}
 
-      <div className="card settings-stack" style={{ marginBottom: "1.5rem" }}>
+      <div className="card settings-stack" style={{ marginBottom: "var(--space-panel)" }}>
         <div className="card-head">
           <div>
             <h2>{t("settings.language.select_prompt", "Select preferred language")}</h2>
-            <p>{t("settings.language.guideline", "Select your workstation language. All changes apply immediately without reloading.")}</p>
+            <p>
+              {t(
+                "settings.language.guideline",
+                "Select your workstation language. All changes apply immediately without reloading.",
+              )}
+            </p>
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+        <div
+          style={{
+            display: "grid",
+            gap: "1rem",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+          }}
+        >
           {SUPPORTED_LANGUAGES.map((lang) => {
             const isSelected = language === lang.code;
             return (
@@ -68,7 +88,7 @@ export function LanguageSettingsPage() {
                     : "var(--theme-white)",
                   color: "var(--text)",
                   borderRadius: "13px",
-                  padding: "1.25rem",
+                  padding: "var(--space-panel)",
                   cursor: "pointer",
                   transition: "all 0.18s ease-in-out",
                   display: "flex",
@@ -81,7 +101,14 @@ export function LanguageSettingsPage() {
                 }}
               >
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                       <span
                         style={{
@@ -105,8 +132,14 @@ export function LanguageSettingsPage() {
                         {lang.flag}
                       </span>
                       <div>
-                        <strong style={{ fontSize: "1.1rem", display: "block", color: "var(--text)" }}>{lang.nativeName}</strong>
-                        <small style={{ color: "var(--muted)", fontSize: "0.85rem" }}>{lang.name}</small>
+                        <strong
+                          style={{ fontSize: "1.1rem", display: "block", color: "var(--text)" }}
+                        >
+                          {lang.nativeName}
+                        </strong>
+                        <small style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                          {lang.name}
+                        </small>
                       </div>
                     </div>
                     {isSelected && (
@@ -116,7 +149,14 @@ export function LanguageSettingsPage() {
                       </Badge>
                     )}
                   </div>
-                  <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.5 }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "0.875rem",
+                      color: "var(--muted)",
+                      lineHeight: 1.5,
+                    }}
+                  >
                     {lang.code === "en"
                       ? t("settings.language.english_desc", lang.description)
                       : lang.code === "my"
@@ -136,7 +176,11 @@ export function LanguageSettingsPage() {
                   >
                     {isSelected
                       ? t("settings.language.current_badge", "Active language")
-                      : t("settings.language.switch_button", { name: lang.nativeName }, `Switch to ${lang.name}`)}
+                      : t(
+                          "settings.language.switch_button",
+                          { name: lang.nativeName },
+                          `Switch to ${lang.name}`,
+                        )}
                   </Button>
                 </div>
               </div>
@@ -149,13 +193,33 @@ export function LanguageSettingsPage() {
         <div className="card-head">
           <div>
             <h2>{t("settings.language.preview_heading", "Live Interface Preview")}</h2>
-            <p>{t("settings.language.preview_guideline", "Guidelines, button text, and system notices will display in this language.")}</p>
+            <p>
+              {t(
+                "settings.language.preview_guideline",
+                "Guidelines, button text, and system notices will display in this language.",
+              )}
+            </p>
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: "1.25rem", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
-          <div style={{ border: "1px solid var(--line)", borderRadius: "10px", padding: "1rem", background: "var(--surface-muted, var(--theme-gray-50))" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.95rem", color: "var(--text)" }}>{t("nav.overview", "Navigation labels")}</h4>
+        <div
+          style={{
+            display: "grid",
+            gap: "var(--space-panel)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
+          }}
+        >
+          <div
+            style={{
+              border: "1px solid var(--line)",
+              borderRadius: "10px",
+              padding: "1rem",
+              background: "var(--surface-muted, var(--theme-gray-50))",
+            }}
+          >
+            <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.95rem", color: "var(--text)" }}>
+              {t("nav.overview", "Navigation labels")}
+            </h4>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
               <span className="badge">{t("nav.today", "Today")}</span>
               <span className="badge">{t("nav.pos", "Point of sale")}</span>
@@ -166,26 +230,61 @@ export function LanguageSettingsPage() {
             </div>
           </div>
 
-          <div style={{ border: "1px solid var(--line)", borderRadius: "10px", padding: "1rem", background: "var(--surface-muted, var(--theme-gray-50))" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.95rem", color: "var(--text)" }}>{t("common.actions", "Button actions")}</h4>
+          <div
+            style={{
+              border: "1px solid var(--line)",
+              borderRadius: "10px",
+              padding: "1rem",
+              background: "var(--surface-muted, var(--theme-gray-50))",
+            }}
+          >
+            <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.95rem", color: "var(--text)" }}>
+              {t("common.actions", "Button actions")}
+            </h4>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-              <button type="button" className="button" style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}>
+              <button
+                type="button"
+                className="button"
+                style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+              >
                 {t("common.save", "Save")}
               </button>
-              <button type="button" className="button secondary" style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}>
+              <button
+                type="button"
+                className="button secondary"
+                style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+              >
                 {t("common.cancel", "Cancel")}
               </button>
-              <button type="button" className="button secondary" style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}>
+              <button
+                type="button"
+                className="button secondary"
+                style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+              >
                 {t("common.print", "Print")}
               </button>
-              <button type="button" className="button primary" style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}>
+              <button
+                type="button"
+                className="button primary"
+                style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+              >
                 {t("pos.checkout_button", { amount: "$25.00" }, "Check out $25.00")}
               </button>
             </div>
           </div>
 
-          <div style={{ border: "1px solid var(--line)", borderRadius: "10px", padding: "1rem", background: "var(--surface-muted, var(--theme-gray-50))", gridColumn: "1 / -1" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.95rem", color: "var(--text)" }}>{t("guidelines.pos_guide_title", "POS Guideline")}</h4>
+          <div
+            style={{
+              border: "1px solid var(--line)",
+              borderRadius: "10px",
+              padding: "1rem",
+              background: "var(--surface-muted, var(--theme-gray-50))",
+              gridColumn: "1 / -1",
+            }}
+          >
+            <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.95rem", color: "var(--text)" }}>
+              {t("guidelines.pos_guide_title", "POS Guideline")}
+            </h4>
             <p style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.5, color: "var(--muted)" }}>
               {t("guidelines.pos_guide_desc")}
             </p>

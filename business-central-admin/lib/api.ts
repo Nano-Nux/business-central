@@ -57,7 +57,7 @@ export type Merchant = {
   default_currency_code: string;
   timezone?: string;
   country_code?: string;
-  pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
+  pos_complexity_level: "NANO" | "SIMPLE" | "COMPLEX" | "MINI";
   business_central_pricing_model: BusinessCentralPricingModel;
   ai_assistant_enabled?: boolean;
   ai_usage_limit?: number;
@@ -220,7 +220,7 @@ export const updateMerchant = (
   token: string,
   merchantID: string,
   data: {
-    pos_complexity_level?: "SIMPLE" | "COMPLEX" | "MINI";
+    pos_complexity_level?: "NANO" | "SIMPLE" | "COMPLEX" | "MINI";
     business_central_pricing_model?: BusinessCentralPricingModel;
     default_currency_code?: string;
     name?: string;
@@ -269,7 +269,7 @@ export const createMerchantUser = (
     merchant_legal_name?: string;
     default_currency_code: string;
     merchant_country_code?: string;
-    pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
+    pos_complexity_level: "NANO" | "SIMPLE" | "COMPLEX" | "MINI";
     business_central_pricing_model?: BusinessCentralPricingModel;
     email: string;
     password: string;

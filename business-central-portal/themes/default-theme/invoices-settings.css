@@ -193,7 +193,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 18px 0;
+  padding: 12px 0;
 }
 .printer-action > div {
   max-width: 440px;
@@ -319,7 +319,7 @@
 
 .shop-selection-page {
   min-height: 100vh;
-  padding: clamp(20px, 4vw, 40px) clamp(16px, 4vw, 48px);
+  padding: var(--space-page);
   background: var(--paper);
 }
 .shop-selection-header {
@@ -404,8 +404,8 @@
 }
 .shop-selection-empty {
   max-width: 520px;
-  margin: 80px auto;
-  padding: 40px;
+  margin: 32px auto;
+  padding: 24px 16px;
   text-align: center;
 }
 .shop-selection-empty h2 {
@@ -416,7 +416,7 @@
 }
 @media (max-width: 600px) {
   .shop-selection-page {
-    padding: 28px 16px;
+    padding: var(--space-page);
   }
   .shop-selection-header {
     align-items: flex-start;

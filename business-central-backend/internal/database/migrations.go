@@ -17,6 +17,12 @@ var telegramCustomersPayments string
 //go:embed 0051_telegram_auto_confirm.sql
 var telegramAutoConfirm string
 
+//go:embed 0054_delivery_payment_status.sql
+var deliveryPaymentStatus string
+
+//go:embed 0055_transaction_corrections.sql
+var transactionCorrections string
+
 const userManagementPolicies = `
 CREATE OR REPLACE FUNCTION app_can_manage_memberships(p_merchant_id UUID) RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog AS $$
@@ -1441,6 +1447,13 @@ BEGIN
 END $$;
 `
 
+const posNanoMode = `
+ALTER TABLE merchants DROP CONSTRAINT IF EXISTS merchants_pos_complexity_level_check;
+ALTER TABLE merchants ADD CONSTRAINT merchants_pos_complexity_level_check
+    CHECK (pos_complexity_level IN ('NANO', 'MINI', 'SIMPLE', 'COMPLEX'));
+ALTER TABLE merchants ALTER COLUMN pos_complexity_level SET DEFAULT 'NANO';
+`
+
 const optionalServiceCatalogCode = `
 ALTER TABLE service_catalog ALTER COLUMN code DROP NOT NULL;
 `
@@ -1515,6 +1528,10 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0049_telegram_automation", sql: telegramAutomation},
 		{version: "0050_telegram_customers_payments", sql: telegramCustomersPayments},
 		{version: "0051_telegram_auto_confirm", sql: telegramAutoConfirm},
+		{version: "0052_stock_conversion", sql: stockConversion},
+		{version: "0053_pos_nano_mode", sql: posNanoMode},
+		{version: "0054_delivery_payment_status", sql: deliveryPaymentStatus},
+		{version: "0055_transaction_corrections", sql: transactionCorrections},
 	}
 	for _, migration := range migrations {
 		var applied bool

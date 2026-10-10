@@ -502,6 +502,14 @@ export async function applySyncPage(
   } satisfies MetadataRecord<number>);
   await transactionDone(transaction);
   database.close();
+  for (const change of changes) {
+    if (
+      change.entityType === "ORDER" &&
+      ["UPDATE", "DELETE"].includes(change.operationType ?? "")
+    ) {
+      await invalidateTransactionResources(scope, change.entityId);
+    }
+  }
   notifyOfflineChange();
 }
 
@@ -582,4 +590,27 @@ export function requestBackgroundSync() {
       return optional.sync?.register("business-central-portal-sync");
     })
     .catch(() => undefined);
+}
+
+export async function invalidateTransactionResources(scope: OfflineScope, id: string) {
+  const database = await openDatabase();
+  const transaction = database.transaction([STORES.resources, STORES.entities], "readwrite");
+  const resources = transaction.objectStore(STORES.resources);
+  const rows = (await requestResult(
+    resources.index("byScope").getAll(IDBKeyRange.only(offlineScopeKey(scope))),
+  )) as Array<CachedResource<unknown>>;
+  for (const row of rows)
+    if (
+      /transaction-history|invoices|report|dashboard|pos.catalog|catalog|stock|storage/.test(
+        row.path,
+      )
+    )
+      resources.delete(row.key);
+  const entities = transaction.objectStore(STORES.entities);
+  const entityRows = (await requestResult(
+    entities.index("byScope").getAll(IDBKeyRange.only(offlineScopeKey(scope))),
+  )) as Array<{ key: string; entityId: string }>;
+  for (const row of entityRows) if (row.entityId === id) entities.delete(row.key);
+  await transactionDone(transaction);
+  database.close();
 }

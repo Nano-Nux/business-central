@@ -9,9 +9,13 @@ import (
 
 // Repository is the shop and POS persistence port.
 type Repository interface {
+	UpdateTransaction(context.Context, *authdto.Claims, string, posdto.TransactionEditRequest) (posdto.SaleOrder, error)
+	DeleteTransaction(context.Context, *authdto.Claims, string, posdto.TransactionDeleteRequest) error
+
 	ListCatalog(context.Context, *authdto.Claims, string) ([]posdto.CatalogItem, error)
 	LookupBarcode(context.Context, *authdto.Claims, string, string) ([]posdto.CatalogItem, error)
 	CreateSale(context.Context, *authdto.Claims, posdto.CreateSaleRequest) (posdto.SaleOrder, error)
+	UpdateDeliveryPayment(context.Context, *authdto.Claims, string, posdto.DeliveryPaymentRequest) (posdto.DeliveryPaymentResult, error)
 	CreateRefund(context.Context, *authdto.Claims, string, posdto.CreateRefundRequest) (posdto.Refund, error)
 	QuoteSale(context.Context, *authdto.Claims, posdto.CreateSaleRequest) (posdto.SaleQuote, error)
 	ListInvoices(context.Context, *authdto.Claims) ([]posdto.Invoice, error)

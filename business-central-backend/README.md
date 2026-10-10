@@ -2,6 +2,12 @@
 
 ## Telegram automation
 
+Only users with the system `merchant` or `owner` role and `tenant.write` may
+create or rotate a Telegram pairing code, confirm/cancel a Telegram order, or
+change automatic confirmation through tenant APIs. Staff may review Telegram
+groups and orders but cannot initiate a connection or approve orders. Platform
+administrators retain their separate admin routes.
+
 Set `TELEGRAM_BOT_TOKEN` and a random `TELEGRAM_WEBHOOK_SECRET` of 32–256 letters, numbers, underscores, or hyphens only in the backend environment. Never use `NEXT_PUBLIC_*` for either value.
 
 After deploying the backend with public HTTPS, open **Admin → Telegram groups → Telegram webhook**, enter `https://your-backend-domain/api/v1/webhooks/telegram`, and click **Register webhook**. The backend calls Telegram using its configured token and secret; neither credential is sent to the browser. **Refresh status** shows the registered URL, pending updates, and the last delivery error. Registration replaces the shared bot's previous webhook and preserves pending updates. It subscribes to `message`, `callback_query`, and `my_chat_member` updates. Register again when the URL or secret changes; ordinary deployments do not require re-registration. A public HTTPS `PUBLIC_BASE_URL` pre-fills the form when no webhook is registered; otherwise enter the address manually. Localhost cannot receive Telegram webhook deliveries.
@@ -187,3 +193,79 @@ must correct the issue and send a new command. The existing outbox retries only
 receipt delivery for successfully committed orders, never the commerce operation.
 Turning OFF restores manual confirmation for subsequent orders. Existing pending
 orders remain pending, and already confirmed orders remain confirmed.
+
+## Storage stock management ? 2026-10-02
+
+The portal combines receiving and stock checking in Storage (/stock-in redirects there). Only active merchant/owner roles can receive or reduce stock and see original cost/profit. Staff, managers and custom roles cannot modify stock through Storage or the stock-in API, even with legacy stock_in permission. Reductions append audited immutable ADJUSTMENT movements and consume FIFO cost while preserving reservations. Portal reductions queue through deferred API replay; receipts retain typed synchronization with merchant-only role and shop checks. No schema migration is required; native mobile parity remains pending.
+
+## POS Nano
+
+Migration `0053_pos_nano_mode` allows NANO/MINI/SIMPLE/COMPLEX and defaults future merchants to NANO without changing existing modes. Both admin provisioning endpoints default to NANO. Nano reuses Mini standard-variant/Pcs/RETAIL provisioning and direct prices; opening stock still uses the canonical merchant-only stock receipt API.
+
+## Optional checkout customer names
+
+All POS modes (including Nano), temporary-offline checkout, and sales/service/repair
+invoices leave missing customer names blank. Invoice APIs return `customer: null`
+for unnamed customers; previews, PDF, browser and thermal printing do not insert
+a fallback name. Whitespace-only POS names are treated as missing. Existing
+explicitly recorded customer names are preserved. No database migration is needed.
+
+## Independent POS delivery payment
+
+See [delivery payment workflow, financial rules, migration and offline behavior](../DELIVERY_PAYMENT.md).
+
+## Name-only sellable-option creation
+
+`POST /catalog/products/:id/variants` requires only `name` in creation input.
+Blank SKU generates `OPT-<variant UUID without hyphens>`. Blank base unit and
+unit label inherit the product's managed standard option, otherwise the option
+with the lowest variant ID. Products with no options use an active PCS/EA unit
+if present; otherwise creation returns an actionable base-unit validation error.
+Explicit values remain supported and updates preserve existing identifiers.
+Typed CATALOG_VARIANT CREATE replay uses the same defaults and stable entity ID.
+Stored SKU/base unit remain required; no database or local-schema migration.
+
+Acceptance covers domain defaults, application validation, browser name-only
+creation in all four modes, and isolated PostgreSQL creation and replay tests
+(`TestConfiguredDatabaseNameOnlyVariant`, `TestConfiguredDatabaseNameOnlyVariantReplay`).
+
+Migration 0055 enables merchant-owner full POS/Telegram transaction edits and
+permanent deletion through `PATCH`/`DELETE /pos/orders/:orderId`. These are
+atomic, version-checked, idempotent corrections with stock restoration and
+owned-history cleanup. No triggers are disabled and no payment provider is
+called. See `../API_CONTRACT.md` and `docs/openapi.yaml`. Database regression:
+`RUN_DB_TESTS=1 go test ./internal/pos/adapters/outbound/postgres -run TestConfiguredDatabaseTransactionCorrections`. It creates/drops only a private
+test schema and requires schema creation privileges.
+
+
+## AI response currencies
+
+Nanonux AI receives the authenticated merchant's `default_currency_code` in
+both query generation and answer formatting. Explicit order/price-list currency
+codes take precedence; monetary queries should return currency codes and group
+aggregates by currency, without combining currencies or inventing exchange rates.
+A merchant-context lookup failure stops generation rather than guessing a currency.
+Before answer generation, catalog-approved monetary fields (including monetary
+aggregate aliases) become exact, grouped amount-and-currency strings, for example
+`150,000.00 MMK`. Record currency takes precedence over the merchant default.
+The formatter must preserve currency beside every amount in cards, table cells,
+and prose; counts and quantities remain numeric. The provider-failure fallback
+uses the same formatted records and displays null amounts as unavailable.
+This shared backend behavior applies to portal and online mobile AI chat. Existing
+saved responses are unchanged; no API or schema migration is required.
+
+Both AI stages receive the same response-language policy: use the latest user
+question's language for explanations, metric labels, table headings and follow-up
+suggestions. Earlier answers, English prompt examples, database field names and
+merchant currency do not determine the language. Predominantly Myanmar-script
+questions additionally receive an explicit Myanmar directive. Currency codes,
+numbers, SKUs, proper names and internal tool/query identifiers are preserved.
+The provider-failure table uses Myanmar introduction/empty/unavailable text and
+common business/financial column labels for Myanmar questions; uncommon catalog
+field identifiers remain visible. Other languages use the model's language policy;
+the programmatic fallback remains English for non-Myanmar questions.
+
+
+## Shop-scoped AI reads
+
+See [AI chat security, catalog, financial semantics and client rollout](../AI_CHAT_SECURITY.md). AI tools accept structured read proposals, never raw SQL. Shop selection is mandatory. Chat metadata remains writable by infrastructure; business-data tools are read-only.

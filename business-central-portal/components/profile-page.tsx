@@ -44,7 +44,9 @@ export function UserProfilePage() {
     .join("")
     .toUpperCase();
 
-  const roleName = isMerchant ? "Merchant Owner" : user.roles.map((r) => r.name).join(", ") || "Staff";
+  const roleName = isMerchant
+    ? "Merchant Owner"
+    : user.roles.map((r) => r.name).join(", ") || "Staff";
 
   async function handleUpdateProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,7 +69,11 @@ export function UserProfilePage() {
       if (saved) {
         try {
           const session = JSON.parse(saved);
-          session.user = { ...session.user, display_name: updated.display_name, phone: updated.phone };
+          session.user = {
+            ...session.user,
+            display_name: updated.display_name,
+            phone: updated.phone,
+          };
           localStorage.setItem("bc.session", JSON.stringify(session));
           window.dispatchEvent(new CustomEvent("bc-session", { detail: session }));
         } catch {
@@ -136,7 +142,8 @@ export function UserProfilePage() {
             alignItems: "center",
             gap: "14px",
             padding: "14px 18px",
-            background: "linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(16,185,129,0.04) 100%)",
+            background:
+              "linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(16,185,129,0.04) 100%)",
             border: "1px solid var(--border)",
           }}
         >
@@ -161,7 +168,15 @@ export function UserProfilePage() {
             {initials}
           </div>
           <div style={{ flex: 1, minWidth: "180px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "2px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+                marginBottom: "2px",
+              }}
+            >
               <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 750 }}>{user.display_name}</h2>
               <Badge tone={isMerchant ? "success" : "info"}>{roleName}</Badge>
               <Badge tone={user.is_active ? "success" : "danger"}>
@@ -171,7 +186,16 @@ export function UserProfilePage() {
             <p style={{ margin: 0, color: "var(--muted)", fontSize: "12px" }}>
               {user.email} {user.phone ? `· ${user.phone}` : ""}
             </p>
-            <div style={{ marginTop: "4px", display: "flex", gap: "14px", flexWrap: "wrap", fontSize: "11px", color: "var(--muted)" }}>
+            <div
+              style={{
+                marginTop: "4px",
+                display: "flex",
+                gap: "14px",
+                flexWrap: "wrap",
+                fontSize: "11px",
+                color: "var(--muted)",
+              }}
+            >
               <span>
                 <strong>Merchant:</strong> {merchant?.name || "Business Central"}
               </span>
@@ -184,26 +208,68 @@ export function UserProfilePage() {
           </div>
         </section>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+            gap: "12px",
+          }}
+        >
           {/* Card 1: Personal Details */}
           <section className="card" style={{ padding: "14px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-              <span className="stat-icon blue" style={{ width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "6px" }}>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}
+            >
+              <span
+                className="stat-icon blue"
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "6px",
+                }}
+              >
                 <Icon name="user" size={15} />
               </span>
               <div>
-                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700 }}>Personal Information</h3>
-                <small style={{ color: "var(--muted)", fontSize: "11px" }}>Your name and contact details</small>
+                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700 }}>
+                  Personal Information
+                </h3>
+                <small style={{ color: "var(--muted)", fontSize: "11px" }}>
+                  Your name and contact details
+                </small>
               </div>
             </div>
 
             {profileError && (
-              <div style={{ padding: "8px 10px", marginBottom: "10px", borderRadius: "6px", backgroundColor: "var(--status-danger-soft)", color: "var(--status-danger)", fontSize: "11px", border: "1px solid var(--status-danger-border)" }}>
+              <div
+                style={{
+                  padding: "8px 10px",
+                  marginBottom: "10px",
+                  borderRadius: "6px",
+                  backgroundColor: "var(--status-danger-soft)",
+                  color: "var(--status-danger)",
+                  fontSize: "11px",
+                  border: "1px solid var(--status-danger-border)",
+                }}
+              >
                 {profileError}
               </div>
             )}
             {profileSuccess && (
-              <div style={{ padding: "8px 10px", marginBottom: "10px", borderRadius: "6px", backgroundColor: "var(--status-success-soft)", color: "var(--status-success)", fontSize: "11px", border: "1px solid var(--status-success-border)" }}>
+              <div
+                style={{
+                  padding: "8px 10px",
+                  marginBottom: "10px",
+                  borderRadius: "6px",
+                  backgroundColor: "var(--status-success-soft)",
+                  color: "var(--status-success)",
+                  fontSize: "11px",
+                  border: "1px solid var(--status-success-border)",
+                }}
+              >
                 {profileSuccess}
               </div>
             )}
@@ -211,10 +277,18 @@ export function UserProfilePage() {
             <Form onSubmit={handleUpdateProfile}>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 <Field label="Email address" hint="Email is managed centrally and used for sign-in">
-                  <input type="email" value={user.email} disabled style={{ backgroundColor: "var(--surface-muted)", cursor: "not-allowed" }} />
+                  <input
+                    type="email"
+                    value={user.email}
+                    disabled
+                    style={{ backgroundColor: "var(--surface-muted)", cursor: "not-allowed" }}
+                  />
                 </Field>
 
-                <Field label="Display name" hint="How your name appears across orders, receipts, and staff lists">
+                <Field
+                  label="Display name"
+                  hint="How your name appears across orders, receipts, and staff lists"
+                >
                   <input
                     type="text"
                     required
@@ -249,12 +323,26 @@ export function UserProfilePage() {
 
           {/* Card 2: Password & Security */}
           <section className="card" style={{ padding: "14px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-              <span className="stat-icon amber" style={{ width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "6px" }}>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}
+            >
+              <span
+                className="stat-icon amber"
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "6px",
+                }}
+              >
                 <Icon name="lock" size={15} />
               </span>
               <div>
-                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700 }}>Password & Security</h3>
+                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700 }}>
+                  Password & Security
+                </h3>
                 <small style={{ color: "var(--muted)", fontSize: "11px" }}>
                   {isMerchant ? "Change your account sign-in password" : "Staff credential policy"}
                 </small>
@@ -264,12 +352,32 @@ export function UserProfilePage() {
             {isMerchant ? (
               <>
                 {passwordError && (
-                  <div style={{ padding: "8px 10px", marginBottom: "10px", borderRadius: "6px", backgroundColor: "var(--status-danger-soft)", color: "var(--status-danger)", fontSize: "11px", border: "1px solid var(--status-danger-border)" }}>
+                  <div
+                    style={{
+                      padding: "8px 10px",
+                      marginBottom: "10px",
+                      borderRadius: "6px",
+                      backgroundColor: "var(--status-danger-soft)",
+                      color: "var(--status-danger)",
+                      fontSize: "11px",
+                      border: "1px solid var(--status-danger-border)",
+                    }}
+                  >
                     {passwordError}
                   </div>
                 )}
                 {passwordSuccess && (
-                  <div style={{ padding: "8px 10px", marginBottom: "10px", borderRadius: "6px", backgroundColor: "var(--status-success-soft)", color: "var(--status-success)", fontSize: "11px", border: "1px solid var(--status-success-border)" }}>
+                  <div
+                    style={{
+                      padding: "8px 10px",
+                      marginBottom: "10px",
+                      borderRadius: "6px",
+                      backgroundColor: "var(--status-success-soft)",
+                      color: "var(--status-success)",
+                      fontSize: "11px",
+                      border: "1px solid var(--status-success-border)",
+                    }}
+                  >
                     {passwordSuccess}
                   </div>
                 )}
@@ -344,15 +452,26 @@ export function UserProfilePage() {
                   gap: "6px",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--status-info)", fontWeight: 700, fontSize: "12px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    color: "var(--status-info)",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                  }}
+                >
                   <Icon name="lock" size={15} />
                   <span>Managed Credentials</span>
                 </div>
                 <p style={{ margin: 0, fontSize: "11px", color: "var(--text)", lineHeight: 1.45 }}>
-                  As a staff member, your account password and access rights are managed directly by your merchant administrator.
+                  As a staff member, your account password and access rights are managed directly by
+                  your merchant administrator.
                 </p>
                 <p style={{ margin: 0, fontSize: "10px", color: "var(--muted)" }}>
-                  If you need to change your password or suspect unauthorized access, please contact your merchant owner to reset your credentials.
+                  If you need to change your password or suspect unauthorized access, please contact
+                  your merchant owner to reset your credentials.
                 </p>
               </div>
             )}

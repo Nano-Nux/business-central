@@ -88,3 +88,15 @@ All 58 tests verify:
 - Embedded shelf HTTP static bundle serving and version detection.
 - Argon2id/AES-GCM encrypted backup round-trips.
 - WebView navigation policies, internal origin confinement, and retry mechanisms.
+
+## Independent POS delivery payment
+
+See [delivery payment workflow, financial rules, migration and offline behavior](../DELIVERY_PAYMENT.md).
+
+Embedded transaction detail shares full Edit/permanent Delete with the portal.
+`updateTransaction`/`deleteTransaction` validate active local owner membership,
+permission and shop scope; stock restoration, record replacement/removal,
+optimistic metadata version and hashed idempotency commit in one SQLite
+transaction. Fully offline corrections make no network request. Current SQLite
+order lines require whole quantities. Scoped deletion markers prevent removed
+checkout retries from recreating the sale.

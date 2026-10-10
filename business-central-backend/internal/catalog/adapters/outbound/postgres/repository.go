@@ -11,6 +11,7 @@ import (
 	"business-central-backend/internal/app"
 	authdto "business-central-backend/internal/auth/application/dto"
 	catalogoutbound "business-central-backend/internal/catalog/ports/outbound"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -259,7 +260,7 @@ func (s *Service) CreateProduct(ctx context.Context, claims *authdto.Claims, r P
 	if complexityLevel == "SIMPLE" && r.StandardVariant == nil {
 		return Product{}, app.Validation("standard_variant is required for POS simple products.", nil)
 	}
-	if complexityLevel == "MINI" {
+	if complexityLevel == "MINI" || complexityLevel == "NANO" {
 		if r.StandardVariant == nil {
 			r.StandardVariant = &StandardVariantRequest{}
 		}
@@ -286,7 +287,7 @@ func (s *Service) CreateProduct(ctx context.Context, claims *authdto.Claims, r P
 			return Product{}, err
 		}
 	}
-	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
+	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" || complexityLevel == "NANO" {
 		standard := r.StandardVariant
 		if standard == nil {
 			standard = &StandardVariantRequest{}
@@ -297,7 +298,7 @@ func (s *Service) CreateProduct(ctx context.Context, claims *authdto.Claims, r P
 		}
 		var unitCode string
 		if strings.TrimSpace(standard.BaseUnitID) == "" {
-			if complexityLevel == "MINI" {
+			if complexityLevel == "MINI" || complexityLevel == "NANO" {
 				err = tx.QueryRow(ctx, `SELECT id::text, code FROM unit_definitions WHERE merchant_id=$1::uuid AND is_active ORDER BY CASE WHEN code='PCS' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`, claims.MerchantID).Scan(&standard.BaseUnitID, &unitCode)
 				if errors.Is(err, pgx.ErrNoRows) {
 					err = tx.QueryRow(ctx, `INSERT INTO unit_definitions(merchant_id, code, name, symbol, dimension_code, allows_decimal, is_active) VALUES ($1::uuid, 'PCS', 'Piece', 'Pcs', 'COUNT', false, true) RETURNING id::text, code`, claims.MerchantID).Scan(&standard.BaseUnitID, &unitCode)
@@ -403,12 +404,12 @@ func (s *Service) UpdateProduct(ctx context.Context, claims *authdto.Claims, id 
 			return Product{}, err
 		}
 	}
-	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
-		if _, err = tx.Exec(ctx, `UPDATE product_variants SET name=$3,updated_at=now() WHERE merchant_id=$1::uuid AND product_id=$2::uuid`, claims.MerchantID, v.ID, v.Name); err != nil {
+	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" || complexityLevel == "NANO" {
+		if _, err = tx.Exec(ctx, `UPDATE product_variants SET name=$3,updated_at=now() WHERE merchant_id=$1::uuid AND product_id=$2::uuid AND sku='STD-' || replace($2::uuid::text,'-','')`, claims.MerchantID, v.ID, v.Name); err != nil {
 			return Product{}, err
 		}
 		var stdVariantID string
-		_ = tx.QueryRow(ctx, `SELECT id::text FROM product_variants WHERE merchant_id=$1::uuid AND product_id=$2::uuid ORDER BY created_at ASC LIMIT 1`, claims.MerchantID, v.ID).Scan(&stdVariantID)
+		_ = tx.QueryRow(ctx, `SELECT id::text FROM product_variants WHERE merchant_id=$1::uuid AND product_id=$2::uuid AND sku='STD-' || replace($2::uuid::text,'-','') LIMIT 1`, claims.MerchantID, v.ID).Scan(&stdVariantID)
 
 		origPriceInput := r.OriginalPrice
 		if origPriceInput == nil && r.StandardVariant != nil {
@@ -1098,22 +1099,12 @@ func (s *Service) ListVariants(ctx context.Context, c *authdto.Claims, productID
 }
 
 func (s *Service) CreateVariant(ctx context.Context, c *authdto.Claims, productID string, r VariantRequest) (Variant, error) {
-	if err := required(r.SKU, "sku"); err != nil {
-		return Variant{}, err
-	}
 	if err := required(r.Name, "name"); err != nil {
-		return Variant{}, err
-	}
-	if err := required(r.BaseUnitID, "base_unit_id"); err != nil {
 		return Variant{}, err
 	}
 	attrs := r.Attributes
 	if len(attrs) == 0 {
 		attrs = json.RawMessage(`{}`)
-	}
-	uom := r.UnitOfMeasure
-	if strings.TrimSpace(uom) == "" {
-		uom = "EA"
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1123,15 +1114,13 @@ func (s *Service) CreateVariant(ctx context.Context, c *authdto.Claims, productI
 	if err = setContext(ctx, tx, c); err != nil {
 		return Variant{}, err
 	}
-	var complexityLevel string
-	if err = tx.QueryRow(ctx, `SELECT pos_complexity_level FROM merchants WHERE id=$1::uuid`, c.MerchantID).Scan(&complexityLevel); err != nil {
+	variantID := uuid.NewString()
+	sku, unit, uom, err := ResolveVariantDefaults(ctx, tx, c.MerchantID, productID, variantID, r.SKU, r.BaseUnitID, r.UnitOfMeasure)
+	if err != nil {
 		return Variant{}, err
 	}
-	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
-		return Variant{}, app.NewError("POS_SIMPLE_VARIANT_MANAGED", "POS simple/mini products use the standard variant created with the product.", 409)
-	}
 	var v Variant
-	err = tx.QueryRow(ctx, `INSERT INTO product_variants(merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked) VALUES($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,true)) RETURNING id,merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked,created_at,updated_at`, c.MerchantID, productID, strings.TrimSpace(r.SKU), r.Barcode, strings.TrimSpace(r.Name), string(attrs), uom, r.BaseUnitID, r.IsStockTracked).Scan(&v.ID, &v.MerchantID, &v.ProductID, &v.SKU, &v.Barcode, &v.Name, &v.Attributes, &v.UnitOfMeasure, &v.BaseUnitID, &v.IsStockTracked, &v.CreatedAt, &v.UpdatedAt)
+	err = tx.QueryRow(ctx, `INSERT INTO product_variants(id,merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked) VALUES($10::uuid,$1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,true)) RETURNING id,merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked,created_at,updated_at`, c.MerchantID, productID, sku, r.Barcode, strings.TrimSpace(r.Name), string(attrs), uom, unit, r.IsStockTracked, variantID).Scan(&v.ID, &v.MerchantID, &v.ProductID, &v.SKU, &v.Barcode, &v.Name, &v.Attributes, &v.UnitOfMeasure, &v.BaseUnitID, &v.IsStockTracked, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return Variant{}, err
 	}
@@ -1186,6 +1175,13 @@ func (s *Service) UpdateVariant(ctx context.Context, c *authdto.Claims, id strin
 	if err = setContext(ctx, tx, c); err != nil {
 		return Variant{}, err
 	}
+	var currentSKU, currentProductID string
+	if err = tx.QueryRow(ctx, `SELECT sku,product_id::text FROM product_variants WHERE merchant_id=$1::uuid AND id=$2::uuid FOR UPDATE`, c.MerchantID, id).Scan(&currentSKU, &currentProductID); err != nil {
+		return Variant{}, err
+	}
+	if currentSKU == "STD-"+strings.ReplaceAll(currentProductID, "-", "") && strings.TrimSpace(r.SKU) != currentSKU {
+		return Variant{}, app.Validation("The managed standard variant SKU cannot be changed.", nil)
+	}
 	var v Variant
 	err = tx.QueryRow(ctx, `UPDATE product_variants SET sku=$3,barcode=$4,name=$5,attributes=$6,unit_of_measure=$7,base_unit_id=$8,is_stock_tracked=COALESCE($9,is_stock_tracked),updated_at=now() WHERE merchant_id=$1::uuid AND id=$2 RETURNING id,merchant_id,product_id,sku,barcode,name,attributes,unit_of_measure,base_unit_id,is_stock_tracked,created_at,updated_at`, c.MerchantID, id, strings.TrimSpace(r.SKU), r.Barcode, strings.TrimSpace(r.Name), string(attrs), uom, r.BaseUnitID, r.IsStockTracked).Scan(&v.ID, &v.MerchantID, &v.ProductID, &v.SKU, &v.Barcode, &v.Name, &v.Attributes, &v.UnitOfMeasure, &v.BaseUnitID, &v.IsStockTracked, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
@@ -1215,16 +1211,13 @@ func (s *Service) DeleteVariant(ctx context.Context, c *authdto.Claims, id strin
 	if err = setContext(ctx, tx, c); err != nil {
 		return err
 	}
-	var complexityLevel string
-	if err = tx.QueryRow(ctx, `SELECT pos_complexity_level FROM merchants WHERE id=$1::uuid`, c.MerchantID).Scan(&complexityLevel); err != nil {
-		return err
-	}
-	if complexityLevel == "SIMPLE" || complexityLevel == "MINI" {
-		return app.NewError("POS_SIMPLE_VARIANT_MANAGED", "The standard variant belongs to its POS simple/mini product and cannot be removed separately.", 409)
-	}
 	var productID string
-	if err = tx.QueryRow(ctx, `SELECT product_id::text FROM product_variants WHERE merchant_id=$1::uuid AND id=$2::uuid`, c.MerchantID, id).Scan(&productID); err != nil {
+	var sku string
+	if err = tx.QueryRow(ctx, `SELECT product_id::text,sku FROM product_variants WHERE merchant_id=$1::uuid AND id=$2::uuid`, c.MerchantID, id).Scan(&productID, &sku); err != nil {
 		return err
+	}
+	if sku == "STD-"+strings.ReplaceAll(productID, "-", "") {
+		return app.NewError("POS_SIMPLE_VARIANT_MANAGED", "The standard variant belongs to its product and cannot be removed separately.", 409)
 	}
 	var version int64
 	if err = tx.QueryRow(ctx, `SELECT COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=$1::uuid AND entity_type='CATALOG_VARIANT' AND entity_id=$2::uuid),0)`, c.MerchantID, id).Scan(&version); err != nil {

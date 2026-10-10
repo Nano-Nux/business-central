@@ -10,9 +10,10 @@ export async function cachedApi<T>(
   scope: OfflineScope | null,
   path: string,
   cacheKey = path,
+  read: (path: string) => Promise<T> = api,
 ): Promise<OfflineResourceResult<T>> {
   try {
-    const data = await api<T>(path);
+    const data = await read(path);
     if (scope) {
       await putCachedResource(scope, cacheKey, data).catch((error) => {
         if (typeof window !== "undefined") {

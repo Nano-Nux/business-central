@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { useAuth } from "./auth";
+import { usingFullyOfflineNativeDatabase } from "./native-database";
 import {
   discardOfflineOperation,
   discardOfflineOperations,
@@ -128,7 +129,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   const syncNow = useCallback(async () => {
     if (syncInFlight.current) return syncInFlight.current;
-    if (!scope || !storageAvailable || !navigator.onLine) {
+    if (!scope || !storageAvailable || !navigator.onLine || usingFullyOfflineNativeDatabase()) {
       setStatus("offline");
       return null;
     }
@@ -307,6 +308,9 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       void syncNow();
     };
     const browserOffline = () => setStatus("offline");
+    const nativeReady = () => {
+      if (usingFullyOfflineNativeDatabase()) setStatus("offline");
+    };
     const apiConnectivity = (event: Event) => {
       const available = (event as CustomEvent<{ available: boolean }>).detail?.available;
       if (!available) setStatus("offline");
@@ -320,12 +324,14 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("bc-connectivity", apiConnectivity);
     window.addEventListener("bc-offline-data-changed", refresh);
     window.addEventListener("bc-sync-requested", browserOnline);
+    window.addEventListener("business-central-native-database-ready", nativeReady);
     return () => {
       window.removeEventListener("online", browserOnline);
       window.removeEventListener("offline", browserOffline);
       window.removeEventListener("bc-connectivity", apiConnectivity);
       window.removeEventListener("bc-offline-data-changed", refresh);
       window.removeEventListener("bc-sync-requested", browserOnline);
+      window.removeEventListener("business-central-native-database-ready", nativeReady);
     };
   }, [refresh, status, syncNow]);
 

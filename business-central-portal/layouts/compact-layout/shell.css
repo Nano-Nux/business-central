@@ -25,7 +25,7 @@
   }
 
   [data-layout="compact-layout"] .content {
-    padding: 18px 24px;
+    padding: 16px 18px;
     max-width: 1600px;
     margin: 0 auto;
   }
@@ -99,11 +99,11 @@
 
   [data-layout="compact-layout"] .topbar {
     height: 56px;
-    padding: 0 24px;
+    padding: 0 var(--space-page);
   }
 
   [data-layout="compact-layout"] .page-header {
-    margin-bottom: 18px;
+    margin-bottom: var(--space-section);
   }
 }
 
@@ -158,12 +158,12 @@
 
   [data-layout="compact-layout"] .topbar {
     height: 56px;
-    padding: 0 18px;
+    padding: 0 var(--space-page);
     gap: 12px;
   }
 
   [data-layout="compact-layout"] .page-header {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-section);
   }
 }
 
@@ -219,7 +219,7 @@
 
   [data-layout="compact-layout"] .topbar {
     height: 50px;
-    padding: 0 12px;
+    padding: 0 var(--space-page);
     gap: 10px;
   }
 
@@ -227,7 +227,7 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: var(--space-section);
   }
 
   [data-layout="compact-layout"] .page-header h1 {

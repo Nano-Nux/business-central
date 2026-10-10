@@ -3,12 +3,20 @@ import {
   listOperations,
   queueOperationWithEntity,
   requestBackgroundSync,
+  putCachedEntity,
+  isIndexedDbAvailable,
+  offlineScopeKey,
+  type OfflineOperation,
   type OfflineOperationStatus,
   type OfflineScope,
 } from "./offline-db";
-import type { Delivery, Promotion, Shop, Variant } from "./types";
+import type { Delivery, DeliveryPaymentStatus, Promotion, Shop, Variant } from "./types";
 import { randomUuid } from "./random-uuid";
-import { usingNativeDatabaseBridge, callNativeDatabase } from "./native-database";
+import {
+  usingNativeDatabaseBridge,
+  usingFullyOfflineNativeDatabase,
+  callNativeDatabase,
+} from "./native-database";
 
 export const OFFLINE_CHECKOUT_ENTITY = "POS_CHECKOUT";
 
@@ -18,6 +26,7 @@ type CheckoutLineInput = {
 };
 
 export type CheckoutSnapshot = {
+  delivery_payment_status?: DeliveryPaymentStatus;
   currency_code: string;
   subtotal: string;
   discount_total: string;
@@ -27,14 +36,21 @@ export type CheckoutSnapshot = {
 
 export type OfflineCheckoutProjection = {
   provisional_id: string;
+  order_number?: string;
   shop_id: string;
   saved_at: string;
-  status: "PENDING_SYNCHRONIZATION" | "PENDING_PAYMENT_AUTHORIZATION";
-  customer_name?: string;
+  status: "PENDING_SYNCHRONIZATION" | "PENDING_PAYMENT_AUTHORIZATION" | "COMPLETED_LOCALLY";
+  customer_name?: string | null;
   customer_phone?: string;
   delivery?: { id: string; name: string; contact_info: string };
+  delivery_fee?: string;
+  delivery_payment_status?: DeliveryPaymentStatus;
   note?: string;
-  payment: { method: string; status: "PROVISIONAL_CASH" | "PENDING_AUTHORIZATION" };
+  payment: {
+    amount?: string;
+    method: string;
+    status: "PROVISIONAL_CASH" | "PENDING_AUTHORIZATION" | "CAPTURED";
+  };
   snapshot: CheckoutSnapshot;
   line_snapshots: Array<{
     variant_id: string;
@@ -64,6 +80,7 @@ export type QueueOfflineCheckoutInput = {
   customerPhone?: string;
   delivery?: Delivery;
   deliveryFee?: string;
+  deliveryPaymentStatus?: DeliveryPaymentStatus;
   note?: string;
   paymentMethod: string;
   paymentTypeId?: string;
@@ -106,6 +123,8 @@ export function calculateOfflineCheckoutSnapshot(
         : Math.min(subtotal, cents(promotion.value));
   }
   const manualDiscount = cents(input.manualPromotion);
+  if (manualDiscount < 0 || cents(input.deliveryFee) < 0)
+    throw new Error("Discount and delivery fee must be nonnegative.");
   if (promotionDiscount + manualDiscount > subtotal) {
     throw new Error("The provisional discount cannot exceed the subtotal.");
   }
@@ -116,6 +135,7 @@ export function calculateOfflineCheckoutSnapshot(
   const total = taxable + tax + cents(input.deliveryFee);
   if (total <= 0) throw new Error("The provisional checkout total must be greater than zero.");
   return {
+    delivery_payment_status: projectionDeliveryStatus(input),
     currency_code: input.currencyCode,
     subtotal: money(subtotal),
     discount_total: money(promotionDiscount + manualDiscount),
@@ -124,10 +144,24 @@ export function calculateOfflineCheckoutSnapshot(
   };
 }
 
-export async function pendingCheckoutQuantities(scope: OfflineScope) {
+export async function pendingCheckoutQuantities(scope: OfflineScope, shopId?: string) {
+  if (usingFullyOfflineNativeDatabase()) return new Map<string, number>();
   const operations = await listOperations(scope);
   const quantities = new Map<string, number>();
   for (const operation of operations) {
+    if (shopId && operation.shopId !== shopId) continue;
+    if (
+      operation.entityType === "STOCK_REDUCTION" &&
+      ["PENDING", "SYNCING", "FAILED"].includes(operation.status)
+    ) {
+      const variantID = String(operation.payload.variant_id ?? "");
+      if (variantID)
+        quantities.set(
+          variantID,
+          (quantities.get(variantID) ?? 0) + Number(operation.payload.quantity ?? 0),
+        );
+      continue;
+    }
     if (
       operation.entityType !== OFFLINE_CHECKOUT_ENTITY ||
       !["PENDING", "SYNCING", "FAILED"].includes(operation.status)
@@ -147,9 +181,17 @@ export async function pendingCheckoutQuantities(scope: OfflineScope) {
   return quantities;
 }
 
+function projectionDeliveryStatus(input: QueueOfflineCheckoutInput): DeliveryPaymentStatus {
+  return input.shop.delivery_payment_status_auto_complete
+    ? "COMPLETE"
+    : (input.deliveryPaymentStatus ?? "UN_PAID");
+}
+
 export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
   if (!input.lines.length) throw new Error("The cart is empty.");
-  const reserved = await pendingCheckoutQuantities(input.scope);
+  const reserved = usingFullyOfflineNativeDatabase()
+    ? new Map<string, number>()
+    : await pendingCheckoutQuantities(input.scope, input.shop.id);
   for (const line of input.lines) {
     if (!line.item.is_stock_tracked) continue;
     const remaining = Number(line.item.quantity_on_hand ?? 0) - (reserved.get(line.item.id) ?? 0);
@@ -184,8 +226,15 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
     provisional_id: provisionalId,
     shop_id: input.shop.id,
     saved_at: savedAt,
-    status: category === "CASH" ? "PENDING_SYNCHRONIZATION" : "PENDING_PAYMENT_AUTHORIZATION",
-    ...(input.customerName ? { customer_name: input.customerName } : {}),
+    status:
+      category === "CASH"
+        ? usingFullyOfflineNativeDatabase()
+          ? "COMPLETED_LOCALLY"
+          : "PENDING_SYNCHRONIZATION"
+        : "PENDING_PAYMENT_AUTHORIZATION",
+    delivery_fee: money(cents(input.deliveryFee)),
+    delivery_payment_status: projectionDeliveryStatus(input),
+    customer_name: input.customerName?.trim() || null,
     ...(input.customerPhone ? { customer_phone: input.customerPhone } : {}),
     ...(input.delivery
       ? {
@@ -199,7 +248,16 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
     ...(input.note ? { note: input.note } : {}),
     payment: {
       method,
-      status: category === "CASH" ? "PROVISIONAL_CASH" : "PENDING_AUTHORIZATION",
+      amount: money(
+        cents(snapshot.grand_total) -
+          (projectionDeliveryStatus(input) === "UN_PAID" ? cents(input.deliveryFee) : 0),
+      ),
+      status:
+        category === "CASH"
+          ? usingFullyOfflineNativeDatabase()
+            ? "CAPTURED"
+            : "PROVISIONAL_CASH"
+          : "PENDING_AUTHORIZATION",
     },
     snapshot,
     line_snapshots: lineSnapshots,
@@ -213,10 +271,11 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
         quantity: line.quantity,
       })),
       ...(input.promotion ? { promotion_id: input.promotion.id } : {}),
-      ...(input.customerName ? { customer_name: input.customerName } : {}),
+      customer_name: input.customerName?.trim() || null,
       ...(input.customerPhone ? { customer_phone: input.customerPhone } : {}),
       ...(input.delivery ? { delivery_id: input.delivery.id } : {}),
       delivery_fee: input.deliveryFee || "0",
+      delivery_payment_status: projection.delivery_payment_status,
       manual_promotion: input.manualPromotion || "0",
       ...(input.note ? { note: input.note } : {}),
       payment_method: method,
@@ -233,6 +292,32 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
         provisional_quantity: line.quantity,
       })),
   };
+  if (usingFullyOfflineNativeDatabase()) {
+    const nativeOrder = await callNativeDatabase<{ order_number?: string }>("checkout", {
+      projection: { ...projection, merchant_id: input.scope.merchantId },
+      payload,
+    });
+    projection.order_number = nativeOrder.order_number;
+    if (isIndexedDbAvailable())
+      await putCachedEntity(input.scope, OFFLINE_CHECKOUT_ENTITY, provisionalId, projection);
+    // This is a local acknowledgement, not a synchronization outbox entry.
+    const operation: OfflineOperation = {
+      operationId: provisionalId,
+      scopeKey: offlineScopeKey(input.scope),
+      merchantId: input.scope.merchantId,
+      membershipId: input.scope.membershipId,
+      shopId: input.shop.id,
+      entityType: OFFLINE_CHECKOUT_ENTITY,
+      entityId: provisionalId,
+      operationType: "CREATE",
+      payload,
+      payloadHash: "",
+      clientCreatedAt: savedAt,
+      status: "SYNCED",
+      retryCount: 0,
+    };
+    return { operation, projection };
+  }
   const operation = await queueOperationWithEntity(
     input.scope,
     {
@@ -246,13 +331,18 @@ export async function queueOfflineCheckout(input: QueueOfflineCheckoutInput) {
     projection,
   );
   if (usingNativeDatabaseBridge()) {
-    await callNativeDatabase("checkout", { projection, payload }).catch(() => null);
+    const nativeOrder = await callNativeDatabase<{ order_number?: string }>("checkout", {
+      projection: { ...projection, merchant_id: input.scope.merchantId },
+      payload,
+    });
+    projection.order_number = nativeOrder.order_number;
   }
   requestBackgroundSync();
   return { operation, projection };
 }
 
 export async function listOfflineCheckouts(scope: OfflineScope) {
+  if (usingFullyOfflineNativeDatabase() && !isIndexedDbAvailable()) return [];
   const [entities, operations] = await Promise.all([
     getCachedEntities<Record<string, unknown>>(scope, OFFLINE_CHECKOUT_ENTITY),
     listOperations(scope),

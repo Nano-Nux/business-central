@@ -1,2 +1,5 @@
-import { StockInPage } from "@/components/operations-pages";
-export default StockInPage;
+import { redirect } from "next/navigation";
+
+export default function StockInPage() {
+  redirect("/storage");
+}
