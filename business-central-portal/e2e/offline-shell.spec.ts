@@ -11,8 +11,18 @@ test("installs the complete shell and cold-launches a cached operational route o
   });
 
   const cached = await page.evaluate(async () => {
-    const cache = await caches.open("business-central-shell-v4");
-    return Boolean(await cache.match("/pos"));
+    const cache = await caches.open("business-central-shell-v6");
+    const pages = [
+      "/pos",
+      "/products-and-storage",
+      "/customers-and-deliveries",
+      "/customers-and-deliveries/deliveries",
+      "/stock-barcodes",
+      "/stock-history",
+      "/staff-accounts",
+      "/catalog/variant-attributes",
+    ];
+    return (await Promise.all(pages.map((path) => cache.match(path)))).every(Boolean);
   });
   expect(cached).toBe(true);
 
@@ -50,13 +60,10 @@ test("activation removes obsolete Business Central shell caches", async ({ page 
     .not.toContain("business-central-shell-obsolete");
   await expect
     .poll(() => page.evaluate(() => caches.keys()))
-    .toContain("business-central-shell-v4");
+    .toContain("business-central-shell-v6");
 });
 
-test("offline checkout survives a 24-hour outage and page restart", async ({
-  context,
-  page,
-}) => {
+test("offline checkout survives a 24-hour outage and page restart", async ({ context, page }) => {
   test.setTimeout(180_000);
   await page.goto("/login");
   await page.evaluate(async () => {

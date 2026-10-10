@@ -32,6 +32,13 @@ class LocalBackupService {
     final merchantSettings = await (database.select(
       database.merchantSettings,
     )..where((row) => row.merchantId.equals(merchantId))).get();
+    final deliveryPreferences =
+        await (database.select(database.appMetadata)..where(
+              (row) => row.key.like(
+                'shop:$merchantId:%:delivery_payment_status_auto_complete',
+              ),
+            ))
+            .get();
     final locations = await (database.select(
       database.locations,
     )..where((row) => row.merchantId.equals(merchantId))).get();
@@ -111,6 +118,16 @@ class LocalBackupService {
       database.operationQueue,
     )..where((row) => row.merchantId.equals(merchantId))).get();
     final data = <String, Object?>{
+      'delivery_payment_preferences': deliveryPreferences
+          .map(
+            (row) => {
+              'merchant_id': merchantId,
+              'key': row.key,
+              'value': row.value,
+              'updated_at': row.updatedAt,
+            },
+          )
+          .toList(),
       'format': 'business-central-mobile-local-backup',
       'schema_version': database.schemaVersion,
       'merchant_id': merchantId,
@@ -305,6 +322,8 @@ class LocalBackupService {
             'customer_name': row.customerName,
             'customer_phone': row.customerPhone,
             'delivery_id': row.deliveryId,
+            'delivery_fee': row.deliveryFee,
+            'delivery_payment_status': row.deliveryPaymentStatus,
             'note': row.note,
             'idempotency_key': row.idempotencyKey,
             'created_at': row.createdAt,
@@ -404,6 +423,7 @@ class LocalBackupService {
             'method': row.method,
             'status': row.status,
             'amount': row.amount,
+            'purpose': row.purpose,
             'provider_reference': row.providerReference,
             'idempotency_key': row.idempotencyKey,
             'captured_at': row.capturedAt,
@@ -588,7 +608,10 @@ class LocalBackupService {
     if (checksum is! String || checksum != _checksum(data)) {
       throw const LocalBackupException('Backup checksum is invalid.');
     }
-    if ((data['schema_version'] as num?)?.toInt() != database.schemaVersion) {
+    if (![
+      27,
+      database.schemaVersion,
+    ].contains((data['schema_version'] as num?)?.toInt())) {
       throw const LocalBackupException(
         'Backup schema version is incompatible.',
       );
@@ -597,6 +620,27 @@ class LocalBackupService {
     await database.transaction(() async {
       await _restoreShops(data['shops'], merchantId);
       await _restoreMerchantSettings(data['merchant_settings'], merchantId);
+      for (final row in _rows(data['delivery_payment_preferences'])) {
+        final key = _string(row, 'key');
+        final value = _string(row, 'value');
+        if (row['merchant_id'] != merchantId ||
+            !key.startsWith('shop:$merchantId:') ||
+            !key.endsWith(':delivery_payment_status_auto_complete') ||
+            !['true', 'false'].contains(value)) {
+          throw const LocalBackupException(
+            'Invalid delivery payment preference scope.',
+          );
+        }
+        await database
+            .into(database.appMetadata)
+            .insertOnConflictUpdate(
+              AppMetadataCompanion.insert(
+                key: key,
+                value: value,
+                updatedAt: _string(row, 'updated_at'),
+              ),
+            );
+      }
       await _restoreLocations(data['locations'], merchantId);
       await _restoreCategories(data['categories'], merchantId);
       await _restoreProducts(data['products'], merchantId);
@@ -1015,6 +1059,19 @@ class LocalBackupService {
               customerName: Value(_nullable(row, 'customer_name')),
               customerPhone: Value(_nullable(row, 'customer_phone')),
               deliveryId: Value(_nullable(row, 'delivery_id')),
+              deliveryFee: Value(
+                _nullable(row, 'delivery_fee') ??
+                    ((double.tryParse(_string(row, 'grand_total')) ?? 0) -
+                            (double.tryParse(_string(row, 'subtotal')) ?? 0) +
+                            (double.tryParse(_string(row, 'discount_total')) ??
+                                0) -
+                            (double.tryParse(_string(row, 'tax_total')) ?? 0))
+                        .clamp(0, double.infinity)
+                        .toStringAsFixed(2),
+              ),
+              deliveryPaymentStatus: Value(
+                _nullable(row, 'delivery_payment_status') ?? 'COMPLETE',
+              ),
               note: Value(_nullable(row, 'note')),
               idempotencyKey: _string(row, 'idempotency_key'),
               createdAt: _string(row, 'created_at'),
@@ -1158,6 +1215,7 @@ class LocalBackupService {
               method: _string(row, 'method'),
               status: _string(row, 'status'),
               amount: _string(row, 'amount'),
+              purpose: Value(_nullable(row, 'purpose') ?? 'ORDER'),
               providerReference: Value(_nullable(row, 'provider_reference')),
               idempotencyKey: _string(row, 'idempotency_key'),
               capturedAt: Value(_nullable(row, 'captured_at')),

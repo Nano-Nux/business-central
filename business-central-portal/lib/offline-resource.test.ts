@@ -48,4 +48,19 @@ describe("cachedApi", () => {
     mockedApi.mockRejectedValueOnce(new Error("Forbidden"));
     await expect(cachedApi(scope, "/products", "catalog-products")).rejects.toThrow("Forbidden");
   });
+  it("caches a complete paginated read and preserves it if a later read fails", async () => {
+    const complete = [{ id: "day-1" }, { id: "day-101" }];
+    const read = vi.fn().mockResolvedValueOnce(complete);
+    await cachedApi(scope, "/reports/sales-by-day", "all-report-days", read);
+    expect(mockedApi).not.toHaveBeenCalled();
+    expect(await getCachedResource(scope, "all-report-days")).toMatchObject({ data: complete });
+    read.mockRejectedValueOnce(new NetworkUnavailableError());
+    const snapshot = await cachedApi(scope, "/reports/sales-by-day", "all-report-days", read);
+    expect(snapshot.data).toEqual(complete);
+    expect(snapshot.cachedAt).not.toBeNull();
+    read.mockRejectedValueOnce(new Error("Forbidden"));
+    await expect(
+      cachedApi(scope, "/reports/sales-by-day", "all-report-days", read),
+    ).rejects.toThrow("Forbidden");
+  });
 });

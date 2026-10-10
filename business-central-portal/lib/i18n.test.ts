@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  translate,
-  SUPPORTED_LANGUAGES,
-  DEFAULT_LANGUAGE,
-  LANGUAGE_STORAGE_KEY,
-} from "./i18n";
+import { translate, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE, LANGUAGE_STORAGE_KEY } from "./i18n";
 import { resolveTranslation, translations } from "./translations";
 
 describe("i18n core translation engine", () => {
@@ -79,6 +74,30 @@ describe("i18n core translation engine", () => {
 
     expect(myKeys).toEqual(enKeys);
     expect(thKeys).toEqual(enKeys);
+  });
+
+  it("provides complete Automation and Telegram translations in every supported language", () => {
+    const nestedKeys = (value: object, prefix = ""): string[] =>
+      Object.entries(value).flatMap(([key, child]) =>
+        child && typeof child === "object"
+          ? nestedKeys(child, `${prefix}${key}.`)
+          : [`${prefix}${key}`],
+      );
+
+    for (const section of ["automations", "telegram"] as const) {
+      const englishKeys = nestedKeys(translations.en[section]).sort();
+      expect(nestedKeys(translations.my[section]).sort()).toEqual(englishKeys);
+      expect(nestedKeys(translations.th[section]).sort()).toEqual(englishKeys);
+    }
+
+    expect(translate("automations.title", "my")).toBe("Automations");
+    expect(translate("automations.description", "my")).not.toBe(
+      translate("automations.description", "en"),
+    );
+    expect(translate("telegram.confirm_order", "th")).not.toBe(
+      translate("telegram.confirm_order", "en"),
+    );
+    expect(translate("telegram.active_connections", "my", { count: 2 })).toContain("2");
   });
 
   it("contains Language setting sub-setting strings in all languages", () => {

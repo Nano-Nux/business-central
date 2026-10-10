@@ -37,7 +37,7 @@ type UserForm = {
   merchant_slug: string;
   default_currency_code: string;
   merchant_country_code: string;
-  pos_complexity_level: "SIMPLE" | "COMPLEX" | "MINI";
+  pos_complexity_level: "NANO" | "SIMPLE" | "COMPLEX" | "MINI";
   business_central_pricing_model: BusinessCentralPricingModel;
 };
 const emptyForm: UserForm = {
@@ -52,7 +52,7 @@ const emptyForm: UserForm = {
   merchant_slug: "",
   default_currency_code: "",
   merchant_country_code: "",
-  pos_complexity_level: "SIMPLE",
+  pos_complexity_level: "NANO",
   business_central_pricing_model: "starter",
 };
 
@@ -137,12 +137,15 @@ export default function UsersPage() {
           const merchantResult = await withAuth((token) =>
             updateMerchant(token, merchantID, {
               pos_complexity_level: form.pos_complexity_level,
-              business_central_pricing_model: form.business_central_pricing_model,
+              business_central_pricing_model:
+                form.business_central_pricing_model,
               default_currency_code: form.default_currency_code,
             }),
           );
           setMerchants((items) =>
-            items.map((item) => item.id === merchantID ? merchantResult.data : item),
+            items.map((item) =>
+              item.id === merchantID ? merchantResult.data : item,
+            ),
           );
         }
       } else if (form.accountRole === "merchant") {
@@ -254,7 +257,9 @@ export default function UsersPage() {
   }
 
   function openEdit(user: User) {
-    const currentMerchant = merchants.find((merchant) => merchant.id === merchantID);
+    const currentMerchant = merchants.find(
+      (merchant) => merchant.id === merchantID,
+    );
     setEditing(user);
     setForm({
       ...emptyForm,
@@ -263,12 +268,10 @@ export default function UsersPage() {
       phone: user.phone || "",
       roleIDs: user.roles.map((role) => role.id),
       accountRole: user.roles[0]?.id || "",
-      pos_complexity_level:
-        currentMerchant?.pos_complexity_level || "SIMPLE",
+      pos_complexity_level: currentMerchant?.pos_complexity_level || "NANO",
       business_central_pricing_model:
         currentMerchant?.business_central_pricing_model || "starter",
-      default_currency_code:
-        currentMerchant?.default_currency_code || "",
+      default_currency_code: currentMerchant?.default_currency_code || "",
       is_active: user.is_active,
     });
     setShowForm(true);
@@ -583,7 +586,8 @@ export default function UsersPage() {
                   ))}
                   {form.default_currency_code &&
                     !currencies.some(
-                      (currency) => currency.code === form.default_currency_code,
+                      (currency) =>
+                        currency.code === form.default_currency_code,
                     ) && (
                       <option value={form.default_currency_code}>
                         {form.default_currency_code}
@@ -596,18 +600,78 @@ export default function UsersPage() {
               (editing && isMerchantRoleSelected())) && (
               <fieldset className="pos-complexity-section">
                 <legend>POS complexity level</legend>
-                <p>Choose how much catalog and variant setup this merchant sees.</p>
+                <p>
+                  Choose how much catalog and variant setup this merchant sees.
+                </p>
                 <label className="pos-complexity-option">
-                  <input type="radio" name="pos_complexity_level" value="SIMPLE" checked={form.pos_complexity_level === "SIMPLE"} onChange={() => setForm({ ...form, pos_complexity_level: "SIMPLE" })} />
-                  <span><strong>POS simple</strong><small>Each product automatically uses one standard variant.</small></span>
+                  <input
+                    type="radio"
+                    name="pos_complexity_level"
+                    value="NANO"
+                    checked={form.pos_complexity_level === "NANO"}
+                    onChange={() =>
+                      setForm({ ...form, pos_complexity_level: "NANO" })
+                    }
+                  />
+                  <span>
+                    <strong>POS Nano (default)</strong>
+                    <small>
+                      Seven core pages, combined products and stock, and no AI
+                      setup.
+                    </small>
+                  </span>
                 </label>
                 <label className="pos-complexity-option">
-                  <input type="radio" name="pos_complexity_level" value="COMPLEX" checked={form.pos_complexity_level === "COMPLEX"} onChange={() => setForm({ ...form, pos_complexity_level: "COMPLEX" })} />
-                  <span><strong>POS complex</strong><small>Keep separate variants, SKUs, units, and prices.</small></span>
+                  <input
+                    type="radio"
+                    name="pos_complexity_level"
+                    value="SIMPLE"
+                    checked={form.pos_complexity_level === "SIMPLE"}
+                    onChange={() =>
+                      setForm({ ...form, pos_complexity_level: "SIMPLE" })
+                    }
+                  />
+                  <span>
+                    <strong>POS simple</strong>
+                    <small>
+                      Each product automatically uses one standard variant.
+                    </small>
+                  </span>
                 </label>
                 <label className="pos-complexity-option">
-                  <input type="radio" name="pos_complexity_level" value="MINI" checked={form.pos_complexity_level === "MINI"} onChange={() => setForm({ ...form, pos_complexity_level: "MINI" })} />
-                  <span><strong>POS mini</strong><small>Simplified catalog: auto-unit, direct cost &amp; selling price, streamlined repairs.</small></span>
+                  <input
+                    type="radio"
+                    name="pos_complexity_level"
+                    value="COMPLEX"
+                    checked={form.pos_complexity_level === "COMPLEX"}
+                    onChange={() =>
+                      setForm({ ...form, pos_complexity_level: "COMPLEX" })
+                    }
+                  />
+                  <span>
+                    <strong>POS complex</strong>
+                    <small>
+                      Keep separate variants, SKUs, units, and prices.
+                    </small>
+                  </span>
+                </label>
+                <label className="pos-complexity-option">
+                  <input
+                    type="radio"
+                    name="pos_complexity_level"
+                    value="MINI"
+                    checked={form.pos_complexity_level === "MINI"}
+                    onChange={() =>
+                      setForm({ ...form, pos_complexity_level: "MINI" })
+                    }
+                  />
+                  <span>
+                    <strong>POS mini</strong>
+                    <small>
+                      Simplified catalog: auto-unit, direct cost &amp; selling
+                      price, streamlined repairs.
+                    </small>
+                  </span>
                 </label>
               </fieldset>
             )}
@@ -615,18 +679,28 @@ export default function UsersPage() {
               (editing && isMerchantRoleSelected())) && (
               <fieldset className="pos-complexity-section">
                 <legend>Business Central pricing model</legend>
-                <p>Assign the commercial pricing model record for this merchant.</p>
+                <p>
+                  Assign the commercial pricing model record for this merchant.
+                </p>
                 <label className="pos-complexity-option">
                   <input
                     type="radio"
                     name="business_central_pricing_model"
                     value="starter"
                     checked={form.business_central_pricing_model === "starter"}
-                    onChange={() => setForm({ ...form, business_central_pricing_model: "starter" })}
+                    onChange={() =>
+                      setForm({
+                        ...form,
+                        business_central_pricing_model: "starter",
+                      })
+                    }
                   />
                   <span>
                     <strong>Starter (Default)</strong>
-                    <small>Entry-level pricing model for single-location shops and boutique stores.</small>
+                    <small>
+                      Entry-level pricing model for single-location shops and
+                      boutique stores.
+                    </small>
                   </span>
                 </label>
                 <label className="pos-complexity-option">
@@ -635,11 +709,19 @@ export default function UsersPage() {
                     name="business_central_pricing_model"
                     value="growth"
                     checked={form.business_central_pricing_model === "growth"}
-                    onChange={() => setForm({ ...form, business_central_pricing_model: "growth" })}
+                    onChange={() =>
+                      setForm({
+                        ...form,
+                        business_central_pricing_model: "growth",
+                      })
+                    }
                   />
                   <span>
                     <strong>Growth</strong>
-                    <small>Scaling businesses with active registers, repair intake, and omnichannel workflows.</small>
+                    <small>
+                      Scaling businesses with active registers, repair intake,
+                      and omnichannel workflows.
+                    </small>
                   </span>
                 </label>
                 <label className="pos-complexity-option">
@@ -647,12 +729,22 @@ export default function UsersPage() {
                     type="radio"
                     name="business_central_pricing_model"
                     value="professional"
-                    checked={form.business_central_pricing_model === "professional"}
-                    onChange={() => setForm({ ...form, business_central_pricing_model: "professional" })}
+                    checked={
+                      form.business_central_pricing_model === "professional"
+                    }
+                    onChange={() =>
+                      setForm({
+                        ...form,
+                        business_central_pricing_model: "professional",
+                      })
+                    }
                   />
                   <span>
                     <strong>Professional</strong>
-                    <small>Comprehensive operations requiring complete inventory audits, analytics, and priority SLAs.</small>
+                    <small>
+                      Comprehensive operations requiring complete inventory
+                      audits, analytics, and priority SLAs.
+                    </small>
                   </span>
                 </label>
                 <label className="pos-complexity-option">
@@ -660,12 +752,22 @@ export default function UsersPage() {
                     type="radio"
                     name="business_central_pricing_model"
                     value="enterprise"
-                    checked={form.business_central_pricing_model === "enterprise"}
-                    onChange={() => setForm({ ...form, business_central_pricing_model: "enterprise" })}
+                    checked={
+                      form.business_central_pricing_model === "enterprise"
+                    }
+                    onChange={() =>
+                      setForm({
+                        ...form,
+                        business_central_pricing_model: "enterprise",
+                      })
+                    }
                   />
                   <span>
                     <strong>Enterprise</strong>
-                    <small>High-volume multi-store organizations requiring custom SLAs and dedicated scale.</small>
+                    <small>
+                      High-volume multi-store organizations requiring custom
+                      SLAs and dedicated scale.
+                    </small>
                   </span>
                 </label>
               </fieldset>

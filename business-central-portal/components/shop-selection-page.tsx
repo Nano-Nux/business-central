@@ -9,12 +9,21 @@ import { resolveMediaURL } from "@/lib/media-url";
 import { Icon } from "./icons";
 import { BrandIcon } from "./brand-icon";
 import { Loading } from "./ui";
+import { getCanonicalWorkspaceHref } from "@/lib/workspace-routes";
+import { getFilteredNavigationGroups, isAiWorkspacePath } from "@/lib/navigation";
 
 export function ShopSelectionPage() {
   const router = useRouter();
-  const { user, ready, isMerchant, logout } = useAuth();
+  const { user, ready, isMerchant, logout, merchant, can } = useAuth();
   const { shops, currentShop, loading, error, selectShop } = useShop();
-  const dashboard = isMerchant ? "/merchant/dashboard" : "/staff/dashboard";
+  const dashboard =
+    isMerchant && can("tenant.read")
+      ? "/reports"
+      : can("tenant.write")
+        ? "/pos"
+        : can("tenant.read")
+          ? "/transaction-history"
+          : "/settings";
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
@@ -23,7 +32,31 @@ export function ShopSelectionPage() {
   function choose(shopId: string) {
     selectShop(shopId);
     const chosen = shops.find((s) => s.id === shopId);
-    const landing = chosen?.default_view || chosen?.address?.default_view;
+    const savedLanding = chosen?.default_view || chosen?.address?.default_view;
+    const landing = savedLanding
+      ? getCanonicalWorkspaceHref(savedLanding, merchant?.pos_complexity_level)
+      : undefined;
+    if (landing && ["/dashboard", "/merchant/dashboard", "/staff/dashboard"].includes(landing)) {
+      router.replace(dashboard);
+      return;
+    }
+    if (merchant?.pos_complexity_level === "NANO") {
+      const pages = getFilteredNavigationGroups({
+        posComplexityLevel: "NANO",
+        isMerchant,
+        can,
+        moduleCodes: chosen?.module_codes,
+        aiAssistantEnabled: merchant?.ai_assistant_enabled,
+      }).flatMap((group) => group.items);
+      router.replace(
+        pages.some((page) => page.href === landing) ? landing! : pages[0]?.href || "/settings",
+      );
+      return;
+    }
+    if (landing && isAiWorkspacePath(landing) && merchant?.ai_assistant_enabled !== true) {
+      router.replace(dashboard);
+      return;
+    }
     router.replace(landing && landing.startsWith("/") ? landing : dashboard);
   }
 

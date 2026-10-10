@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"business-central-backend/internal/app"
+	"business-central-backend/internal/auth/domain/valueobjects"
 	authoutbound "business-central-backend/internal/auth/ports/outbound"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -591,8 +592,8 @@ func (s *Service) GetMerchant(ctx context.Context, claims *Claims) (Merchant, er
 }
 
 func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID string, request UpdateMerchantRequest) (Merchant, error) {
-	if request.POSComplexityLevel != nil && *request.POSComplexityLevel != "SIMPLE" && *request.POSComplexityLevel != "COMPLEX" && *request.POSComplexityLevel != "MINI" {
-		return Merchant{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
+	if request.POSComplexityLevel != nil && *request.POSComplexityLevel != "SIMPLE" && *request.POSComplexityLevel != "COMPLEX" && *request.POSComplexityLevel != "MINI" && *request.POSComplexityLevel != "NANO" {
+		return Merchant{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be NANO, MINI, SIMPLE, or COMPLEX.", 400)
 	}
 	if request.BusinessCentralPricingModel != nil {
 		normalized, err := normalizePricingModel(*request.BusinessCentralPricingModel)
@@ -665,7 +666,7 @@ func (s *Service) UpdateMerchant(ctx context.Context, claims *Claims, merchantID
 	if err != nil {
 		return Merchant{}, err
 	}
-	if merchant.POSComplexityLevel == "MINI" {
+	if merchant.POSComplexityLevel == "MINI" || merchant.POSComplexityLevel == "NANO" {
 		if err = ensureMerchantMiniSetup(ctx, tx, merchant.ID, merchant.DefaultCurrencyCode); err != nil {
 			return Merchant{}, err
 		}
@@ -1063,12 +1064,10 @@ func (s *Service) CreateMerchantAccount(ctx context.Context, claims *Claims, req
 	if name == "" || slug == "" || len(currency) != 3 {
 		return MerchantProvisioning{}, app.NewError("VALIDATION_ERROR", "name, slug, and default_currency_code are required.", 400)
 	}
-	request.POSComplexityLevel = strings.ToUpper(strings.TrimSpace(request.POSComplexityLevel))
-	if request.POSComplexityLevel == "" {
-		request.POSComplexityLevel = "SIMPLE"
-	}
-	if request.POSComplexityLevel != "SIMPLE" && request.POSComplexityLevel != "COMPLEX" && request.POSComplexityLevel != "MINI" {
-		return MerchantProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
+	mode, valid := valueobjects.NormalizePOSMode(request.POSComplexityLevel)
+	request.POSComplexityLevel = mode
+	if !valid {
+		return MerchantProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be NANO, MINI, SIMPLE, or COMPLEX.", 400)
 	}
 	pricingModel, err := normalizePricingModel(request.BusinessCentralPricingModel)
 	if err != nil {
@@ -1092,7 +1091,7 @@ func (s *Service) CreateMerchantAccount(ctx context.Context, claims *Claims, req
 	}
 	var merchant Merchant
 	err = tx.QueryRow(ctx, `INSERT INTO merchants(name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model, ai_assistant_enabled, ai_usage_limit)
-        VALUES ($1::varchar, $2::varchar, $3::varchar, $4::char(3), $5::char(2), COALESCE(NULLIF(upper($6),''),'SIMPLE'), COALESCE(NULLIF(lower($7),''),'starter'), COALESCE($8, false), COALESCE($9, 50))
+        VALUES ($1::varchar, $2::varchar, $3::varchar, $4::char(3), $5::char(2), COALESCE(NULLIF(upper($6),''),'NANO'), COALESCE(NULLIF(lower($7),''),'starter'), COALESCE($8, false), COALESCE($9, 50))
         RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model, ai_assistant_enabled, COALESCE(ai_usage_limit, 50), COALESCE(ai_usage_count, 0), is_active, created_at, updated_at`, name, slug, request.LegalName, currency, request.CountryCode, request.POSComplexityLevel, request.BusinessCentralPricingModel, request.AIAssistantEnabled, request.AIUsageLimit).
 		Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.BusinessCentralPricingModel, &merchant.AIAssistantEnabled, &merchant.AIUsageLimit, &merchant.AIUsageCount, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
 	if err != nil {
@@ -1122,7 +1121,7 @@ func (s *Service) CreateMerchantAccount(ctx context.Context, claims *Claims, req
 	if _, err := tx.Exec(ctx, `INSERT INTO audit_events(merchant_id, actor_membership_id, action, entity_type, entity_id, after_data) VALUES ($1, NULL, 'CREATE', 'merchant', $2, jsonb_build_object('name', $3::text, 'slug', $4::text, 'roles', jsonb_build_array('manager', 'staff')))`, merchant.ID, merchant.ID, name, slug); err != nil {
 		return MerchantProvisioning{}, err
 	}
-	if merchant.POSComplexityLevel == "MINI" {
+	if merchant.POSComplexityLevel == "MINI" || merchant.POSComplexityLevel == "NANO" {
 		if err = ensureMerchantMiniSetup(ctx, tx, merchant.ID, merchant.DefaultCurrencyCode); err != nil {
 			return MerchantProvisioning{}, err
 		}
@@ -1137,12 +1136,10 @@ func (s *Service) CreateMerchantUser(ctx context.Context, claims *Claims, reques
 	if claims == nil || !claims.PlatformAdmin {
 		return MerchantUserProvisioning{}, app.NewError("FORBIDDEN", "Platform administrator access is required.", 403)
 	}
-	request.POSComplexityLevel = strings.ToUpper(strings.TrimSpace(request.POSComplexityLevel))
-	if request.POSComplexityLevel == "" {
-		request.POSComplexityLevel = "SIMPLE"
-	}
-	if request.POSComplexityLevel != "SIMPLE" && request.POSComplexityLevel != "COMPLEX" && request.POSComplexityLevel != "MINI" {
-		return MerchantUserProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be SIMPLE, COMPLEX, or MINI.", 400)
+	mode, valid := valueobjects.NormalizePOSMode(request.POSComplexityLevel)
+	request.POSComplexityLevel = mode
+	if !valid {
+		return MerchantUserProvisioning{}, app.NewError("VALIDATION_ERROR", "pos_complexity_level must be NANO, MINI, SIMPLE, or COMPLEX.", 400)
 	}
 	pricingModel, err := normalizePricingModel(request.BusinessCentralPricingModel)
 	if err != nil {
@@ -1163,7 +1160,7 @@ func (s *Service) CreateMerchantUser(ctx context.Context, claims *Claims, reques
 	}
 	var merchant Merchant
 	err = tx.QueryRow(ctx, `INSERT INTO merchants(name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model, ai_assistant_enabled, ai_usage_limit)
-        VALUES ($1::varchar, $2::varchar, $3::varchar, $4::char(3), $5::char(2), COALESCE(NULLIF(upper($6),''),'SIMPLE'), COALESCE(NULLIF(lower($7),''),'starter'), COALESCE($8, false), COALESCE($9, 50))
+        VALUES ($1::varchar, $2::varchar, $3::varchar, $4::char(3), $5::char(2), COALESCE(NULLIF(upper($6),''),'NANO'), COALESCE(NULLIF(lower($7),''),'starter'), COALESCE($8, false), COALESCE($9, 50))
         RETURNING id, name, slug, legal_name, default_currency_code, country_code, pos_complexity_level, business_central_pricing_model, ai_assistant_enabled, COALESCE(ai_usage_limit, 50), COALESCE(ai_usage_count, 0), is_active, created_at, updated_at`, request.MerchantName, request.MerchantSlug, request.MerchantLegalName, request.DefaultCurrencyCode, request.MerchantCountryCode, request.POSComplexityLevel, request.BusinessCentralPricingModel, request.AIAssistantEnabled, request.AIUsageLimit).
 		Scan(&merchant.ID, &merchant.Name, &merchant.Slug, &merchant.LegalName, &merchant.DefaultCurrencyCode, &merchant.CountryCode, &merchant.POSComplexityLevel, &merchant.BusinessCentralPricingModel, &merchant.AIAssistantEnabled, &merchant.AIUsageLimit, &merchant.AIUsageCount, &merchant.IsActive, &merchant.CreatedAt, &merchant.UpdatedAt)
 	if err != nil {
@@ -1208,7 +1205,7 @@ func (s *Service) CreateMerchantUser(ctx context.Context, claims *Claims, reques
 	if _, err := tx.Exec(ctx, `INSERT INTO audit_events(merchant_id, actor_membership_id, action, entity_type, entity_id, after_data) VALUES ($1, NULL, 'CREATE', 'merchant', $2, jsonb_build_object('name', $3::text, 'slug', $4::text, 'owner_membership_id', $5::uuid))`, merchant.ID, merchant.ID, merchant.Name, merchant.Slug, membershipID); err != nil {
 		return MerchantUserProvisioning{}, err
 	}
-	if merchant.POSComplexityLevel == "MINI" {
+	if merchant.POSComplexityLevel == "MINI" || merchant.POSComplexityLevel == "NANO" {
 		if err = ensureMerchantMiniSetup(ctx, tx, merchant.ID, merchant.DefaultCurrencyCode); err != nil {
 			return MerchantUserProvisioning{}, err
 		}

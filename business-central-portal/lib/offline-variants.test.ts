@@ -59,6 +59,20 @@ describe("offline catalog variants", () => {
     ]);
   });
 
+  it("keeps auto-SKU creation pending while projecting its stable generated SKU", async () => {
+    await putCachedResource(scope, path, []);
+    const operation = await queueVariantCreate(scope, productID, {
+      sku: "",
+      name: "Small packet",
+      base_unit_id: variant.base_unit_id,
+      unit_of_measure: "packet",
+      is_stock_tracked: true,
+    });
+    expect(operation.payload.sku).toBe("");
+    const cached = await getCachedResource<Variant[]>(scope, path);
+    expect(cached?.data[0].sku).toBe(`OPT-${operation.entityId.replaceAll("-", "")}`);
+    expect(cached?.data[0].base_unit_id).toBe(variant.base_unit_id);
+  });
   it("queues deletion with the cached version and removes the local SKU", async () => {
     await putCachedResource(scope, path, [variant]);
 

@@ -76,88 +76,7 @@ export const GUIDE_CATEGORIES: { id: string; label: LocalizedText; icon: IconNam
 ];
 
 export const GUIDE_SECTIONS: GuideSection[] = [
-  {
-    "id": "dashboard",
-    "route": "/dashboard",
-    "icon": "home",
-    "category": "overview",
-    "posComplexityLevel": "ALL",
-    "screenshot": "/guide-screenshots/dashboard-overview.png",
-    "title": {
-      "en": "Dashboard (Today) - Real-time Store Command Center",
-      "my": "ယနေ့ ဒက်ရှ်ဘုတ် - စတိုးဆိုင် အချိန်နှင့်တပြေးညီ ကွပ်ကဲမှုစင်တာ",
-      "th": "แดชบอร์ด (วันนี้) - ศูนย์บัญชาการร้านค้าแบบเรียลไทม์"
-    },
-    "badge": {
-      "en": "All POS Modes",
-      "my": "မုဒ်အားလုံး",
-      "th": "ทุกโหมด POS"
-    },
-    "description": {
-      "en": "Real-time command center showing today's gross revenue, completed sales volume, active repair jobs, and immediate stock reorder warnings.",
-      "my": "ယနေ့ အရောင်းဝင်ငွေ၊ ပြီးစီးခဲ့သော အော်ဒါအရေအတွက်၊ လက်ရှိပြင်ဆင်ဆဲ ပစ္စည်းများနှင့် လက်ကျန်နည်းပစ္စည်း သတိပေးချက်များကို အချိန်နှင့်တပြေးညီ ကြည့်ရှုနိုင်သော ဗဟိုချက်။",
-      "th": "ศูนย์ควบคุมแบบเรียลไทม์ แสดงยอดขายวันนี้ จำนวนคำสั่งซื้อ งานซ่อมที่กำลังดำเนินการ และการแจ้งเตือนสินค้าใกล้หมดสต็อก."
-    },
-    "steps": [
-      {
-        "number": 1,
-        "label": {
-          "en": "Real-time KPI Metric Cards",
-          "my": "အချိန်နှင့်တပြေးညီ အဓိကကိန်းဂဏန်းများ",
-          "th": "การ์ดสถิติ KPI แบบเรียลไทม์"
-        },
-        "desc": {
-          "en": "Inspect today's gross revenue, total completed orders, active repair counts, and critical stock depletion alerts at a single glance.",
-          "my": "ယနေ့ရရှိသော ဝင်ငွေ၊ အော်ဒါစုစုပေါင်း၊ ပြင်ဆင်ဆဲအရေအတွက်နှင့် လက်ကျန်နည်းပစ္စည်း သတိပေးချက်များကို ချက်ချင်းစစ်ဆေးပါ။",
-          "th": "ตรวจสอบยอดขายรวมวันนี้ จำนวนคำสั่งซื้อที่เสร็จสิ้น งานซ่อมที่ดำเนินการอยู่ และสินค้าที่ต้องสั่งเพิ่มทันที."
-        }
-      },
-      {
-        "number": 2,
-        "label": {
-          "en": "Quick Action Shortcuts",
-          "my": "အမြန်လုပ်ဆောင်ချက် ခလုတ်များ",
-          "th": "ปุ่มลัดการทำงานด่วน"
-        },
-        "desc": {
-          "en": "Launch a new sale or register an incoming stock shipment with single-click shortcut buttons in the top header.",
-          "my": "ထိပ်တန်းခလုတ်များမှတစ်ဆင့် အရောင်းအသစ်စတင်ခြင်း သို့မဟုတ် ပစ္စည်းအဝင်သွင်းခြင်းကို ချက်ချင်းလုပ်ဆောင်ပါ။",
-          "th": "เริ่มการขายใหม่หรือรับสินค้าเข้าคลังได้ทันทีผ่านปุ่มลัดด้านบน."
-        }
-      },
-      {
-        "number": 3,
-        "label": {
-          "en": "Live Transaction Feed",
-          "my": "တိုက်ရိုက် အရောင်းမှတ်တမ်းများ",
-          "th": "รายการธุรกรรมสดล่าสุด"
-        },
-        "desc": {
-          "en": "Monitor completed and credit transactions as they occur across all cashiers and registers in your store.",
-          "my": "ဆိုင်အတွင်းရှိ ကောင်တာများမှ အရောင်းနှင့် အကြွေးမှတ်တမ်းများကို အချိန်နှင့်တပြေးညီ တိုက်ရိုက်စောင့်ကြည့်ပါ။",
-          "th": "ติดตามรายการขายและการชำระเงินที่เกิดขึ้นสดๆ จากทุกจุดแคชเชียร์ในร้าน."
-        }
-      },
-      {
-        "number": 4,
-        "label": {
-          "en": "Urgent Stock & Sync Alerts",
-          "my": "အရေးပေါ် ပစ္စည်းလက်ကျန်နှင့် ဒေတာသတိပေးချက်",
-          "th": "การแจ้งเตือนสินค้าด่วนและการซิงค์"
-        },
-        "desc": {
-          "en": "Review system warnings for items below safety thresholds and verify all offline registers are fully synchronized.",
-          "my": "သတ်မှတ်အရေအတွက်ထက် လျော့နည်းနေသော ပစ္စည်းများနှင့် အော့ဖ်လိုင်းဒေတာ ချိန်ညှိမှုအခြေအနေကို စစ်ဆေးပါ။",
-          "th": "ตรวจสอบรายการสินค้าที่ต่ำกว่าเกณฑ์ปลอดภัยและสถานะการซิงค์ข้อมูลของทุกเครื่อง."
-        }
-      }
-    ],
-    "proTip": {
-      "en": "Bookmark this page or set it as your default landing page in Settings > Application to review your shop's health every morning.",
-      "my": "ဆက်တင်များ > Application တွင် ဤဒက်ရှ်ဘုတ်ကို မူလဖွင့်လှစ်မည့် စာမျက်နှာအဖြစ် သတ်မှတ်ထားနိုင်ပါသည်။",
-      "th": "ตั้งหน้านี้เป็นหน้าเริ่มต้นใน การตั้งค่า > แอปพลิเคชัน เพื่อตรวจสอบสุขภาพของร้านค้าได้ทุกเช้า."
-    }
-  },
+
   {
     "id": "pos-mini",
     "route": "/pos",
@@ -566,7 +485,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       }
     ],
     "proTip": {
-      "en": "Products marked with 'Low Stock' will trigger immediate reorder reminders on the Dashboard (Today) operations hub.",
+      "en": "Review products marked with 'Low Stock' in Products & storage or Storage. Today's sales and repair activity appear in Reports > Overview.",
       "my": "'Low Stock' အဆင့်ရှိ ပစ္စည်းများကို Dashboard တွင် အလိုအလျောက် သတိပေးဖော်ပြပေးမည်ဖြစ်ပါသည်။",
       "th": "สินค้าที่ขึ้นสถานะ 'Low Stock' จะแสดงเตือนบนหน้า Dashboard (วันนี้) เพื่อให้สั่งซื้อได้ทันท่วงที."
     }

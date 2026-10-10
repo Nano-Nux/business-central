@@ -1,6 +1,9 @@
 package application
 
 import (
+	authdto "business-central-backend/internal/auth/application/dto"
+	catalogoutbound "business-central-backend/internal/catalog/ports/outbound"
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -89,5 +92,26 @@ func TestProductRequestUnmarshalJSON_NumericAndStringPrices(t *testing.T) {
 	}
 	if req3.SellPrice != nil {
 		t.Errorf("expected nil SellPrice, got %v", req3.SellPrice)
+	}
+}
+
+type variantCreationStub struct {
+	catalogoutbound.Repository
+	called bool
+}
+
+func (stub *variantCreationStub) CreateVariant(_ context.Context, _ *authdto.Claims, _ string, request catalogdto.VariantRequest) (catalogdto.Variant, error) {
+	stub.called = true
+	return catalogdto.Variant{Name: request.Name}, nil
+}
+func TestNameOnlyVariantCreation(t *testing.T) {
+	stub := &variantCreationStub{}
+	service := NewService(stub)
+	if _, err := service.CreateVariant(context.Background(), nil, "product", catalogdto.VariantRequest{Name: "Small packet"}); err != nil || !stub.called {
+		t.Fatal("name-only creation must reach default resolution")
+	}
+	stub.called = false
+	if _, err := service.CreateVariant(context.Background(), nil, "product", catalogdto.VariantRequest{Name: "  "}); err == nil || stub.called {
+		t.Fatal("blank name must fail before persistence")
 	}
 }

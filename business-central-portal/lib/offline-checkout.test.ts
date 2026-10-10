@@ -36,6 +36,25 @@ beforeEach(async () => {
 });
 
 describe("offline POS checkout", () => {
+  it.each([undefined, "", "   "])(
+    "stores an unnamed customer as null (%s)",
+    async (customerName) => {
+      const saved = await queueOfflineCheckout({
+        scope,
+        shop,
+        currencyCode: "USD",
+        lines: [{ item, quantity: 1 }],
+        paymentMethod: "CASH",
+        customerName,
+      });
+      expect(saved.projection.customer_name).toBeNull();
+      const [operation] = await listOperations(scope);
+      expect(operation.payload.request).toMatchObject({ customer_name: null });
+      const [restored] = await listOfflineCheckouts(scope);
+      expect(restored.payload.customer_name).toBeNull();
+    },
+  );
+
   it("atomically saves a complete provisional cash checkout and typed operation", async () => {
     const saved = await queueOfflineCheckout({
       scope,
@@ -52,6 +71,8 @@ describe("offline POS checkout", () => {
 
     expect(saved.projection).toMatchObject({
       status: "PENDING_SYNCHRONIZATION",
+      customer_name: "Ada",
+      delivery_fee: "1.00",
       payment: { method: "CASH", status: "PROVISIONAL_CASH" },
       snapshot: {
         subtotal: "20.00",
@@ -68,6 +89,9 @@ describe("offline POS checkout", () => {
       operationType: "CREATE",
       status: "PENDING",
     });
+    expect(saved.projection.delivery).toBeUndefined();
+    expect(operation.payload.request).toMatchObject({ delivery_fee: "1.00" });
+    expect(operation.payload.request).not.toHaveProperty("delivery_id");
     expect(operation.payloadHash).toMatch(/^[a-f0-9]{64}$/);
     await expect(listOfflineCheckouts(scope)).resolves.toHaveLength(1);
   });

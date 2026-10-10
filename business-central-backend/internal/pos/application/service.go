@@ -9,6 +9,7 @@ import (
 	authdto "business-central-backend/internal/auth/application/dto"
 	"business-central-backend/internal/media"
 	posdto "business-central-backend/internal/pos/application/dto"
+	correctiondomain "business-central-backend/internal/pos/domain"
 	domainpos "business-central-backend/internal/pos/domain/entities"
 	posinbound "business-central-backend/internal/pos/ports/inbound"
 	posoutbound "business-central-backend/internal/pos/ports/outbound"
@@ -167,4 +168,35 @@ func (s *Service) QuoteSale(ctx context.Context, claims *authdto.Claims, request
 		}
 	}
 	return s.Repository.QuoteSale(ctx, claims, request)
+}
+
+func (s *Service) UpdateDeliveryPayment(ctx context.Context, claims *authdto.Claims, id string, r posdto.DeliveryPaymentRequest) (posdto.DeliveryPaymentResult, error) {
+	if strings.TrimSpace(r.IdempotencyKey) == "" || len(r.IdempotencyKey) > 240 || (r.ExpectedStatus != "COMPLETE" && r.ExpectedStatus != "UN_PAID") {
+		return posdto.DeliveryPaymentResult{}, invalid("idempotency_key and expected_status are required.")
+	}
+	if r.DeliveryPaymentStatus != "COMPLETE" && r.DeliveryPaymentStatus != "UN_PAID" {
+		return posdto.DeliveryPaymentResult{}, invalid("delivery_payment_status must be UN_PAID or COMPLETE.")
+	}
+	return s.Repository.UpdateDeliveryPayment(ctx, claims, id, r)
+}
+
+func (s *Service) UpdateTransaction(ctx context.Context, c *authdto.Claims, id string, r posdto.TransactionEditRequest) (posdto.SaleOrder, error) {
+	if len(r.Lines) == 0 || r.ShopID == "" || r.ExpectedUpdatedAt == "" || r.IdempotencyKey == "" {
+		return posdto.SaleOrder{}, invalid("Items, shop, expected_updated_at and idempotency_key are required.")
+	}
+	for _, line := range r.Lines {
+		if err := correctiondomain.ValidateCorrectionLine(line.Quantity, line.UnitPrice, line.DiscountAmount, line.TaxAmount); err != nil {
+			return posdto.SaleOrder{}, invalid(err.Error())
+		}
+		if line.VariantID == "" || line.Quantity == "" || line.UnitPrice == "" {
+			return posdto.SaleOrder{}, invalid("Every item requires a variant, quantity and price.")
+		}
+	}
+	return s.Repository.UpdateTransaction(ctx, c, id, r)
+}
+func (s *Service) DeleteTransaction(ctx context.Context, c *authdto.Claims, id string, r posdto.TransactionDeleteRequest) error {
+	if r.ShopID == "" || r.ExpectedUpdatedAt == "" || r.IdempotencyKey == "" {
+		return invalid("Shop, expected_updated_at and idempotency_key are required.")
+	}
+	return s.Repository.DeleteTransaction(ctx, c, id, r)
 }

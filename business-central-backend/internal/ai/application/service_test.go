@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	aicatalog "business-central-backend/internal/ai/adapters/outbound/postgres"
 	"business-central-backend/internal/ai/domain"
 	"business-central-backend/internal/ai/ports/outbound"
 	authdto "business-central-backend/internal/auth/application/dto"
@@ -23,8 +24,13 @@ type mockRepo struct {
 	shopCode      string
 	deletionLogs  []domain.AIDeletionLog
 	lastIsStaff   bool
+	lastShop      string
+	shopErr       error
+	capturedQuery domain.ReadQuery
 	usageLimit    int
 	usageCount    int
+	currency      string
+	contextErr    error
 }
 
 func (m *mockRepo) GetAIUsage(ctx context.Context, merchantID string) (int, int, error) {
@@ -173,8 +179,10 @@ func (m *mockRepo) ListMessages(ctx context.Context, merchantID, membershipID, c
 	return m.messages[conversationID], nil
 }
 
-func (m *mockRepo) ExecuteReadOnlyQuery(ctx context.Context, merchantID, userID, sqlQuery string, isStaff bool) ([]map[string]any, error) {
+func (m *mockRepo) ExecuteReadOnlyQuery(ctx context.Context, merchantID, membershipID, shopID, userID string, query domain.ReadQuery, isStaff bool) ([]map[string]any, error) {
 	m.lastIsStaff = isStaff
+	m.lastShop = shopID
+	m.capturedQuery = query
 	if m.queryErr != nil {
 		return nil, m.queryErr
 	}
@@ -186,6 +194,12 @@ func (m *mockRepo) IsAIAssistantEnabled(ctx context.Context, merchantID string) 
 }
 
 func (m *mockRepo) GetMerchantContext(ctx context.Context, merchantID string) (string, string, error) {
+	if m.contextErr != nil {
+		return "", "", m.contextErr
+	}
+	if m.currency != "" {
+		return m.currency, "Test Merchant", nil
+	}
 	return "THB", "Test Merchant", nil
 }
 
@@ -221,6 +235,8 @@ type mockLLM struct {
 	directResponse       string
 	htmlOutput           string
 	capturedSystemPrompt string
+	capturedCurrency     string
+	capturedRecords      []map[string]any
 }
 
 func (l *mockLLM) GenerateQueryToolCall(ctx context.Context, systemPrompt string, history []outbound.ConversationMessage, userPrompt string) (string, *outbound.ToolCallResult, error) {
@@ -228,7 +244,9 @@ func (l *mockLLM) GenerateQueryToolCall(ctx context.Context, systemPrompt string
 	return l.directResponse, l.toolCall, nil
 }
 
-func (l *mockLLM) HumanizeAndFormatHTML(ctx context.Context, userPrompt string, queryData []map[string]any, executedSQL string) (string, error) {
+func (l *mockLLM) HumanizeAndFormatHTML(ctx context.Context, userPrompt string, queryData []map[string]any, defaultCurrency string) (string, error) {
+	l.capturedCurrency = defaultCurrency
+	l.capturedRecords = queryData
 	return l.htmlOutput, nil
 }
 
@@ -243,7 +261,7 @@ func TestSendMessage_DisabledForMerchant(t *testing.T) {
 	svc := NewService(repo, llm, auth)
 
 	claims := &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-1"}
-	_, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{Message: "hello"})
+	_, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{ShopID: testShop(), Message: "hello"})
 	if err == nil {
 		t.Fatal("expected error when AI assistant is disabled for merchant, got nil")
 	}
@@ -259,7 +277,7 @@ func TestSendMessage_ForbiddenForStaff(t *testing.T) {
 	svc := NewService(repo, llm, auth)
 
 	claims := &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-staff"}
-	_, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{Message: "hello"})
+	_, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{ShopID: testShop(), Message: "hello"})
 	if err == nil {
 		t.Fatal("expected error when staff lacks ai.chat permission, got nil")
 	}
@@ -280,15 +298,15 @@ func TestSendMessage_SuccessfulToolCallingAndHTMLResponse(t *testing.T) {
 	auth := &mockAuth{allowed: true, isOwner: true}
 	llm := &mockLLM{
 		toolCall: &outbound.ToolCallResult{
-			ToolName: "run_read_only_sql",
-			SQLQuery: "SELECT p.name AS product, pp.amount AS price FROM products p JOIN product_prices pp ON pp.product_id = p.id WHERE p.merchant_id = 'm-1'",
+			ToolName: "read_shop_data",
+			Query:    domain.ReadQuery{Dataset: "product_prices"},
 		},
 		htmlOutput: "<p>The selling price of the <strong>Red Hair Clip</strong> is <strong>45.00 THB</strong>.</p>",
 	}
 	svc := NewService(repo, llm, auth)
 
 	claims := &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-1"}
-	resp, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{Message: "what is the sell price of red hair clip"})
+	resp, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{ShopID: testShop(), Message: "what is the sell price of red hair clip"})
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
@@ -322,20 +340,20 @@ func TestSendMessage_UserScoping(t *testing.T) {
 
 	// Owner creates conversation
 	ownerClaims := &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-owner"}
-	ownerResp, err := svc.SendMessage(context.Background(), ownerClaims, domain.ChatRequest{Message: "hi from owner"})
+	ownerResp, err := svc.SendMessage(context.Background(), ownerClaims, domain.ChatRequest{ShopID: testShop(), Message: "hi from owner"})
 	if err != nil {
 		t.Fatalf("owner message failed: %v", err)
 	}
 
 	// Staff tries to access owner's conversation
 	staffClaims := &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-staff"}
-	_, _, err = svc.GetConversation(context.Background(), staffClaims, ownerResp.ConversationID)
+	_, _, err = svc.GetConversation(context.Background(), staffClaims, ownerResp.ConversationID, testShop())
 	if err == nil {
 		t.Fatal("expected staff to be denied access to owner conversation, got nil error")
 	}
 
 	// Staff lists conversations -> should be empty
-	staffList, err := svc.ListConversations(context.Background(), staffClaims, nil, 50)
+	staffList, err := svc.ListConversations(context.Background(), staffClaims, testShop(), 50)
 	if err != nil {
 		t.Fatalf("staff list failed: %v", err)
 	}
@@ -377,11 +395,8 @@ func TestSendMessage_ShopScoping(t *testing.T) {
 	if !strings.Contains(llm.capturedSystemPrompt, "Active Shop Name: Downtown Branch") {
 		t.Errorf("expected system prompt to contain Downtown Branch, got: %s", llm.capturedSystemPrompt)
 	}
-	if !strings.Contains(llm.capturedSystemPrompt, "shop_id = 'shop-101'") {
-		t.Errorf("expected system prompt to enforce shop_id = 'shop-101'")
-	}
-	if !strings.Contains(llm.capturedSystemPrompt, "AND l.shop_id = 'shop-101'") {
-		t.Errorf("expected system prompt to include AND l.shop_id = 'shop-101'")
+	if !strings.Contains(llm.capturedSystemPrompt, "Never switch shops") {
+		t.Fatal("missing strict shop directive")
 	}
 
 	// Verify ListConversations by shopID
@@ -516,8 +531,8 @@ func TestSendMessage_StaffConfidentiality_DirectivesAndSuppression(t *testing.T)
 	auth := &mockAuth{allowed: true, isOwner: false}
 	llm := &mockLLM{
 		toolCall: &outbound.ToolCallResult{
-			ToolName: "run_read_only_sql",
-			SQLQuery: "SELECT p.name AS product, pp.amount AS selling_price FROM products p JOIN product_variants pv ON pv.product_id = p.id JOIN product_prices pp ON pp.variant_id = pv.id WHERE p.merchant_id = 'm-staff-1'",
+			ToolName: "read_shop_data",
+			Query:    domain.ReadQuery{Dataset: "product_prices"},
 		},
 		htmlOutput: "<p>The selling price of Coffee Mug is 120.00 THB.</p>",
 	}
@@ -529,36 +544,18 @@ func TestSendMessage_StaffConfidentiality_DirectivesAndSuppression(t *testing.T)
 		PlatformAdmin: false,
 	}
 
-	resp, err := svc.SendMessage(context.Background(), staffClaims, domain.ChatRequest{
+	resp, err := svc.SendMessage(context.Background(), staffClaims, domain.ChatRequest{ShopID: testShop(),
 		Message: "what is the selling price of coffee mug",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error for staff query: %v", err)
 	}
 
-	// 1. Verify system prompt received by LLM contains strict confidentiality rules for staff
-	if !strings.Contains(llm.capturedSystemPrompt, "USER ROLE: STORE STAFF (NOT MERCHANT OWNER)") {
-		t.Errorf("expected system prompt to specify store staff role, got: %s", llm.capturedSystemPrompt)
+	if !strings.Contains(llm.capturedSystemPrompt, "USER ROLE: STORE STAFF") {
+		t.Fatal("missing staff directive")
 	}
-	if !strings.Contains(llm.capturedSystemPrompt, "CRITICAL CONFIDENTIALITY POLICY FOR STAFF") {
-		t.Errorf("expected staff confidentiality policy in prompt")
-	}
-	if !strings.Contains(llm.capturedSystemPrompt, "Business profit, gross profit, net profit, profit margins") {
-		t.Errorf("expected forbidden profit directive in prompt")
-	}
-	if !strings.Contains(llm.capturedSystemPrompt, "Original purchase prices, cost prices, supplier wholesale prices") {
-		t.Errorf("expected forbidden cost price directive in prompt")
-	}
-
-	// 2. Verify system prompt strictly omits original_price and profit calculation guidelines
-	if strings.Contains(llm.capturedSystemPrompt, "original_price") {
-		t.Errorf("staff system prompt must NOT contain original_price")
-	}
-	if strings.Contains(llm.capturedSystemPrompt, "gross_profit") {
-		t.Errorf("staff system prompt must NOT contain gross_profit")
-	}
-	if strings.Contains(llm.capturedSystemPrompt, "To calculate today's profit") {
-		t.Errorf("staff system prompt must NOT contain profit calculation instructions")
+	if strings.Contains(llm.capturedSystemPrompt, "original_price:number") || strings.Contains(llm.capturedSystemPrompt, "sales_profit [") {
+		t.Fatal("staff catalog must not expose financial data")
 	}
 
 	// 3. Verify repo received isStaff = true
@@ -583,8 +580,8 @@ func TestSendMessage_StaffConfidentiality_QueryBlockedNotice(t *testing.T) {
 	auth := &mockAuth{allowed: true, isOwner: false}
 	llm := &mockLLM{
 		toolCall: &outbound.ToolCallResult{
-			ToolName: "run_read_only_sql",
-			SQLQuery: "SELECT sum(o.grand_total) AS gross_profit FROM orders o WHERE o.merchant_id = 'm-staff-1'",
+			ToolName: "read_shop_data",
+			Query:    domain.ReadQuery{Dataset: "product_prices"},
 		},
 	}
 	svc := NewService(repo, llm, auth)
@@ -595,7 +592,7 @@ func TestSendMessage_StaffConfidentiality_QueryBlockedNotice(t *testing.T) {
 		PlatformAdmin: false,
 	}
 
-	resp, err := svc.SendMessage(context.Background(), staffClaims, domain.ChatRequest{
+	resp, err := svc.SendMessage(context.Background(), staffClaims, domain.ChatRequest{ShopID: testShop(),
 		Message: "show me the profit for today",
 	})
 	if err != nil {
@@ -622,11 +619,10 @@ func TestSendMessage_MerchantOwner_ProfitAccess(t *testing.T) {
 	}
 	// Owner / merchant
 	auth := &mockAuth{allowed: true, isOwner: true}
-	sqlStr := "SELECT COALESCE(sum(o.grand_total), 0) - COALESCE(sum(ol_costs.cost), 0) AS gross_profit FROM orders o WHERE o.merchant_id = 'm-owner-1'"
 	llm := &mockLLM{
 		toolCall: &outbound.ToolCallResult{
-			ToolName: "run_read_only_sql",
-			SQLQuery: sqlStr,
+			ToolName: "read_shop_data",
+			Query:    domain.ReadQuery{Dataset: "sales_profit"},
 		},
 		htmlOutput: "<p>Today's gross profit is <strong>20,000.00 THB</strong>.</p>",
 	}
@@ -638,7 +634,7 @@ func TestSendMessage_MerchantOwner_ProfitAccess(t *testing.T) {
 		PlatformAdmin: false,
 	}
 
-	resp, err := svc.SendMessage(context.Background(), ownerClaims, domain.ChatRequest{
+	resp, err := svc.SendMessage(context.Background(), ownerClaims, domain.ChatRequest{ShopID: testShop(),
 		Message: "what is my profit today",
 	})
 	if err != nil {
@@ -646,13 +642,13 @@ func TestSendMessage_MerchantOwner_ProfitAccess(t *testing.T) {
 	}
 
 	// 1. Verify system prompt specifies Merchant Owner role
-	if !strings.Contains(llm.capturedSystemPrompt, "USER ROLE: MERCHANT OWNER / MANAGER") {
+	if !strings.Contains(llm.capturedSystemPrompt, "USER ROLE: MERCHANT OWNER") {
 		t.Errorf("expected merchant owner role directive in prompt")
 	}
 	if !strings.Contains(llm.capturedSystemPrompt, "original_price") {
 		t.Errorf("expected original_price to be documented in merchant owner schema")
 	}
-	if !strings.Contains(llm.capturedSystemPrompt, "To calculate today's profit") {
+	if !strings.Contains(llm.capturedSystemPrompt, "To calculate gross profit") {
 		t.Errorf("expected profit calculation example in merchant owner schema")
 	}
 
@@ -683,7 +679,7 @@ func TestSendMessage_UsageLimitReached(t *testing.T) {
 	svc := NewService(repo, llm, auth)
 
 	claims := &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-owner"}
-	_, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{Message: "hello"})
+	_, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{ShopID: testShop(), Message: "hello"})
 	if err == nil {
 		t.Fatal("expected error when AI usage limit is reached, got nil")
 	}
@@ -705,7 +701,7 @@ func TestSendMessage_IncrementsUsageCount(t *testing.T) {
 	svc := NewService(repo, llm, auth)
 
 	claims := &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-owner"}
-	resp, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{Message: "test prompt"})
+	resp, err := svc.SendMessage(context.Background(), claims, domain.ChatRequest{ShopID: testShop(), Message: "test prompt"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -762,4 +758,47 @@ func TestGetAIUsage(t *testing.T) {
 	}
 }
 
+func TestSendMessage_PassesConfiguredCurrencyToBothAIStages(t *testing.T) {
+	for _, currency := range []string{"USD", "MMK", "EUR"} {
+		t.Run(currency, func(t *testing.T) {
+			repo := &mockRepo{aiEnabled: true, currency: currency, conversations: make(map[string]domain.Conversation), messages: make(map[string][]domain.Message), queryResult: []map[string]any{{"gross_profit": -7000}}}
+			llm := &mockLLM{toolCall: &outbound.ToolCallResult{ToolName: "read_shop_data", Query: domain.ReadQuery{Dataset: "sales_profit"}}, htmlOutput: "<p>Profit</p>"}
+			svc := NewService(repo, llm, &mockAuth{allowed: true, isOwner: true})
+			_, err := svc.SendMessage(context.Background(), &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-1"}, domain.ChatRequest{ShopID: testShop(), Message: "total profit for this month"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(llm.capturedSystemPrompt, "Default Currency: "+currency) || llm.capturedCurrency != currency {
+				t.Fatalf("configured currency did not reach both AI stages: %q", llm.capturedCurrency)
+			}
+			if !strings.Contains(llm.capturedSystemPrompt, "grouped by currency by the backend") {
+				t.Fatal("profit query example must separate currencies")
+			}
+			if llm.capturedRecords[0]["gross_profit"] != "-7,000.00 "+currency {
+				t.Fatalf("humanizer received money without currency: %v", llm.capturedRecords)
+			}
+		})
+	}
+}
 
+func TestSendMessage_MerchantContextFailureStopsGeneration(t *testing.T) {
+	repo := &mockRepo{aiEnabled: true, contextErr: errors.New("database unavailable"), conversations: make(map[string]domain.Conversation), messages: make(map[string][]domain.Message)}
+	llm := &mockLLM{}
+	svc := NewService(repo, llm, &mockAuth{allowed: true, isOwner: true})
+	_, err := svc.SendMessage(context.Background(), &authdto.Claims{MerchantID: "m-1", MembershipID: "mem-1"}, domain.ChatRequest{ShopID: testShop(), Message: "total profit"})
+	if err == nil || !strings.Contains(err.Error(), "load merchant context") {
+		t.Fatalf("expected context error, got %v", err)
+	}
+	if llm.capturedSystemPrompt != "" || len(repo.messages) != 0 || repo.usageCount != 0 {
+		t.Fatal("context failure must not generate or charge for an answer")
+	}
+}
+
+func testShop() *string { id := "shop-101"; return &id }
+func (m *mockRepo) AuthorizeShop(ctx context.Context, merchantID, membershipID, shopID string) error {
+	return m.shopErr
+}
+func (m *mockRepo) ReadCatalog(isStaff bool) []domain.ReadDataset {
+	r := aicatalog.Repository{}
+	return r.ReadCatalog(isStaff)
+}

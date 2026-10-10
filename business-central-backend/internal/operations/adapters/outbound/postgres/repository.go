@@ -379,8 +379,9 @@ func (s *Service) ListStockAssets(ctx context.Context, c *authdto.Claims) ([]Sto
 }
 
 func (s *Service) ListStorage(ctx context.Context, c *authdto.Claims) ([]StorageItem, error) {
-	rows, err := s.pool.Query(ctx, `WITH RECURSIVE ctx AS (SELECT set_config('app.user_id',$2,true),set_config('app.merchant_id',$1,true)), financial_access AS (
-		SELECT EXISTS (SELECT 1 FROM user_memberships um JOIN membership_roles mr ON mr.merchant_id=um.merchant_id AND mr.membership_id=um.id JOIN roles role ON role.merchant_id=mr.merchant_id AND role.id=mr.role_id WHERE um.merchant_id=$1::uuid AND um.identity_id=$2::uuid AND role.code='merchant' AND um.is_active) AS allowed
+	return writeOperation(ctx, s.pool, c, func(tx pgx.Tx) ([]StorageItem, error) {
+		rows, err := tx.Query(ctx, `WITH RECURSIVE financial_access AS (
+		SELECT EXISTS (SELECT 1 FROM user_memberships um JOIN membership_roles mr ON mr.merchant_id=um.merchant_id AND mr.membership_id=um.id JOIN roles role ON role.merchant_id=mr.merchant_id AND role.id=mr.role_id WHERE um.merchant_id=$1::uuid AND um.id=NULLIF($3,'')::uuid AND um.identity_id=$2::uuid AND role.code IN ('merchant','owner') AND (mr.valid_until IS NULL OR mr.valid_until>=now()) AND um.is_active) AS allowed
 	), membership_scope AS (
 		SELECT um.shop_id FROM user_memberships um WHERE um.merchant_id=$1::uuid AND um.id=NULLIF($3,'')::uuid AND um.is_active LIMIT 1
 	), category_paths AS (
@@ -388,24 +389,25 @@ func (s *Service) ListStorage(ctx context.Context, c *authdto.Claims) ([]Storage
 		UNION ALL SELECT child.id,child.merchant_id,parent.path || ' → ' || child.name FROM catalog_categories child JOIN category_paths parent ON parent.merchant_id=child.merchant_id AND parent.id=child.parent_category_id
 	), catalog AS (SELECT pc.product_id,string_agg(DISTINCT cp.path,' / ' ORDER BY cp.path) AS path FROM catalog_product_categories pc JOIN category_paths cp ON cp.merchant_id=pc.merchant_id AND cp.id=pc.category_id GROUP BY pc.product_id)
 	SELECT v.id,COALESCE(catalog.path,''),p.name,v.name,COALESCE(b.name,''),COALESCE(u.symbol,u.name,v.unit_of_measure),COALESCE((SELECT sum(ib.quantity_on_hand) FROM inventory_balances ib JOIN locations stock_location ON stock_location.merchant_id=ib.merchant_id AND stock_location.id=ib.location_id WHERE ib.merchant_id=v.merchant_id AND ib.variant_id=v.id AND (membership_scope.shop_id IS NULL OR stock_location.shop_id=membership_scope.shop_id)),0)::text,
-		COALESCE(price.amount::text,''),CASE WHEN financial_access.allowed THEN COALESCE(cost.amount::text,v.original_price::text,'') ELSE '' END,CASE WHEN financial_access.allowed AND price.amount IS NOT NULL AND COALESCE(cost.amount,v.original_price) IS NOT NULL THEN (price.amount-COALESCE(cost.amount,v.original_price))::text ELSE '' END,p.expired_date,p.manufacture_date
+		COALESCE(price.amount::text,''),CASE WHEN financial_access.allowed THEN COALESCE(cost.amount::text,v.original_price::text,'') ELSE '' END,CASE WHEN financial_access.allowed AND price.amount IS NOT NULL AND COALESCE(cost.amount,v.original_price) IS NOT NULL THEN (price.amount-COALESCE(cost.amount,v.original_price))::text ELSE '' END,p.expired_date,p.manufacture_date,v.base_unit_id::text,COALESCE(u.allows_decimal,true),v.is_stock_tracked
 	FROM product_variants v JOIN products p ON p.merchant_id=v.merchant_id AND p.id=v.product_id LEFT JOIN catalog_brands b ON b.merchant_id=p.merchant_id AND b.id=p.brand_id LEFT JOIN unit_definitions u ON u.merchant_id=v.merchant_id AND u.id=v.base_unit_id LEFT JOIN catalog ON catalog.product_id=p.id CROSS JOIN membership_scope
 	LEFT JOIN LATERAL (SELECT pp.amount FROM product_prices pp JOIN price_lists pl ON pl.merchant_id=pp.merchant_id AND pl.id=pp.price_list_id WHERE pp.merchant_id=v.merchant_id AND pp.variant_id=v.id AND pl.code='RETAIL' AND pp.valid_from<=now() AND (pp.valid_until IS NULL OR pp.valid_until>=now()) ORDER BY pp.valid_from DESC LIMIT 1) price ON true
 	LEFT JOIN LATERAL (SELECT CASE WHEN sum(cl.quantity_remaining)>0 THEN sum(cl.quantity_remaining*cl.unit_cost)/sum(cl.quantity_remaining) END AS amount FROM inventory_cost_layers cl JOIN locations cost_location ON cost_location.merchant_id=cl.merchant_id AND cost_location.id=cl.location_id WHERE cl.merchant_id=v.merchant_id AND cl.variant_id=v.id AND cl.quantity_remaining>0 AND (membership_scope.shop_id IS NULL OR cost_location.shop_id=membership_scope.shop_id)) cost ON true
-	CROSS JOIN ctx CROSS JOIN financial_access WHERE v.merchant_id=$1::uuid ORDER BY p.name,v.name`, c.MerchantID, c.IdentityID, c.MembershipID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []StorageItem{}
-	for rows.Next() {
-		var item StorageItem
-		if err := rows.Scan(&item.ID, &item.Catalog, &item.ProductName, &item.VariantName, &item.Brand, &item.Unit, &item.StockCount, &item.SellPrice, &item.OriginalPrice, &item.Profit, &item.ExpiredDate, &item.ManufactureDate); err != nil {
+	CROSS JOIN financial_access WHERE v.merchant_id=$1::uuid ORDER BY p.name,v.name`, c.MerchantID, c.IdentityID, c.MembershipID)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, item)
-	}
-	return out, rows.Err()
+		defer rows.Close()
+		out := []StorageItem{}
+		for rows.Next() {
+			var item StorageItem
+			if err := rows.Scan(&item.ID, &item.Catalog, &item.ProductName, &item.VariantName, &item.Brand, &item.Unit, &item.StockCount, &item.SellPrice, &item.OriginalPrice, &item.Profit, &item.ExpiredDate, &item.ManufactureDate, &item.BaseUnitID, &item.AllowsDecimal, &item.IsStockTracked); err != nil {
+				return nil, err
+			}
+			out = append(out, item)
+		}
+		return out, rows.Err()
+	})
 }
 
 func (s *Service) GetMovementDetail(ctx context.Context, c *authdto.Claims, id string) (operationsdto.StockMovementDetail, error) {
@@ -484,7 +486,7 @@ func (s *Service) GetMovementDetail(ctx context.Context, c *authdto.Claims, id s
 		var order operationsdto.StockMovementOrder
 		err = tx.QueryRow(ctx, `
 			SELECT o.id::text,o.order_number,o.channel,o.status,o.currency_code::text,
-			       COALESCE(cu.display_name,''),COALESCE(cu.phone,''),ol.id::text,ol.description,
+			       COALESCE(o.billing_address->>'name',cu.display_name,''),COALESCE(o.billing_address->>'phone',cu.phone,''),ol.id::text,ol.description,
 			       ol.quantity::text,ol.unit_price::text,ol.discount_amount::text,ol.tax_amount::text,ol.line_total::text
 			  FROM order_lines ol
 			  JOIN orders o ON o.merchant_id=ol.merchant_id AND o.id=ol.order_id
@@ -543,8 +545,8 @@ const transactionHistoryBase = `WITH ctx AS(
                COALESCE(o.placed_at,o.created_at) AS occurred_at,
                o.status AS status,
                o.channel AS channel,
-               cu.display_name AS customer_name,
-               cu.phone AS customer_phone,
+               COALESCE(o.billing_address->>'name',cu.display_name) AS customer_name,
+               COALESCE(o.billing_address->>'phone',cu.phone) AS customer_phone,
                COALESCE((SELECT string_agg(DISTINCT py.method, ', ' ORDER BY py.method)
                            FROM payments py
                           WHERE py.merchant_id=o.merchant_id AND py.order_id=o.id
@@ -555,7 +557,11 @@ const transactionHistoryBase = `WITH ctx AS(
                COALESCE(sh.name,'') AS shop_name,
                COALESCE((SELECT SUM(ol.quantity) FROM order_lines ol
                           WHERE ol.merchant_id=o.merchant_id AND ol.order_id=o.id),0)::text AS quantity,
-               ''::text AS product_name,
+               COALESCE((SELECT string_agg(COALESCE(NULLIF(p.name,''),ol.description), ', ' ORDER BY ol.line_number)
+                           FROM order_lines ol
+                           LEFT JOIN product_variants v ON v.merchant_id=ol.merchant_id AND v.id=ol.variant_id
+                           LEFT JOIN products p ON p.merchant_id=v.merchant_id AND p.id=v.product_id
+                          WHERE ol.merchant_id=o.merchant_id AND ol.order_id=o.id),'') AS product_name,
                ''::text AS variant_name,
                ''::text AS sku,
                'Canonical '||o.channel||' order: '||COALESCE((SELECT string_agg(ol.description, ', ' ORDER BY ol.line_number)
@@ -684,8 +690,19 @@ func (s *Service) ListTransactionHistory(ctx context.Context, c *authdto.Claims,
 	limitPosition := len(args) + 1
 	offsetPosition := len(args) + 2
 	args = append(args, q.PageSize, q.PageIndex*q.PageSize)
-	statement := transactionHistoryBase + fmt.Sprintf(` SELECT event_type,id,reference,occurred_at,status,channel,customer_name,customer_phone,payment_method,amount,currency_code,shop_id,shop_name,quantity,product_name,variant_name,sku,details
-          FROM history
+	statement := transactionHistoryBase + fmt.Sprintf(` SELECT event_type,id,reference,occurred_at,status,channel,customer_name,customer_phone,payment_method,amount,currency_code,shop_id,shop_name,quantity,product_name,variant_name,sku,details,
+          COALESCE(fin.delivery_payment_status,''),COALESCE(fin.shipping_total::text,''),COALESCE(fin.paid::text,''),COALESCE(fin.outstanding::text,''),
+          CASE WHEN fin.order_exists IS NULL THEN '' WHEN fin.merchandise_paid >= fin.grand_total-fin.shipping_total THEN 'COMPLETE' ELSE 'UN_PAID' END
+          FROM history LEFT JOIN LATERAL (
+            SELECT o.id AS order_exists,o.delivery_payment_status,o.shipping_total,o.grand_total,
+              COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.merchant_id=o.merchant_id AND p.order_id=o.id AND p.purpose='ORDER' AND p.status IN ('CAPTURED','PARTIALLY_REFUNDED','REFUNDED')),0)
+              -COALESCE((SELECT sum(r.amount) FROM refunds r JOIN payments p ON p.merchant_id=r.merchant_id AND p.id=r.payment_id WHERE r.merchant_id=o.merchant_id AND r.order_id=o.id AND r.status='SUCCEEDED' AND p.purpose='ORDER'),0) AS merchandise_paid,
+              COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.merchant_id=o.merchant_id AND p.order_id=o.id AND p.status IN ('CAPTURED','PARTIALLY_REFUNDED','REFUNDED')),0)
+              -COALESCE((SELECT sum(r.amount) FROM refunds r WHERE r.merchant_id=o.merchant_id AND r.order_id=o.id AND r.status='SUCCEEDED'),0) AS paid,
+              o.grand_total-COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.merchant_id=o.merchant_id AND p.order_id=o.id AND p.status IN ('CAPTURED','PARTIALLY_REFUNDED','REFUNDED')),0)
+              +COALESCE((SELECT sum(r.amount) FROM refunds r WHERE r.merchant_id=o.merchant_id AND r.order_id=o.id AND r.status='SUCCEEDED'),0) AS outstanding
+            FROM orders o WHERE o.merchant_id=$1::uuid AND o.id::text=history.id AND history.event_type='TRANSACTION' AND o.channel IN ('POS','TELEGRAM')
+          ) fin ON TRUE
          WHERE %s
          ORDER BY occurred_at DESC,id DESC
          LIMIT $%d OFFSET $%d`, filter, limitPosition, offsetPosition)
@@ -697,7 +714,7 @@ func (s *Service) ListTransactionHistory(ctx context.Context, c *authdto.Claims,
 	items := []TransactionHistoryEntry{}
 	for rows.Next() {
 		var item TransactionHistoryEntry
-		if err := rows.Scan(&item.EventType, &item.ID, &item.Reference, &item.OccurredAt, &item.Status, &item.Channel, &item.CustomerName, &item.CustomerPhone, &item.PaymentMethod, &item.Amount, &item.CurrencyCode, &item.ShopID, &item.ShopName, &item.Quantity, &item.ProductName, &item.VariantName, &item.SKU, &item.Details); err != nil {
+		if err := rows.Scan(&item.EventType, &item.ID, &item.Reference, &item.OccurredAt, &item.Status, &item.Channel, &item.CustomerName, &item.CustomerPhone, &item.PaymentMethod, &item.Amount, &item.CurrencyCode, &item.ShopID, &item.ShopName, &item.Quantity, &item.ProductName, &item.VariantName, &item.SKU, &item.Details, &item.DeliveryPaymentStatus, &item.DeliveryFee, &item.PaidTotal, &item.OutstandingTotal, &item.PaymentStatus); err != nil {
 			return nil, 0, err
 		}
 		items = append(items, item)
@@ -757,10 +774,10 @@ func (s *Service) GetTransactionHistoryDetail(ctx context.Context, c *authdto.Cl
 	err = tx.QueryRow(ctx, `
 		SELECT o.id::text,o.order_number,o.channel,o.status,o.currency_code::text,
 		       o.subtotal::text,o.discount_total::text,o.tax_total::text,o.shipping_total::text,o.grand_total::text,
-		       COALESCE(cu.display_name,''),COALESCE(cu.phone,''),
+		       COALESCE(o.billing_address->>'name',cu.display_name,''),COALESCE(o.billing_address->>'phone',cu.phone,''),
 		       COALESCE(COALESCE(so.shop_id,l.shop_id)::text,''),COALESCE(sh.name,''),
 		       COALESCE(o.delivery_name,''),COALESCE(o.delivery_contact,''),COALESCE(o.note,''),COALESCE(o.payment_type,''),
-		       o.created_at,o.placed_at
+		       o.created_at,o.placed_at,o.updated_at
 		  FROM orders o
 		  LEFT JOIN customers cu ON cu.merchant_id=o.merchant_id AND cu.id=o.customer_id
 		  LEFT JOIN locations l ON l.merchant_id=o.merchant_id AND l.id=o.fulfillment_location_id
@@ -771,11 +788,16 @@ func (s *Service) GetTransactionHistoryDetail(ctx context.Context, c *authdto.Cl
 		&order.Subtotal, &order.DiscountTotal, &order.TaxTotal, &order.ShippingTotal, &order.GrandTotal,
 		&order.CustomerName, &order.CustomerPhone, &order.ShopID, &order.ShopName,
 		&order.DeliveryName, &order.DeliveryContact, &order.Note, &order.PaymentType,
-		&order.CreatedAt, &order.PlacedAt,
+		&order.CreatedAt, &order.PlacedAt, &order.UpdatedAt,
 	)
 	if err != nil {
 		return operationsdto.TransactionHistoryDetail{}, err
 	}
+	order.DeliveryPaymentStatus = detail.Entry.DeliveryPaymentStatus
+	order.DeliveryFee = detail.Entry.DeliveryFee
+	order.PaymentStatus = detail.Entry.PaymentStatus
+	order.PaidTotal = detail.Entry.PaidTotal
+	order.OutstandingTotal = detail.Entry.OutstandingTotal
 	detail.Order = &order
 
 	rows, err := tx.Query(ctx, `
@@ -786,7 +808,7 @@ func (s *Service) GetTransactionHistoryDetail(ctx context.Context, c *authdto.Cl
 			 WHERE m.merchant_id=$1::uuid AND m.order_line_id IS NOT NULL
 			 GROUP BY m.order_line_id
 		)
-		SELECT ol.id::text,ol.description,COALESCE(p.name,''),COALESCE(v.name,''),COALESCE(v.sku,''),
+		SELECT ol.id::text,COALESCE(ol.variant_id::text,''),COALESCE(ol.asset_id::text,''),ol.description,COALESCE(p.name,''),COALESCE(v.name,''),COALESCE(v.sku,''),
 		       ol.quantity::text,ol.unit_price::text,
 		       ROUND(COALESCE(lc.total_cost,0)/ol.quantity,2)::text,COALESCE(lc.total_cost,0)::text,
 		       CASE WHEN ol.variant_id IS NULL OR NOT COALESCE(v.is_stock_tracked,FALSE) OR lc.order_line_id IS NOT NULL THEN TRUE ELSE FALSE END,
@@ -804,7 +826,7 @@ func (s *Service) GetTransactionHistoryDetail(ctx context.Context, c *authdto.Cl
 	}
 	for rows.Next() {
 		var line operationsdto.TransactionOrderLine
-		if err = rows.Scan(&line.ID, &line.Description, &line.ProductName, &line.VariantName, &line.SKU,
+		if err = rows.Scan(&line.ID, &line.VariantID, &line.AssetID, &line.Description, &line.ProductName, &line.VariantName, &line.SKU,
 			&line.Quantity, &line.UnitPrice, &line.OriginalUnitCost, &line.OriginalCost,
 			&line.CostPosted,
 			&line.DiscountAmount, &line.TaxAmount, &line.LineTotal, &line.GrossProfit, &line.GrossMargin); err != nil {
@@ -819,13 +841,13 @@ func (s *Service) GetTransactionHistoryDetail(ctx context.Context, c *authdto.Cl
 	}
 	rows.Close()
 
-	rows, err = tx.Query(ctx, `SELECT id::text,method,status,amount::text,captured_at,created_at FROM payments WHERE merchant_id=$1::uuid AND order_id=$2::uuid ORDER BY created_at,id`, c.MerchantID, orderID)
+	rows, err = tx.Query(ctx, `SELECT id::text,method,status,amount::text,captured_at,created_at,purpose FROM payments WHERE merchant_id=$1::uuid AND order_id=$2::uuid ORDER BY created_at,id`, c.MerchantID, orderID)
 	if err != nil {
 		return operationsdto.TransactionHistoryDetail{}, err
 	}
 	for rows.Next() {
 		var payment operationsdto.TransactionPayment
-		if err = rows.Scan(&payment.ID, &payment.Method, &payment.Status, &payment.Amount, &payment.CapturedAt, &payment.CreatedAt); err != nil {
+		if err = rows.Scan(&payment.ID, &payment.Method, &payment.Status, &payment.Amount, &payment.CapturedAt, &payment.CreatedAt, &payment.Purpose); err != nil {
 			rows.Close()
 			return operationsdto.TransactionHistoryDetail{}, err
 		}
@@ -914,6 +936,9 @@ func (s *Service) StockIn(ctx context.Context, c *authdto.Claims, r StockInReque
 	}
 	defer tx.Rollback(ctx)
 	if e = set(ctx, tx, c); e != nil {
+		return Movement{}, e
+	}
+	if e = requireStockMerchant(ctx, tx, c); e != nil {
 		return Movement{}, e
 	}
 	var existing Movement

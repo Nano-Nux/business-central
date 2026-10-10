@@ -11,13 +11,14 @@ Implemented areas:
 - merchant/staff login, role redirect, refresh rotation, and protected navigation;
 - shop-scoped merchant/staff dashboards and POS;
 - categories, products/variants, units/conversions, price lists/prices, and promotions;
+- stock conversion pack-size setup for merchants and a staff/merchant Break pack screen in MINI, SIMPLE, and COMPLEX; the online action is available in all modes, while offline/local parity remains pending;
 - online product and variant single-image editing through direct URL, Google Drive URL, or backend-managed SeaweedFS upload; shop logos use the same SeaweedFS media endpoint online and can be selected offline for durable reconnect upload; SIMPLE product images are never assigned to the managed Standard variant;
 - purchase-order-backed stock receipt and immutable movement history;
 - transactional POS with an authoritative pre-payment quote, invoice preview, promotion reduction breakdown, and checkout payment flow;
 - sales/profit reporting based on canonical orders and FIFO allocations;
 - Nanonux-inspired Financial Reports tabs and breakdown summaries across all canonical order channels for the selected shop;
 - separate Transaction History route for shop-scoped stock events, all-channel transactions, refunds, and repair checkout payments; unfulfilled stock-tracked lines explicitly show FIFO cost, profit, and margin as pending instead of reporting zero cost and overstated profit;
-- responsive view-only Storage stock checking for merchant and staff, with visual category hierarchy, RETAIL pricing, optional product manufacture/expiration dates, staff shop-scoped balances, merchant-only cost/profit, global search, per-column partial filters/sorting, page-size selection, and zero-based indexed pagination;
+- responsive merged Storage stock checking with merchant-only receipt/reduction dialogs and read-only access for other roles, with visual category hierarchy, RETAIL pricing, optional product manufacture/expiration dates, staff shop-scoped balances, merchant-only cost/profit, global search, per-column partial filters/sorting, page-size selection, and zero-based indexed pagination;
 - shared responsive table styling and accessible numbered pagination with result ranges across transaction, inventory, catalog, customer, invoice, repair, staff, brand, service, delivery, unit, and conversion listings;
 - repair tickets created through one atomic/idempotent aggregate POST with shop-stock parts, independent quantities, backend-priced `service_items[]`, service-total promotions, optional payment/images, ticket-level or per-work-item parts/images, repair-part promotions, and backward-compatible repeatable `work_items[]` intake;
 - persisted printer footer/tax/receipt settings, history detail links, and repair-ticket final-total/deposit flow;
@@ -123,10 +124,10 @@ Implemented areas:
 - direct non-batch stock receiving can be queued offline for an assigned shop;
   the canonical synchronization path validates location, membership, variant
   tracking, optional recent-cost reuse, and FIFO-triggered inventory effects.
-  Staff do not enter or see unit costs in the stock-in/history list workflow;
+  Only merchant/owner users may receive stock; other roles cannot open mutation dialogs or see original cost/profit;
   the first receipt for a variant must still be initialized with an explicit
   cost by a merchant. The current portal exposes
-  no transfer, adjustment, purchase-order, batch, or expiry mutation screen.
+  merchant-only non-traceable reduction dialogs, but no transfer, purchase-order, batch or expiry mutation screen.
 - promotion definitions, product scopes, promotion codes, and repair service
   catalog records use deferred replay with stable idempotency keys and visible
   rejection/conflict states.
@@ -214,3 +215,77 @@ must correct the issue and send a new command. The existing outbox retries only
 receipt delivery for successfully committed orders, never the commerce operation.
 Turning OFF restores manual confirmation for subsequent orders. Existing pending
 orders remain pending, and already confirmed orders remain confirmed.
+
+## Storage stock management ? 2026-10-02
+
+Stock receiving is merged into Storage, and /stock-in redirects there. Only merchant/owner roles can increase/reduce stock and see the full table; other roles see product/unit/stock/RETAIL price without mutation controls, catalog/brand/date metadata, original price or profit. Reduction quantities and reasons queue durably for canonical validation; rejected operations remain visible. Native mobile parity remains pending and tracked in PORTAL_MOBILE_PARITY.md.
+
+Verified: 180 unit tests, TypeScript checking, production build, five Storage browser tests (merchant changes, staff/manager/custom restrictions and mobile viewport), and formatting/lint for changed files. Full repository lint remains blocked by existing errors in unchanged i18n, native database and translation files. Batch/expiry/serial/unique-asset reductions require a traceable workflow and are rejected by this generic form.
+
+- POS Nano (`NANO`) is available for newly provisioned merchants by default. Existing modes remain unchanged. Combined products/storage and customers/deliveries reuse existing APIs and permissions. Reports is available in Nano navigation, direct links and landing-page options for merchants with `tenant.read`, sharing the existing selected-shop Financial Reports workflow with embedded mobile. Simplified product save and inline category creation require a connection; opening stock is a separately recorded receipt with retry identity. Native Flutter parity remains pending; embedded portal shares the UI. See `docs/POS_NANO.md`.
+
+## Independent delivery payment
+
+Implemented for all four POS modes with scoped defaults, separate receipts,
+transaction detail edits, migration and offline/mobile parity. See
+[workflow and acceptance evidence](../DELIVERY_PAYMENT.md).
+
+## Stock conversion UI
+
+The connected portal in NANO, MINI, SIMPLE and COMPLEX now selects a product
+before its larger pack and smaller unit. Missing sellable options can be added
+without losing product context. Nano and Mini access conversion through product pack options rather than main
+navigation. Loading/error recovery, shop-scoped locations and preview
+invalidation are shared. Embedded mobile shares this UI;
+native/offline conversion remains pending. See `docs/STOCK_CONVERSION.md`.
+
+## Optional sellable-option input
+
+Only name is required when adding an option. SKU is generated automatically;
+blank unit fields inherit the product's default option. Overrides remain
+available. The catalog API and CATALOG_VARIANT replay share defaults; pending
+portal projections show the stable generated SKU. No database or SQLite schema
+change. Native offline acceptance remains pending.
+
+### Financial report period browsing
+
+Reports uses unbounded history by default and optional inclusive start/end
+selectors for day, ISO week, month and year. Period tables paginate 10 rows
+newest first, omit table totals and average order value, and color gross profit
+by sign with theme-aware zero text. Overview daily sales and product rankings
+are paginated independently. All backend pages are loaded before grouping and
+only complete results enter scoped offline snapshots. Existing backend revenue,
+refund, FIFO cost, permission and tenant rules remain unchanged. Embedded mobile
+shares the workflow; native Flutter parity is pending. Acceptance is recorded in
+`e2e/reports.spec.ts`, `lib/report-periods.test.ts` and offline-resource tests.
+
+Report presentation now uses a consistent tab/filter toolbar and metric cards
+across Overview, Day, Week, Month and Year. Desktop tables become compact mobile
+rows with explicit transaction labels, revenue/COGS pairs, and a signed profit
+line. Amounts remain fully readable rather than ellipsized. Overview daily sales
+uses revenue tracks and explicit profit amounts. Responsive acceptance covers
+320px, 390px, 768px and 1280px viewports and light/dark profit semantics.
+
+Merchant-owner transaction detail Edit/Delete is implemented for POS/Telegram
+sales, with responsive full-item editing, irreversible-deletion confirmation,
+version checks and idempotency. Browser acceptance covers 390px/1280px and
+failed-delete retry. Portal cache invalidation refreshes history, invoices,
+reports and stock. Backend migration 0055 must ship with this UI. Linked service
+orders use their originating workflow; web correction is online-only.
+
+Invoice previews are opened from Transaction History > Actions > View invoice.
+The three-dot menu also offers merchant-only View detail. The standalone
+Invoices navigation entry is removed; old `/invoices?invoice=...` links redirect
+to Transaction History and open the same receipt, thermal proof, PDF, and print
+popup. Embedded mobile uses this shared portal workflow.
+
+Today dashboard is consolidated into Reports > Overview in Nano, Mini, Simple and Complex. Today totals, seven-day sales rhythm and enabled repair activity remain selected-shop scoped and support cached offline reads. Today is removed from navigation and landing choices. Legacy dashboard links redirect to Reports for merchants with read access and to an allowed operational page for staff. Reports retains merchant-only access. Embedded mobile uses the same portal bundle.
+
+## Merchant AI navigation
+
+The existing Admin AI toggle (`ai_assistant_enabled`) controls the entire AI
+section, including Nanonux AI, Automations and automation subpages, in Nano,
+Mini, Simple and Complex. Missing or disabled enablement hides AI navigation
+and landing choices and redirects direct links without rendering those pages.
+Existing `ai.chat`, merchant-only and `tenant.read` filters still apply.
+The embedded mobile WebView shares this UI; standalone native parity is pending.

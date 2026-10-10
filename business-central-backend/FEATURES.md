@@ -23,7 +23,9 @@ This file records backend capabilities and their implementation status. Update i
 | Merchant payment types | Implemented for backend/portal scope | Tenant-wide CRUD, fixed CASH/ONLINE/DIGITAL reference categories, default Cash provisioning, transaction-safe deactivation, POS/repair selection, and DIGITAL future-improvement rejection |
 | Inventory and FIFO costing | Implemented in schema | Movement ledger, balances, cost layers, allocations |
 | Storage stock checking | Implemented | `GET /api/v1/inventory/storage` provides tenant-scoped, paginated/filterable/sortable variant stock rows with RETAIL prices for merchant/staff, category hierarchy, optional product dates, staff shop-scoped quantities, and merchant-only original price/profit fields |
-| Purchasing and goods receipts | Implemented | Purchase-order traceability, receivable-line discovery, direct product stock-in guarded by `stock_in` permission, optional recent-cost reuse after a variant's first receipt, idempotent atomic receipts, inventory movements, and FIFO cost layers |
+| Storage stock reductions | Implemented for portal/backend scope; native parity pending | Merchant-only idempotent POST /inventory/stock-reductions appends ADJUSTMENT movements, consumes FIFO layers, protects reserved stock, records audit reasons/actors, and publishes shop-scoped changes. Receipt sync enforces merchant role; no schema migration is required. |
+| Purchasing and goods receipts | Implemented | Purchase-order traceability, receivable-line discovery, direct product stock-in guarded by merchant/owner role and tenant.write, optional recent-cost reuse after a variant's first receipt, idempotent atomic receipts, inventory movements, and FIFO cost layers |
+| Stock conversion | Partial | Merchant-defined same-product variant pack ratios, staff/merchant shop-scoped atomic FIFO pack breaking, idempotent API, and mode-preserving variant setup are implemented; batch/serial/asset conversion and mobile offline parity remain pending |
 | General service module | Implemented for backend scope | Service catalog, orders, appointments, billing, history, and reusable ticket/work-item form definitions and values |
 | Repair module | Implemented for backend/portal scope | Repeatable work items with multi-value issues, optional conditions, automatic waiting starts, canonical waiting ends, derived day counts and whole-ticket waiting ranges; shop-scoped preset CRUD with automatic preset generation on ticket creation and work-item updates, tenant-safe child records, derived lifecycle, work-item service/part/price attribution, immediate stock/FIFO posting for Used parts, canonical payment allocations, synchronization, and work-item-aware invoices preserve compatibility aliases |
 | Versioned service custom fields | Implemented for backend/portal scope | Generic and specialized ticket/work-item definitions support GENERAL, REPAIR, and CLINICAL service types, tenant-owned entity validation, versions, validation/visibility rules, printable projections, repair aggregate synchronization, portal rendering, and portal administration; mobile definition/value synchronization is excluded from this release |
@@ -35,7 +37,7 @@ This file records backend capabilities and their implementation status. Update i
 | Services and repairs APIs | Implemented | Merchant-scoped CRUD plus service billing promotions, shop-scoped repair reads, canonical repair orders, stock-part consumption, repair total promotions, and repair product promotions |
 | Shared collection query contract | Implemented | `query`, `filter`, zero-based `page_index`, legacy `page`, and bounded `page_size` are supported across listing endpoints |
 | Public API handlers and use cases | Implemented for current scope | HTTP handlers depend on injected application ports for auth, catalog, POS, pricing, promotion, inventory, reports, services, and repairs |
-| Client temporary-offline synchronization API | Partial | Authenticated handshake/push/pull/conflict routes provide idempotent typed operations, hashes, dependencies, replay results, versions, shop-filtered ordered changes, persisted checkpoints, and migrations through 0027. Settings, delivery, product metadata, product variant attributes/options, price-list/product-price lifecycle, repair aggregates/children/payments, and append-only provisional `POS_CHECKOUT` are enabled. Cash checkout reuses canonical POS/FIFO rules atomically; external payment intents require authorization. Refund, receiving/transfer/adjustment, promotion, permission/module, and remaining lifecycle policies are still rejected. |
+| Client temporary-offline synchronization API | Partial | Authenticated handshake/push/pull/conflict routes provide idempotent typed operations, hashes, dependencies, replay results, versions, shop-filtered ordered changes, persisted checkpoints, and migrations through 0027. Settings, delivery, product metadata, product variant attributes/options, price-list/product-price lifecycle, repair aggregates/children/payments, and append-only provisional `POS_CHECKOUT` are enabled. Cash checkout reuses canonical POS/FIFO rules atomically; external payment intents require authorization. Refund, transfer/generic adjustment, promotion, permission/module, and remaining lifecycle policies are still rejected. |
 
 Telegram customer/payment behavior: each order links a canonical guest customer;
 omitted names stay blank/null and `Online-Telegram-Customer` is source metadata.
@@ -59,3 +61,20 @@ must correct the issue and send a new command. The existing outbox retries only
 receipt delivery for successfully committed orders, never the commerce operation.
 Turning OFF restores manual confirmation for subsequent orders. Existing pending
 orders remain pending, and already confirmed orders remain confirmed.
+
+- Implemented: POS Nano merchant mode, default for future merchant provisioning and database inserts, with managed standard variant/direct pricing/default Pcs and RETAIL setup. Migration 0053 preserves existing merchant modes.
+
+## Independent delivery payment
+
+Implemented for all four POS modes with scoped defaults, separate receipts,
+transaction detail edits, migration and offline/mobile parity. See
+[workflow and acceptance evidence](../DELIVERY_PAYMENT.md).
+
+Transaction correction: owner-only full POS/Telegram editing and permanent sale
+deletion, with atomic stock/FIFO restoration, financial/history cleanup,
+optimistic version and idempotency enforcement (migration 0055).
+
+
+## AI chat security refactor
+
+Implemented: mandatory authenticated shop scope, 113 approved operational/analytical datasets, structured parameterized read compiler, staff cost protections, atomic quota reservation and sanitized HTML. See [policy and acceptance tests](../AI_CHAT_SECURITY.md). Model behavior is not a 100% security guarantee.

@@ -12,6 +12,7 @@ import (
 
 	"business-central-backend/internal/app"
 	authdto "business-central-backend/internal/auth/application/dto"
+	posdomain "business-central-backend/internal/pos/domain"
 	posoutbound "business-central-backend/internal/pos/ports/outbound"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -129,11 +130,11 @@ func (s *Service) ListInvoices(ctx context.Context, c *authdto.Claims) ([]Invoic
 	if err = ctxSQL(ctx, tx, c); err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `SELECT o.id,o.order_number,CASE WHEN o.channel='TELEGRAM' THEN COALESCE(NULLIF(o.billing_address->>'name',''),NULLIF(cu.display_name,'')) ELSE COALESCE(cu.display_name,'Walk-in customer') END,cu.phone,m.name,s.name,s.id,NULLIF(s.address->>'logo_url',''),COALESCE(NULLIF(s.address->>'show_logo_in_printed_invoice','')::boolean,TRUE),o.currency_code,o.created_at,
-		CASE WHEN o.status='REFUNDED' THEN 'Refunded' WHEN EXISTS(SELECT 1 FROM payments p WHERE p.merchant_id=o.merchant_id AND p.order_id=o.id AND p.status='CAPTURED') OR (o.channel='TELEGRAM' AND o.grand_total=0 AND o.status<>'DRAFT') THEN 'Paid' ELSE 'Pending' END,
+	rows, err := tx.Query(ctx, `SELECT o.id,o.order_number,CASE WHEN o.billing_address ? 'name' THEN NULLIF(BTRIM(o.billing_address->>'name'),'') ELSE NULLIF(BTRIM(cu.display_name),'') END,COALESCE(o.billing_address->>'phone',cu.phone),m.name,s.name,s.id,NULLIF(s.address->>'logo_url',''),COALESCE(NULLIF(s.address->>'show_logo_in_printed_invoice','')::boolean,TRUE),o.currency_code,o.created_at,
+		CASE WHEN o.status='REFUNDED' THEN 'Refunded' WHEN (o.channel='POS' AND o.grand_total=o.shipping_total) OR EXISTS(SELECT 1 FROM payments p WHERE p.merchant_id=o.merchant_id AND p.order_id=o.id AND p.status='CAPTURED') OR (o.channel='TELEGRAM' AND o.grand_total=0 AND o.status<>'DRAFT') THEN 'Paid' ELSE 'Pending' END,
 		CASE WHEN ro_repair.id IS NOT NULL THEN 'repair' WHEN so_service.id IS NOT NULL THEN 'service' ELSE 'pos' END,
 		ro_repair.status,ro_repair.payment_status,
-		o.subtotal::text,o.discount_total::text,o.tax_total::text,o.grand_total::text,o.delivery_name,o.shipping_total::text,o.delivery_contact,COALESCE(ro_repair.note,o.note),o.payment_type,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,''),o.channel
+		o.subtotal::text,o.discount_total::text,o.tax_total::text,o.grand_total::text,o.delivery_name,o.shipping_total::text,o.delivery_contact,COALESCE(ro_repair.note,o.note),o.payment_type,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),CASE WHEN o.channel='POS' THEN o.delivery_payment_status ELSE '' END,COALESCE(s.footer_note,''),o.channel
 		FROM orders o JOIN merchants m ON m.id=o.merchant_id
 		LEFT JOIN customers cu ON cu.merchant_id=o.merchant_id AND cu.id=o.customer_id
 		LEFT JOIN locations l ON l.merchant_id=o.merchant_id AND l.id=o.fulfillment_location_id
@@ -151,7 +152,7 @@ func (s *Service) ListInvoices(ctx context.Context, c *authdto.Claims) ([]Invoic
 	invoices := []Invoice{}
 	for rows.Next() {
 		var invoice Invoice
-		if err = rows.Scan(&invoice.ID, &invoice.Number, &invoice.Customer, &invoice.CustomerPhone, &invoice.MerchantName, &invoice.ShopName, &invoice.ShopID, &invoice.ShopLogoURL, &invoice.ShowShopLogo, &invoice.CurrencyCode, &invoice.CreatedAt, &invoice.Status, &invoice.Kind, &invoice.TicketStatus, &invoice.PaymentStatus, &invoice.Subtotal, &invoice.DiscountTotal, &invoice.TaxTotal, &invoice.GrandTotal, &invoice.DeliveryName, &invoice.DeliveryFee, &invoice.DeliveryContact, &invoice.Note, &invoice.PaymentType, &invoice.TaxLabel, &invoice.ReceiptNote, &invoice.FooterNote, &invoice.Channel); err != nil {
+		if err = rows.Scan(&invoice.ID, &invoice.Number, &invoice.Customer, &invoice.CustomerPhone, &invoice.MerchantName, &invoice.ShopName, &invoice.ShopID, &invoice.ShopLogoURL, &invoice.ShowShopLogo, &invoice.CurrencyCode, &invoice.CreatedAt, &invoice.Status, &invoice.Kind, &invoice.TicketStatus, &invoice.PaymentStatus, &invoice.Subtotal, &invoice.DiscountTotal, &invoice.TaxTotal, &invoice.GrandTotal, &invoice.DeliveryName, &invoice.DeliveryFee, &invoice.DeliveryContact, &invoice.Note, &invoice.PaymentType, &invoice.TaxLabel, &invoice.ReceiptNote, &invoice.DeliveryPaymentStatus, &invoice.FooterNote, &invoice.Channel); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -344,7 +345,7 @@ func optionalMoney(value string) (float64, error) {
 		return 0, nil
 	}
 	v, err := strconv.ParseFloat(value, 64)
-	if err != nil || v < 0 {
+	if err != nil || v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
 		return 0, app.Validation("Money values must be zero or greater.", nil)
 	}
 	return money(v), nil
@@ -523,6 +524,9 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 			return SaleOrder{}, app.NewError("IDEMPOTENCY_CONFLICT", "This idempotency key was already used for a different sale.", 409)
 		}
 		if status == "COMPLETED" {
+			if record.Result.ID == "" {
+				return SaleOrder{}, app.NewError("ORDER_DELETED", "This checkout was permanently deleted.", 410)
+			}
 			return record.Result, nil
 		}
 		return SaleOrder{}, app.NewError("IDEMPOTENCY_CONFLICT", "This sale is already being processed.", 409)
@@ -562,6 +566,9 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 	if err = tx.QueryRow(ctx, `SELECT default_currency_code FROM merchants WHERE id=$1`, c.MerchantID).Scan(&currency); err != nil {
 		return SaleOrder{}, err
 	}
+	if r.CorrectionCurrency != "" {
+		currency = r.CorrectionCurrency
+	}
 	lines := make([]saleLine, 0, len(r.Lines))
 	subtotal := 0.0
 	for _, requested := range r.Lines {
@@ -579,6 +586,13 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 		price, parseErr := strconv.ParseFloat(line.unitPrice, 64)
 		if parseErr != nil || price < 0 {
 			return SaleOrder{}, app.Validation("A sale item has an invalid price.", nil)
+		}
+		if r.CorrectionID != "" {
+			line.unitPrice = requested.CorrectionPrice
+			price, parseErr = strconv.ParseFloat(line.unitPrice, 64)
+			if parseErr != nil || price < 0 {
+				return SaleOrder{}, app.Validation("Invalid item price.", nil)
+			}
 		}
 		line.gross = money(quantity * price)
 		subtotal = money(subtotal + line.gross)
@@ -599,6 +613,16 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 	}
 
 	discountTotal := 0.0
+	if r.CorrectionID != "" {
+		for i := range lines {
+			value, e := optionalMoney(r.Lines[i].CorrectionDiscount)
+			if e != nil || value > lines[i].gross {
+				return SaleOrder{}, app.Validation("Invalid item discount.", nil)
+			}
+			lines[i].discount = value
+			discountTotal = money(discountTotal + value)
+		}
+	}
 	if strings.TrimSpace(r.PromotionID) != "" {
 		var promotionType, value, minimum string
 		err = tx.QueryRow(ctx, `SELECT promotion_type,value::text,minimum_subtotal::text FROM promotions WHERE merchant_id=$1::uuid AND id=$2 AND is_active AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>now()) AND (usage_limit IS NULL OR redemption_count<usage_limit) FOR UPDATE`, c.MerchantID, r.PromotionID).Scan(&promotionType, &value, &minimum)
@@ -655,13 +679,31 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 		lines[0].discount = money(lines[0].discount + manualDiscount)
 	}
 	var includeTax bool
+	var autoComplete bool
 	var taxRate float64
-	if err = tx.QueryRow(ctx, `SELECT COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0) FROM locations l LEFT JOIN payment_settings ps ON ps.merchant_id=l.merchant_id AND ps.shop_id=l.shop_id WHERE l.merchant_id=$1::uuid AND l.id=$2`, c.MerchantID, locationID).Scan(&includeTax, &taxRate); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0),COALESCE(ps.delivery_payment_status_auto_complete,FALSE) FROM locations l LEFT JOIN payment_settings ps ON ps.merchant_id=l.merchant_id AND ps.shop_id=l.shop_id WHERE l.merchant_id=$1::uuid AND l.id=$2`, c.MerchantID, locationID).Scan(&includeTax, &taxRate, &autoComplete); err != nil {
 		return SaleOrder{}, err
+	}
+	if r.CorrectionID != "" {
+		autoComplete = false
+	}
+	deliveryStatus, statusErr := posdomain.ResolveDeliveryPayment(r.DeliveryPaymentStatus, autoComplete)
+	if statusErr != nil {
+		return SaleOrder{}, app.Validation(statusErr.Error(), nil)
 	}
 	taxTotal := 0.0
 	if includeTax {
 		taxTotal = money((subtotal - discountTotal) * taxRate / 100)
+	}
+	if r.CorrectionID != "" {
+		taxTotal = 0
+		for _, line := range r.Lines {
+			value, e := optionalMoney(line.CorrectionTax)
+			if e != nil {
+				return SaleOrder{}, e
+			}
+			taxTotal = money(taxTotal + value)
+		}
 	}
 	grandTotal := money(subtotal - discountTotal + taxTotal + shipping)
 	if grandTotal <= 0 {
@@ -672,6 +714,9 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 		return SaleOrder{}, err
 	}
 	orderID := uuid.NewString()
+	if r.CorrectionID != "" {
+		orderID = r.CorrectionID
+	}
 	if strings.TrimSpace(r.CustomerID) == "" && strings.TrimSpace(r.CustomerName) != "" && strings.TrimSpace(r.CustomerPhone) != "" {
 		if err = tx.QueryRow(ctx, `SELECT id FROM customers WHERE merchant_id=$1::uuid AND phone=$2 ORDER BY created_at LIMIT 1`, c.MerchantID, strings.TrimSpace(r.CustomerPhone)).Scan(&r.CustomerID); err == pgx.ErrNoRows {
 			err = tx.QueryRow(ctx, `INSERT INTO customers(merchant_id,customer_number,display_name,phone) VALUES($1,'POS-'||substring(uuid_generate_v4()::text,1,8),$2,$3) RETURNING id`, c.MerchantID, strings.TrimSpace(r.CustomerName), strings.TrimSpace(r.CustomerPhone)).Scan(&r.CustomerID)
@@ -681,13 +726,16 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 		}
 	}
 	orderNumber := fmt.Sprintf("POS-%s-%s", time.Now().UTC().Format("20060102-150405"), strings.ToUpper(uuid.NewString()[:4]))
+	if r.CorrectionNumber != "" {
+		orderNumber = r.CorrectionNumber
+	}
 	var deliveryName, deliveryContact *string
 	if strings.TrimSpace(r.DeliveryID) != "" {
 		if err = tx.QueryRow(ctx, `SELECT d.name,d.contact_info FROM deliveries d JOIN locations l ON l.merchant_id=d.merchant_id AND l.shop_id=d.shop_id WHERE d.merchant_id=$1::uuid AND d.id=$2::uuid AND d.is_active AND l.id=$3`, c.MerchantID, r.DeliveryID, locationID).Scan(&deliveryName, &deliveryContact); err != nil {
 			return SaleOrder{}, app.Validation("The selected delivery is not available for this shop.", nil)
 		}
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO orders(id,merchant_id,customer_id,fulfillment_location_id,order_number,channel,status,currency_code,subtotal,discount_total,tax_total,shipping_total,grand_total,delivery_id,delivery_name,delivery_contact,note,payment_type_id,payment_type,placed_at) VALUES($1,$2,NULLIF($3,'')::uuid,$4,$5,'POS','DRAFT',$6,$7,$8,$9,$10,$11,NULLIF($12,'')::uuid,$13,$14,$15,$16,$17,now())`, orderID, c.MerchantID, r.CustomerID, locationID, orderNumber, currency, money(subtotal), money(discountTotal), taxTotal, shipping, grandTotal, r.DeliveryID, deliveryName, deliveryContact, strings.TrimSpace(r.Note), paymentTypeID, paymentTypeName)
+	_, err = tx.Exec(ctx, `INSERT INTO orders(id,merchant_id,customer_id,fulfillment_location_id,order_number,channel,status,currency_code,subtotal,discount_total,tax_total,shipping_total,grand_total,delivery_id,delivery_name,delivery_contact,note,payment_type_id,payment_type,placed_at,delivery_payment_status) VALUES($1,$2,NULLIF($3,'')::uuid,$4,$5,'POS','DRAFT',$6,$7,$8,$9,$10,$11,NULLIF($12,'')::uuid,$13,$14,$15,$16,$17,now(),$18)`, orderID, c.MerchantID, r.CustomerID, locationID, orderNumber, currency, money(subtotal), money(discountTotal), taxTotal, shipping, grandTotal, r.DeliveryID, deliveryName, deliveryContact, strings.TrimSpace(r.Note), paymentTypeID, paymentTypeName, deliveryStatus)
 	if err != nil {
 		return SaleOrder{}, err
 	}
@@ -697,6 +745,9 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 		lineTax := 0.0
 		if includeTax {
 			lineTax = money((line.gross - line.discount) * taxRate / 100)
+		}
+		if r.CorrectionID != "" {
+			lineTax, _ = optionalMoney(r.Lines[index].CorrectionTax)
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO order_lines(id,merchant_id,order_id,line_number,variant_id,asset_id,unit_id,description,quantity,unit_price,discount_amount,tax_amount,line_total) VALUES($1,$2,$3,$4,$5,NULLIF($6,'')::uuid,$7,$8,$9,$10,$11,$12,$13)`, lineIDs[index], c.MerchantID, orderID, index+1, line.variantID, line.assetID, line.unitID, line.description, line.quantity, line.unitPrice, money(line.discount), lineTax, money(line.gross-line.discount+lineTax))
 		if err != nil {
@@ -716,8 +767,16 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 	if _, err = tx.Exec(ctx, `UPDATE orders SET status='PENDING_PAYMENT' WHERE merchant_id=$1::uuid AND id=$2`, c.MerchantID, orderID); err != nil {
 		return SaleOrder{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO payments(merchant_id,order_id,payment_type_id,method,status,amount,idempotency_key,captured_at) VALUES($1,$2,$3,$4,'CAPTURED',$5,$6,now())`, c.MerchantID, orderID, paymentTypeID, paymentTypeName, grandTotal, r.IdempotencyKey); err != nil {
-		return SaleOrder{}, err
+	// Delivery collection is separate from merchandise payment and order totals.
+	if baseAmount := money(grandTotal - shipping); baseAmount > 0 {
+		if _, err = tx.Exec(ctx, `INSERT INTO payments(merchant_id,order_id,payment_type_id,method,status,amount,idempotency_key,captured_at,purpose) VALUES($1,$2,$3,$4,'CAPTURED',$5,$6,now(),'ORDER')`, c.MerchantID, orderID, paymentTypeID, paymentTypeName, baseAmount, r.IdempotencyKey); err != nil {
+			return SaleOrder{}, err
+		}
+	}
+	if deliveryStatus == posdomain.DeliveryComplete && shipping > 0 {
+		if _, err = tx.Exec(ctx, `INSERT INTO payments(merchant_id,order_id,payment_type_id,method,status,amount,idempotency_key,captured_at,purpose) VALUES($1,$2,$3,$4,'CAPTURED',$5,$6,now(),'DELIVERY')`, c.MerchantID, orderID, paymentTypeID, paymentTypeName, shipping, r.IdempotencyKey+":delivery"); err != nil {
+			return SaleOrder{}, err
+		}
 	}
 	if _, err = tx.Exec(ctx, `UPDATE orders SET status='CONFIRMED' WHERE merchant_id=$1::uuid AND id=$2`, c.MerchantID, orderID); err != nil {
 		return SaleOrder{}, err
@@ -758,7 +817,7 @@ func CreateSaleWithTx(ctx context.Context, tx pgx.Tx, c *authdto.Claims, r Creat
 	if err = tx.QueryRow(ctx, `SELECT created_at FROM orders WHERE merchant_id=$1::uuid AND id=$2`, c.MerchantID, orderID).Scan(&created); err != nil {
 		return SaleOrder{}, err
 	}
-	result := SaleOrder{ID: orderID, OrderNumber: orderNumber, Status: "FULFILLED", CurrencyCode: currency, Subtotal: fmt.Sprintf("%.2f", subtotal), DiscountTotal: fmt.Sprintf("%.2f", discountTotal), TaxTotal: fmt.Sprintf("%.2f", taxTotal), GrandTotal: fmt.Sprintf("%.2f", grandTotal), CreatedAt: created}
+	result := SaleOrder{DeliveryPaymentStatus: deliveryStatus, ID: orderID, OrderNumber: orderNumber, Status: "FULFILLED", CurrencyCode: currency, Subtotal: fmt.Sprintf("%.2f", subtotal), DiscountTotal: fmt.Sprintf("%.2f", discountTotal), TaxTotal: fmt.Sprintf("%.2f", taxTotal), GrandTotal: fmt.Sprintf("%.2f", grandTotal), CreatedAt: created}
 	responseBody, err := json.Marshal(map[string]any{"request": r, "result": result})
 	if err != nil {
 		return SaleOrder{}, err
@@ -820,13 +879,18 @@ func (s *Service) CreateRefund(ctx context.Context, c *authdto.Claims, orderID s
 		return Refund{}, err
 	}
 
+	// Match delivery correction lock order: order first, then its receipt.
+	var lockedOrder string
+	if err = tx.QueryRow(ctx, `SELECT o.id::text FROM orders o JOIN locations l ON l.merchant_id=o.merchant_id AND l.id=o.fulfillment_location_id WHERE o.merchant_id=$1::uuid AND o.id=$2::uuid AND (NULLIF($3,'')::uuid IS NULL OR EXISTS(SELECT 1 FROM user_memberships um WHERE um.merchant_id=o.merchant_id AND um.id=$3::uuid AND (um.shop_id IS NULL OR um.shop_id=l.shop_id))) FOR UPDATE OF o`, c.MerchantID, orderID, c.MembershipID).Scan(&lockedOrder); err != nil {
+		return Refund{}, err
+	}
 	var paymentAmount, paymentStatus, refundedAmount string
 	err = tx.QueryRow(ctx, `SELECT p.amount::text,p.status,COALESCE((SELECT sum(rf.amount) FROM refunds rf WHERE rf.merchant_id=p.merchant_id AND rf.payment_id=p.id AND rf.status NOT IN ('FAILED','CANCELLED')),0)::text
 		FROM payments p JOIN orders o ON o.merchant_id=p.merchant_id AND o.id=p.order_id
 		JOIN locations l ON l.merchant_id=o.merchant_id AND l.id=o.fulfillment_location_id
 		WHERE p.merchant_id=$1::uuid AND p.id=$2::uuid AND p.order_id=$3::uuid
 		  AND ((SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($4,'')::uuid) IS NULL OR l.shop_id=(SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($4,'')::uuid))
-		FOR UPDATE`, c.MerchantID, r.PaymentID, orderID, c.MembershipID).Scan(&paymentAmount, &paymentStatus, &refundedAmount)
+		FOR UPDATE OF p`, c.MerchantID, r.PaymentID, orderID, c.MembershipID).Scan(&paymentAmount, &paymentStatus, &refundedAmount)
 	if err != nil {
 		return Refund{}, pgx.ErrNoRows
 	}
@@ -852,7 +916,7 @@ func (s *Service) CreateRefund(ctx context.Context, c *authdto.Claims, orderID s
 	if err != nil {
 		return Refund{}, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE orders SET status=CASE WHEN (SELECT COALESCE(sum(rf.amount),0) FROM refunds rf WHERE rf.merchant_id=orders.merchant_id AND rf.order_id=orders.id AND rf.status='SUCCEEDED') >= orders.grand_total THEN 'REFUNDED' ELSE orders.status END WHERE merchant_id=$1::uuid AND id=$2::uuid`, c.MerchantID, orderID); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE orders SET status=CASE WHEN (SELECT COALESCE(sum(rf.amount),0) FROM refunds rf WHERE rf.merchant_id=orders.merchant_id AND rf.order_id=orders.id AND rf.status='SUCCEEDED') >= (SELECT COALESCE(sum(py.amount),0) FROM payments py WHERE py.merchant_id=orders.merchant_id AND py.order_id=orders.id AND py.status IN ('CAPTURED','PARTIALLY_REFUNDED','REFUNDED')) THEN 'REFUNDED' ELSE orders.status END,delivery_payment_status=CASE WHEN EXISTS(SELECT 1 FROM payments py WHERE py.merchant_id=orders.merchant_id AND py.order_id=orders.id AND py.id=$3::uuid AND py.purpose='DELIVERY') THEN 'UN_PAID' ELSE orders.delivery_payment_status END WHERE merchant_id=$1::uuid AND id=$2::uuid`, c.MerchantID, orderID, r.PaymentID); err != nil {
 		return Refund{}, err
 	}
 	responseBody, err := json.Marshal(map[string]any{"request": r, "result": result})
@@ -869,7 +933,7 @@ func (s *Service) CreateRefund(ctx context.Context, c *authdto.Claims, orderID s
 }
 
 func (s *Service) ListShops(ctx context.Context, c *authdto.Claims) ([]Shop, error) {
-	rows, err := s.pool.Query(ctx, `WITH x AS(SELECT set_config('app.user_id',$2::text,true),set_config('app.merchant_id',$1::text,true)) SELECT s.id,s.merchant_id,s.business_type_id,COALESCE(bt.name,''),s.name,s.code,s.address,s.timezone,s.is_active,COALESCE((SELECT array_agg(sm.module_code ORDER BY sm.module_code) FROM shop_modules sm WHERE sm.merchant_id=s.merchant_id AND sm.shop_id=s.id),ARRAY[]::text[]),COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,''),COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=s.merchant_id AND entity_type='SHOP_SETTINGS' AND entity_id=s.id),0) FROM shops s LEFT JOIN business_types bt ON bt.id=s.business_type_id LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id CROSS JOIN x WHERE s.merchant_id=$1::uuid AND ((SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($3,'')::uuid) IS NULL OR s.id=(SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($3,'')::uuid)) ORDER BY s.name`, c.MerchantID, c.IdentityID, c.MembershipID)
+	rows, err := s.pool.Query(ctx, `WITH x AS(SELECT set_config('app.user_id',$2::text,true),set_config('app.merchant_id',$1::text,true)) SELECT s.id,s.merchant_id,s.business_type_id,COALESCE(bt.name,''),s.name,s.code,s.address,s.timezone,s.is_active,COALESCE((SELECT array_agg(sm.module_code ORDER BY sm.module_code) FROM shop_modules sm WHERE sm.merchant_id=s.merchant_id AND sm.shop_id=s.id),ARRAY[]::text[]),COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(ps.delivery_payment_status_auto_complete,FALSE),COALESCE(s.footer_note,''),COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=s.merchant_id AND entity_type='SHOP_SETTINGS' AND entity_id=s.id),0) FROM shops s LEFT JOIN business_types bt ON bt.id=s.business_type_id LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id CROSS JOIN x WHERE s.merchant_id=$1::uuid AND ((SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($3,'')::uuid) IS NULL OR s.id=(SELECT shop_id FROM user_memberships WHERE merchant_id=$1::uuid AND id=NULLIF($3,'')::uuid)) ORDER BY s.name`, c.MerchantID, c.IdentityID, c.MembershipID)
 	if err != nil {
 		return nil, err
 	}
@@ -877,7 +941,7 @@ func (s *Service) ListShops(ctx context.Context, c *authdto.Claims) ([]Shop, err
 	out := []Shop{}
 	for rows.Next() {
 		var v Shop
-		if err := rows.Scan(&v.ID, &v.MerchantID, &v.BusinessTypeID, &v.BusinessTypeName, &v.Name, &v.Code, &v.Address, &v.Timezone, &v.IsActive, &v.ModuleCodes, &v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.FooterNote, &v.SyncVersion); err != nil {
+		if err := rows.Scan(&v.ID, &v.MerchantID, &v.BusinessTypeID, &v.BusinessTypeName, &v.Name, &v.Code, &v.Address, &v.Timezone, &v.IsActive, &v.ModuleCodes, &v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.DeliveryPaymentStatusAutoComplete, &v.FooterNote, &v.SyncVersion); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -1021,7 +1085,7 @@ func publishSyncChangeAtVersion(ctx context.Context, tx pgx.Tx, merchantID, shop
 }
 func (s *Service) GetShop(ctx context.Context, c *authdto.Claims, id string) (Shop, error) {
 	var v Shop
-	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$3::text,true),set_config('app.merchant_id',$1::text,true)) SELECT s.id,s.merchant_id,s.business_type_id,COALESCE(bt.name,''),s.name,s.code,s.address,s.timezone,s.is_active,COALESCE((SELECT array_agg(sm.module_code ORDER BY sm.module_code) FROM shop_modules sm WHERE sm.merchant_id=s.merchant_id AND sm.shop_id=s.id),ARRAY[]::text[]),COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(s.footer_note,''),COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=s.merchant_id AND entity_type='SHOP_SETTINGS' AND entity_id=s.id),0) FROM shops s LEFT JOIN business_types bt ON bt.id=s.business_type_id LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id CROSS JOIN x WHERE s.merchant_id=$1::uuid AND s.id=$2::uuid`, c.MerchantID, id, c.IdentityID).Scan(&v.ID, &v.MerchantID, &v.BusinessTypeID, &v.BusinessTypeName, &v.Name, &v.Code, &v.Address, &v.Timezone, &v.IsActive, &v.ModuleCodes, &v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.FooterNote, &v.SyncVersion)
+	err := s.pool.QueryRow(ctx, `WITH x AS(SELECT set_config('app.user_id',$3::text,true),set_config('app.merchant_id',$1::text,true)) SELECT s.id,s.merchant_id,s.business_type_id,COALESCE(bt.name,''),s.name,s.code,s.address,s.timezone,s.is_active,COALESCE((SELECT array_agg(sm.module_code ORDER BY sm.module_code) FROM shop_modules sm WHERE sm.merchant_id=s.merchant_id AND sm.shop_id=s.id),ARRAY[]::text[]),COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(ps.delivery_payment_status_auto_complete,FALSE),COALESCE(s.footer_note,''),COALESCE((SELECT version FROM sync_entity_versions WHERE merchant_id=s.merchant_id AND entity_type='SHOP_SETTINGS' AND entity_id=s.id),0) FROM shops s LEFT JOIN business_types bt ON bt.id=s.business_type_id LEFT JOIN payment_settings ps ON ps.merchant_id=s.merchant_id AND ps.shop_id=s.id CROSS JOIN x WHERE s.merchant_id=$1::uuid AND s.id=$2::uuid`, c.MerchantID, id, c.IdentityID).Scan(&v.ID, &v.MerchantID, &v.BusinessTypeID, &v.BusinessTypeName, &v.Name, &v.Code, &v.Address, &v.Timezone, &v.IsActive, &v.ModuleCodes, &v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.DeliveryPaymentStatusAutoComplete, &v.FooterNote, &v.SyncVersion)
 	return v, err
 }
 func (s *Service) CreateShop(ctx context.Context, c *authdto.Claims, r ShopRequest) (Shop, error) {
@@ -1056,7 +1120,7 @@ func (s *Service) CreateShop(ctx context.Context, c *authdto.Claims, r ShopReque
 	if err = replaceShopModules(ctx, tx, c.MerchantID, v.ID, r.ModuleCodes); err != nil {
 		return Shop{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO payment_settings(merchant_id,shop_id,include_tax,tax_rate) VALUES($1,$2,COALESCE($3,FALSE),COALESCE(NULLIF($4,'')::numeric,0)) ON CONFLICT (merchant_id,shop_id) DO UPDATE SET include_tax=COALESCE($3,payment_settings.include_tax),tax_rate=COALESCE(NULLIF($4,'')::numeric,payment_settings.tax_rate)`, c.MerchantID, v.ID, r.IncludeTax, r.TaxRate); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO payment_settings(merchant_id,shop_id,include_tax,tax_rate,delivery_payment_status_auto_complete) VALUES($1,$2,COALESCE($3,FALSE),COALESCE(NULLIF($4,'')::numeric,0),COALESCE($5,FALSE)) ON CONFLICT (merchant_id,shop_id) DO UPDATE SET include_tax=COALESCE($3,payment_settings.include_tax),tax_rate=COALESCE(NULLIF($4,'')::numeric,payment_settings.tax_rate),delivery_payment_status_auto_complete=COALESCE($5,payment_settings.delivery_payment_status_auto_complete)`, c.MerchantID, v.ID, r.IncludeTax, r.TaxRate, r.DeliveryPaymentStatusAutoComplete); err != nil {
 		return Shop{}, err
 	}
 	if r.IncludeTax != nil {
@@ -1064,6 +1128,9 @@ func (s *Service) CreateShop(ctx context.Context, c *authdto.Claims, r ShopReque
 	}
 	if r.TaxRate != nil {
 		v.TaxRate = *r.TaxRate
+	}
+	if r.DeliveryPaymentStatusAutoComplete != nil {
+		v.DeliveryPaymentStatusAutoComplete = *r.DeliveryPaymentStatusAutoComplete
 	}
 	v.ModuleCodes = r.ModuleCodes
 	if err = tx.Commit(ctx); err != nil {
@@ -1102,7 +1169,7 @@ func (s *Service) UpdateShop(ctx context.Context, c *authdto.Claims, id string, 
 			return Shop{}, err
 		}
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO payment_settings(merchant_id,shop_id,include_tax,tax_rate,tax_label,receipt_note) VALUES($1,$2,COALESCE($3,FALSE),COALESCE(NULLIF($4,'')::numeric,0),COALESCE(NULLIF($5,''),'Tax'),COALESCE($6,'')) ON CONFLICT (merchant_id,shop_id) DO UPDATE SET include_tax=COALESCE($3,payment_settings.include_tax),tax_rate=COALESCE(NULLIF($4,'')::numeric,payment_settings.tax_rate),tax_label=COALESCE($5,payment_settings.tax_label),receipt_note=COALESCE($6,payment_settings.receipt_note)`, c.MerchantID, id, r.IncludeTax, r.TaxRate, r.TaxLabel, r.ReceiptNote); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO payment_settings(merchant_id,shop_id,include_tax,tax_rate,tax_label,receipt_note,delivery_payment_status_auto_complete) VALUES($1,$2,COALESCE($3,FALSE),COALESCE(NULLIF($4,'')::numeric,0),COALESCE(NULLIF($5,''),'Tax'),COALESCE($6,''),COALESCE($7,FALSE)) ON CONFLICT (merchant_id,shop_id) DO UPDATE SET include_tax=COALESCE($3,payment_settings.include_tax),tax_rate=COALESCE(NULLIF($4,'')::numeric,payment_settings.tax_rate),tax_label=COALESCE($5,payment_settings.tax_label),receipt_note=COALESCE($6,payment_settings.receipt_note),delivery_payment_status_auto_complete=COALESCE($7,payment_settings.delivery_payment_status_auto_complete)`, c.MerchantID, id, r.IncludeTax, r.TaxRate, r.TaxLabel, r.ReceiptNote, r.DeliveryPaymentStatusAutoComplete); err != nil {
 		return Shop{}, err
 	}
 	if r.IncludeTax != nil {
@@ -1118,22 +1185,23 @@ func (s *Service) UpdateShop(ctx context.Context, c *authdto.Claims, id string, 
 		v.ReceiptNote = *r.ReceiptNote
 	}
 	v.ModuleCodes = r.ModuleCodes
-	if err = tx.QueryRow(ctx, `SELECT COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,'') FROM payment_settings ps WHERE ps.merchant_id=$1::uuid AND ps.shop_id=$2::uuid`, c.MerchantID, id).Scan(&v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT COALESCE(ps.include_tax,FALSE),COALESCE(ps.tax_rate,0)::text,COALESCE(ps.tax_label,'Tax'),COALESCE(ps.receipt_note,''),COALESCE(ps.delivery_payment_status_auto_complete,FALSE) FROM payment_settings ps WHERE ps.merchant_id=$1::uuid AND ps.shop_id=$2::uuid`, c.MerchantID, id).Scan(&v.IncludeTax, &v.TaxRate, &v.TaxLabel, &v.ReceiptNote, &v.DeliveryPaymentStatusAutoComplete); err != nil {
 		return Shop{}, err
 	}
 	syncPayload, err := json.Marshal(map[string]any{
-		"id":           v.ID,
-		"merchant_id":  v.MerchantID,
-		"name":         v.Name,
-		"code":         v.Code,
-		"address":      v.Address,
-		"timezone":     v.Timezone,
-		"is_active":    v.IsActive,
-		"footer_note":  v.FooterNote,
-		"include_tax":  v.IncludeTax,
-		"tax_rate":     v.TaxRate,
-		"tax_label":    v.TaxLabel,
-		"receipt_note": v.ReceiptNote,
+		"id":                                    v.ID,
+		"merchant_id":                           v.MerchantID,
+		"name":                                  v.Name,
+		"code":                                  v.Code,
+		"address":                               v.Address,
+		"timezone":                              v.Timezone,
+		"is_active":                             v.IsActive,
+		"footer_note":                           v.FooterNote,
+		"include_tax":                           v.IncludeTax,
+		"tax_rate":                              v.TaxRate,
+		"tax_label":                             v.TaxLabel,
+		"receipt_note":                          v.ReceiptNote,
+		"delivery_payment_status_auto_complete": v.DeliveryPaymentStatusAutoComplete,
 	})
 	if err != nil {
 		return Shop{}, err

@@ -19,11 +19,19 @@ import {
   type OfflineCheckoutProjection,
 } from "@/lib/offline-checkout";
 import { currencyLabel, formatMoney } from "@/lib/currency";
-import type { Delivery, Invoice, PaymentType, Promotion, Variant } from "@/lib/types";
+import type {
+  Delivery,
+  DeliveryPaymentStatus,
+  Invoice,
+  PaymentType,
+  Promotion,
+  Variant,
+} from "@/lib/types";
 import { getMetadata, putMetadata } from "@/lib/offline-db";
 import { BarcodeScanner } from "./barcode-scanner";
 import { randomUuid } from "@/lib/random-uuid";
 import { useTranslation } from "@/lib/i18n";
+import { usingFullyOfflineNativeDatabase } from "@/lib/native-database";
 
 type SaleItem = Variant & {
   price?: string;
@@ -33,6 +41,11 @@ type SaleItem = Variant & {
   barcode_match?: string;
 };
 type CartItem = { item: SaleItem; quantity: number };
+function saleName(item: SaleItem, simple: boolean) {
+  if (!simple) return item.name;
+  const productName = item.product_name ?? item.name;
+  return item.name === productName ? productName : `${productName} · ${item.name}`;
+}
 type SaleQuote = {
   subtotal: string;
   discount_total: string;
@@ -47,7 +60,9 @@ export function PosPage() {
   const { merchant } = useAuth();
   const { t } = useTranslation();
   const simple =
-    merchant?.pos_complexity_level === "SIMPLE" || merchant?.pos_complexity_level === "MINI";
+    merchant?.pos_complexity_level === "SIMPLE" ||
+    merchant?.pos_complexity_level === "MINI" ||
+    merchant?.pos_complexity_level === "NANO";
   const offline = useOffline();
   const catalog = useResource<SaleItem>(
     `/pos/catalog?page_index=0&page_size=200${currentShop ? `&shop_id=${encodeURIComponent(currentShop.id)}` : ""}`,
@@ -70,6 +85,10 @@ export function PosPage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryId, setDeliveryId] = useState("");
   const [deliveryFee, setDeliveryFee] = useState("0");
+  const [deliveryPaymentStatus, setDeliveryPaymentStatus] =
+    useState<DeliveryPaymentStatus>("UN_PAID");
+  const effectiveDeliveryPaymentStatus: DeliveryPaymentStatus =
+    currentShop?.delivery_payment_status_auto_complete ? "COMPLETE" : deliveryPaymentStatus;
   const [manualPromotion, setManualPromotion] = useState("0");
   const [note, setNote] = useState("");
   const [paymentType, setPaymentType] = useState("CASH");
@@ -103,6 +122,7 @@ export function PosPage() {
       customerPhone?: string;
       deliveryId?: string;
       deliveryFee?: string;
+      deliveryPaymentStatus?: DeliveryPaymentStatus;
       manualPromotion?: string;
       note?: string;
       paymentType?: string;
@@ -115,6 +135,7 @@ export function PosPage() {
         setCustomerPhone(draft?.customerPhone ?? "");
         setDeliveryId(draft?.deliveryId ?? "");
         setDeliveryFee(draft?.deliveryFee ?? "0");
+        setDeliveryPaymentStatus(draft?.deliveryPaymentStatus ?? "UN_PAID");
         setManualPromotion(draft?.manualPromotion ?? "0");
         setNote(draft?.note ?? "");
         setPaymentType(draft?.paymentType ?? "CASH");
@@ -138,6 +159,7 @@ export function PosPage() {
       customerPhone,
       deliveryId,
       deliveryFee,
+      deliveryPaymentStatus: effectiveDeliveryPaymentStatus,
       manualPromotion,
       note,
       paymentType,
@@ -149,6 +171,7 @@ export function PosPage() {
     customerName,
     customerPhone,
     deliveryFee,
+    effectiveDeliveryPaymentStatus,
     deliveryId,
     manualPromotion,
     note,
@@ -167,12 +190,12 @@ export function PosPage() {
   const refreshOfflineCheckouts = useCallback(async () => {
     if (!offline.scope) return;
     const [nextReserved, nextCheckouts] = await Promise.all([
-      pendingCheckoutQuantities(offline.scope),
+      pendingCheckoutQuantities(offline.scope, currentShop?.id),
       listOfflineCheckouts(offline.scope),
     ]);
     setReserved(nextReserved);
     setSavedCheckouts(nextCheckouts);
-  }, [offline.scope]);
+  }, [offline.scope, currentShop?.id]);
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void refreshOfflineCheckouts(), 0);
     window.addEventListener("bc-offline-data-changed", refreshOfflineCheckouts);
@@ -242,7 +265,7 @@ export function PosPage() {
     if (!currentShop) throw new Error("Select an active shop before checkout.");
     if (!cart.length || subtotal <= 0)
       throw new Error("Add at least one priced item before checkout.");
-    if (!navigator.onLine || offline.status === "offline") {
+    if (usingFullyOfflineNativeDatabase() || !navigator.onLine || offline.status === "offline") {
       const snapshot = calculateOfflineCheckoutSnapshot({
         scope: offline.scope ?? { merchantId: "preview", membershipId: "preview" },
         shop: currentShop,
@@ -252,6 +275,7 @@ export function PosPage() {
         manualPromotion,
         delivery: deliveries.find((item) => item.id === deliveryId),
         deliveryFee,
+        deliveryPaymentStatus: effectiveDeliveryPaymentStatus,
         customerName,
         customerPhone,
         note,
@@ -269,10 +293,11 @@ export function PosPage() {
         asset_id: row.item.stock_asset_id,
       })),
       promotion_id: nextPromotionId || undefined,
-      customer_name: customerName || undefined,
+      customer_name: customerName.trim() || null,
       customer_phone: customerPhone || undefined,
       delivery_id: deliveryId || undefined,
       delivery_fee: deliveryFee || undefined,
+      delivery_payment_status: effectiveDeliveryPaymentStatus,
       manual_promotion: manualPromotion || undefined,
       note: note || undefined,
       payment_type_id: selectedPaymentType?.id,
@@ -314,7 +339,7 @@ export function PosPage() {
     setBusy(true);
     setError("");
     try {
-      if (!navigator.onLine || offline.status === "offline") {
+      if (usingFullyOfflineNativeDatabase() || !navigator.onLine || offline.status === "offline") {
         await saveOfflineCheckout();
         return;
       }
@@ -358,12 +383,17 @@ export function PosPage() {
       customerPhone,
       delivery,
       deliveryFee,
+      deliveryPaymentStatus: effectiveDeliveryPaymentStatus,
       note,
       paymentMethod: usablePaymentTypes.find((item) => item.id === method)?.name ?? "Cash",
       paymentTypeId: method,
-      paymentCategory: usablePaymentTypes.find((item) => item.id === method)?.category_code ?? "CASH",
+      paymentCategory:
+        usablePaymentTypes.find((item) => item.id === method)?.category_code ?? "CASH",
     });
     setProvisionalReceipt(projection);
+    setCustomerName("");
+    setCustomerPhone("");
+    setDeliveryPaymentStatus("UN_PAID");
     setCart([]);
     setPromotionId("");
     setQuote(null);
@@ -387,19 +417,23 @@ export function PosPage() {
         promotion_id: promotionId || undefined,
         payment_type_id: method,
         payment_method: usablePaymentTypes.find((item) => item.id === method)?.name,
-        customer_name: customerName || undefined,
+        customer_name: customerName.trim() || null,
         customer_phone: customerPhone || undefined,
         delivery_id: deliveryId || undefined,
         delivery_fee: deliveryFee || undefined,
+        delivery_payment_status: effectiveDeliveryPaymentStatus,
         manual_promotion: manualPromotion || undefined,
         note: note || undefined,
         idempotency_key: checkoutId,
       });
       setCart([]);
+      setCustomerName("");
+      setCustomerPhone("");
+      setDeliveryPaymentStatus("UN_PAID");
       setPromotionId("");
       setQuote(null);
       setInvoicePreview(false);
-      router.push(`/invoices?invoice=${result.id}`);
+      router.push(`/transaction-history?invoice=${result.id}`);
     } catch (reason) {
       if (reason instanceof NetworkUnavailableError) {
         await saveOfflineCheckout(method, checkoutId);
@@ -414,7 +448,7 @@ export function PosPage() {
   const invoiceDraft: Invoice = {
     id: "preview",
     number: "PREVIEW",
-    customer: customerName || "Walk-in customer",
+    customer: customerName.trim() || null,
     customerPhone,
     currencyCode: currencyCode ?? "USD",
     shopName: currentShop?.name,
@@ -427,6 +461,7 @@ export function PosPage() {
     deliveryName: deliveries.find((item) => item.id === deliveryId)?.name,
     deliveryContact: deliveries.find((item) => item.id === deliveryId)?.contact_info,
     deliveryFee: Number(deliveryFee || 0),
+    deliveryPaymentStatus: effectiveDeliveryPaymentStatus,
     note,
     paymentType: selectedPaymentType?.name ?? "Cash",
     footerNote:
@@ -443,7 +478,7 @@ export function PosPage() {
     tax: Number(quote?.tax_total ?? 0),
     total: Number(quote?.grand_total ?? subtotal),
     items: cart.map((row) => ({
-      name: simple ? (row.item.product_name ?? row.item.name) : row.item.name,
+      name: saleName(row.item, simple),
       quantity: row.quantity,
       price: Number(row.item.price ?? 0),
     })),
@@ -547,7 +582,7 @@ export function PosPage() {
         ) : (
           <div className="product-grid">
             {visible.map((item) => {
-              const displayName = simple ? (item.product_name ?? item.name) : item.name;
+              const displayName = saleName(item, simple);
               const quantity = quantityInCart(item);
               const atStockLimit = item.is_stock_tracked && quantity >= availableQuantity(item);
               return (
@@ -609,8 +644,14 @@ export function PosPage() {
             <Icon name={mobileCartOpen ? "close" : "cart"} size={18} />
           </span>
           <span>
-            <strong>{mobileCartOpen ? t("common.close", "Close current order") : t("pos.cart", "View current order")}</strong>
-            <small>{t("pos.items_count", { count: cart.reduce((sum, row) => sum + row.quantity, 0) })}</small>
+            <strong>
+              {mobileCartOpen
+                ? t("common.close", "Close current order")
+                : t("pos.cart", "View current order")}
+            </strong>
+            <small>
+              {t("pos.items_count", { count: cart.reduce((sum, row) => sum + row.quantity, 0) })}
+            </small>
           </span>
           <b>{formatMoney(quote?.grand_total ?? subtotal, currencyCode)}</b>
         </button>
@@ -621,7 +662,9 @@ export function PosPage() {
               <h2>{t("pos.cart", "Current order")}</h2>
             </div>
             <div className="cart-head-meta">
-              <span>{t("pos.items_count", { count: cart.reduce((sum, row) => sum + row.quantity, 0) })}</span>
+              <span>
+                {t("pos.items_count", { count: cart.reduce((sum, row) => sum + row.quantity, 0) })}
+              </span>
               {cart.length > 0 && (
                 <button
                   onClick={() => {
@@ -650,9 +693,7 @@ export function PosPage() {
                     <Icon name="box" size={16} />
                   </span>
                   <div>
-                    <strong>
-                      {simple ? (row.item.product_name ?? row.item.name) : row.item.name}
-                    </strong>
+                    <strong>{saleName(row.item, simple)}</strong>
                     <small>{formatMoney(row.item.price, currencyCode)}</small>
                     <div className="qty">
                       <button
@@ -704,7 +745,10 @@ export function PosPage() {
             </div>
             {quote && Number(quote.discount_total) > 0 && (
               <div className="discount">
-                <span>{promotion?.name ?? t("pos.item_discount", "Promotion")} {t("pos.item_discount", "discount")}</span>
+                <span>
+                  {promotion?.name ?? t("pos.item_discount", "Promotion")}{" "}
+                  {t("pos.item_discount", "discount")}
+                </span>
                 <strong>−{formatMoney(quote.discount_total, currencyCode)}</strong>
               </div>
             )}
@@ -712,12 +756,50 @@ export function PosPage() {
               <span>{t("pos.total_amount", "Order total")}</span>
               <strong>{formatMoney(quote?.grand_total ?? subtotal, currencyCode)}</strong>
             </div>
+            {quote && Number(deliveryFee) > 0 && (
+              <>
+                <div>
+                  <span>
+                    Delivery fee ·{" "}
+                    {effectiveDeliveryPaymentStatus === "COMPLETE" ? "Complete" : "Un-paid"}
+                  </span>
+                  <strong>{formatMoney(deliveryFee, currencyCode)}</strong>
+                </div>
+                <div>
+                  <span>Collect at checkout</span>
+                  <strong>
+                    {formatMoney(
+                      (
+                        Number(quote.grand_total) -
+                        (effectiveDeliveryPaymentStatus === "UN_PAID" ? Number(deliveryFee) : 0)
+                      ).toFixed(2),
+                      currencyCode,
+                    )}
+                  </strong>
+                </div>
+                <div>
+                  <span>Delivery outstanding</span>
+                  <strong>
+                    {formatMoney(
+                      effectiveDeliveryPaymentStatus === "UN_PAID" ? deliveryFee : "0",
+                      currencyCode,
+                    )}
+                  </strong>
+                </div>
+              </>
+            )}
             {error && <div className="form-error">{error}</div>}
             <Button
               disabled={!cart.length || subtotal <= 0 || busy || !currentShop}
               onClick={() => void openCheckout()}
             >
-              {busy ? t("common.loading", "Preparing…") : t("pos.checkout_button", { amount: formatMoney(quote?.grand_total ?? subtotal, currencyCode) }, "Checkout")}
+              {busy
+                ? t("common.loading", "Preparing…")
+                : t(
+                    "pos.checkout_button",
+                    { amount: formatMoney(quote?.grand_total ?? subtotal, currencyCode) },
+                    "Checkout",
+                  )}
             </Button>
           </div>
         </div>
@@ -737,7 +819,6 @@ export function PosPage() {
                 <input
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
-                  placeholder="Walk-in customer"
                 />
               </label>
               <label>
@@ -756,7 +837,7 @@ export function PosPage() {
               <label>
                 <span>Delivery</span>
                 <select value={deliveryId} onChange={(event) => setDeliveryId(event.target.value)}>
-                  <option value="">No delivery</option>
+                  <option value="">No delivery name</option>
                   {deliveries.map((item) => (
                     <option value={item.id} key={item.id}>
                       {item.name}
@@ -764,26 +845,47 @@ export function PosPage() {
                   ))}
                 </select>
               </label>
-              {deliveryId && (
-                <label>
-                  <span>Delivery fee</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={deliveryFee}
-                    onChange={(event) => setDeliveryFee(event.target.value)}
-                    placeholder="0.00"
-                  />
-                </label>
-              )}
+              <label>
+                <span>Delivery fee</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={deliveryFee}
+                  onChange={(event) => {
+                    setDeliveryFee(event.target.value);
+                    setQuote(null);
+                  }}
+                  placeholder="0.00"
+                />
+              </label>
+              <label>
+                <span>Delivery payment status</span>
+                <select
+                  value={effectiveDeliveryPaymentStatus}
+                  disabled={Boolean(currentShop?.delivery_payment_status_auto_complete)}
+                  onChange={(event) =>
+                    setDeliveryPaymentStatus(event.target.value as DeliveryPaymentStatus)
+                  }
+                >
+                  <option value="UN_PAID">Un-paid</option>
+                  <option value="COMPLETE">Complete</option>
+                </select>
+                {currentShop?.delivery_payment_status_auto_complete && (
+                  <small>Auto-complete is on for this shop.</small>
+                )}
+              </label>
               <label>
                 <span>Payment type</span>
                 <select
                   value={selectedPaymentTypeId}
                   onChange={(event) => setPaymentType(event.target.value)}
                 >
-                  {usablePaymentTypes.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.category_code}</option>)}
+                  {usablePaymentTypes.map((item) => (
+                    <option value={item.id} key={item.id}>
+                      {item.name} · {item.category_code}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
@@ -830,7 +932,23 @@ export function PosPage() {
               </label>
             </div>
           </div>
-          <Button onClick={() => setDetailsOpen(false)}>Done</Button>
+          <Button
+            onClick={() => {
+              setDetailsOpen(false);
+              if (cart.length)
+                void requestQuote()
+                  .then(setQuote)
+                  .catch((reason) =>
+                    setError(
+                      reason instanceof Error
+                        ? reason.message
+                        : "Unable to calculate checkout total.",
+                    ),
+                  );
+            }}
+          >
+            Done
+          </Button>
         </div>
       </Modal>
       <Modal
@@ -892,16 +1010,24 @@ export function PosPage() {
       <Modal
         open={Boolean(provisionalReceipt)}
         onClose={() => setProvisionalReceipt(null)}
-        title="Provisional offline receipt"
-        description="Saved durably on this device. It is not a canonical invoice and remains pending synchronization."
+        title={
+          usingFullyOfflineNativeDatabase()
+            ? "Local checkout receipt"
+            : "Provisional offline receipt"
+        }
+        description={
+          usingFullyOfflineNativeDatabase()
+            ? "Saved in this device's database. Fully offline operation does not synchronize."
+            : "Saved durably on this device. It is not a canonical invoice and remains pending synchronization."
+        }
       >
         {provisionalReceipt && (
           <div className="invoice-preview-body">
             <InvoiceReceipt
               invoice={{
                 id: provisionalReceipt.provisional_id,
-                number: "PENDING SYNCHRONIZATION",
-                customer: provisionalReceipt.customer_name || "Walk-in customer",
+                number: provisionalReceipt.order_number ?? "PENDING SYNCHRONIZATION",
+                customer: provisionalReceipt.customer_name ?? null,
                 customerPhone: provisionalReceipt.customer_phone,
                 currencyCode: provisionalReceipt.snapshot.currency_code,
                 shopName: currentShop?.name,
@@ -911,10 +1037,12 @@ export function PosPage() {
                 shopTimezone: currentShop?.timezone,
                 deliveryName: provisionalReceipt.delivery?.name,
                 deliveryContact: provisionalReceipt.delivery?.contact_info,
+                deliveryFee: Number(provisionalReceipt.delivery_fee ?? 0),
+                deliveryPaymentStatus: provisionalReceipt.delivery_payment_status,
                 note: provisionalReceipt.note,
                 paymentType: `${provisionalReceipt.payment.method} · ${provisionalReceipt.payment.status.replaceAll("_", " ")}`,
                 createdAt: provisionalReceipt.saved_at,
-                status: "Pending",
+                status: provisionalReceipt.payment.status === "CAPTURED" ? "Paid" : "Pending",
                 subtotal: Number(provisionalReceipt.snapshot.subtotal),
                 discount: Number(provisionalReceipt.snapshot.discount_total),
                 tax: Number(provisionalReceipt.snapshot.tax_total),
@@ -964,8 +1092,8 @@ export function PosPage() {
               {item.lastError && <small className="sync-status-error">{item.lastError}</small>}
               {Boolean(item.serverPayload?.review_required) && (
                 <small>
-                  Server totals differ. Review the authoritative quote in the synchronization panel
-                  before taking corrective action.
+                  Server totals or delivery payment defaults differ. Review the authoritative quote
+                  in the synchronization panel before taking corrective action.
                 </small>
               )}
               {(() => {
@@ -976,7 +1104,7 @@ export function PosPage() {
                 return canonical?.id ? (
                   <button
                     className="button button-secondary"
-                    onClick={() => router.push(`/invoices?invoice=${canonical.id}`)}
+                    onClick={() => router.push(`/transaction-history?invoice=${canonical.id}`)}
                   >
                     Open {canonical.order_number ?? "canonical invoice"}
                   </button>

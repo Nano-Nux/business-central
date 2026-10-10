@@ -6,22 +6,23 @@ import (
 )
 
 type Shop struct {
-	ID               string          `json:"id"`
-	MerchantID       string          `json:"merchant_id"`
-	BusinessTypeID   *string         `json:"business_type_id,omitempty"`
-	BusinessTypeName string          `json:"business_type_name,omitempty"`
-	Name             string          `json:"name"`
-	Code             string          `json:"code"`
-	Address          json.RawMessage `json:"address"`
-	Timezone         *string         `json:"timezone,omitempty"`
-	IsActive         bool            `json:"is_active"`
-	ModuleCodes      []string        `json:"module_codes"`
-	IncludeTax       bool            `json:"include_tax"`
-	TaxRate          string          `json:"tax_rate"`
-	TaxLabel         string          `json:"tax_label"`
-	ReceiptNote      string          `json:"receipt_note"`
-	FooterNote       string          `json:"footer_note"`
-	SyncVersion      int64           `json:"sync_version"`
+	DeliveryPaymentStatusAutoComplete bool            `json:"delivery_payment_status_auto_complete"`
+	ID                                string          `json:"id"`
+	MerchantID                        string          `json:"merchant_id"`
+	BusinessTypeID                    *string         `json:"business_type_id,omitempty"`
+	BusinessTypeName                  string          `json:"business_type_name,omitempty"`
+	Name                              string          `json:"name"`
+	Code                              string          `json:"code"`
+	Address                           json.RawMessage `json:"address"`
+	Timezone                          *string         `json:"timezone,omitempty"`
+	IsActive                          bool            `json:"is_active"`
+	ModuleCodes                       []string        `json:"module_codes"`
+	IncludeTax                        bool            `json:"include_tax"`
+	TaxRate                           string          `json:"tax_rate"`
+	TaxLabel                          string          `json:"tax_label"`
+	ReceiptNote                       string          `json:"receipt_note"`
+	FooterNote                        string          `json:"footer_note"`
+	SyncVersion                       int64           `json:"sync_version"`
 }
 type Location struct {
 	ID           string  `json:"id"`
@@ -55,18 +56,19 @@ type Session struct {
 	Variance     *string    `json:"variance,omitempty"`
 }
 type ShopRequest struct {
-	BusinessTypeID *string         `json:"business_type_id,omitempty"`
-	Name           string          `json:"name"`
-	Code           string          `json:"code"`
-	Address        json.RawMessage `json:"address,omitempty"`
-	Timezone       *string         `json:"timezone,omitempty"`
-	IsActive       *bool           `json:"is_active,omitempty"`
-	ModuleCodes    []string        `json:"module_codes,omitempty"`
-	IncludeTax     *bool           `json:"include_tax,omitempty"`
-	TaxRate        *string         `json:"tax_rate,omitempty"`
-	TaxLabel       *string         `json:"tax_label,omitempty"`
-	ReceiptNote    *string         `json:"receipt_note,omitempty"`
-	FooterNote     *string         `json:"footer_note,omitempty"`
+	DeliveryPaymentStatusAutoComplete *bool           `json:"delivery_payment_status_auto_complete,omitempty"`
+	BusinessTypeID                    *string         `json:"business_type_id,omitempty"`
+	Name                              string          `json:"name"`
+	Code                              string          `json:"code"`
+	Address                           json.RawMessage `json:"address,omitempty"`
+	Timezone                          *string         `json:"timezone,omitempty"`
+	IsActive                          *bool           `json:"is_active,omitempty"`
+	ModuleCodes                       []string        `json:"module_codes,omitempty"`
+	IncludeTax                        *bool           `json:"include_tax,omitempty"`
+	TaxRate                           *string         `json:"tax_rate,omitempty"`
+	TaxLabel                          *string         `json:"tax_label,omitempty"`
+	ReceiptNote                       *string         `json:"receipt_note,omitempty"`
+	FooterNote                        *string         `json:"footer_note,omitempty"`
 }
 type Delivery struct {
 	ID          string    `json:"id"`
@@ -141,26 +143,42 @@ type CatalogItem struct {
 }
 
 type SaleLineRequest struct {
-	VariantID string `json:"variant_id"`
-	Quantity  string `json:"quantity"`
-	AssetID   string `json:"asset_id,omitempty"`
+	CorrectionPrice    string `json:"-"`
+	CorrectionDiscount string `json:"-"`
+	CorrectionTax      string `json:"-"`
+	VariantID          string `json:"variant_id"`
+	Quantity           string `json:"quantity"`
+	AssetID            string `json:"asset_id,omitempty"`
 }
 
 type CreateSaleRequest struct {
-	ShopID          string            `json:"shop_id,omitempty"`
-	LocationID      string            `json:"location_id,omitempty"`
-	CustomerID      string            `json:"customer_id,omitempty"`
-	CustomerName    string            `json:"customer_name,omitempty"`
-	CustomerPhone   string            `json:"customer_phone,omitempty"`
-	DeliveryID      string            `json:"delivery_id,omitempty"`
-	DeliveryFee     string            `json:"delivery_fee,omitempty"`
-	ManualPromotion string            `json:"manual_promotion,omitempty"`
-	Note            string            `json:"note,omitempty"`
-	PromotionID     string            `json:"promotion_id,omitempty"`
-	PaymentTypeID   string            `json:"payment_type_id,omitempty"`
-	PaymentMethod   string            `json:"payment_method"`
-	IdempotencyKey  string            `json:"idempotency_key"`
-	Lines           []SaleLineRequest `json:"lines"`
+	CorrectionCurrency    string            `json:"-"`
+	CorrectionID          string            `json:"-"`
+	CorrectionNumber      string            `json:"-"`
+	DeliveryPaymentStatus string            `json:"delivery_payment_status,omitempty"`
+	ShopID                string            `json:"shop_id,omitempty"`
+	LocationID            string            `json:"location_id,omitempty"`
+	CustomerID            string            `json:"customer_id,omitempty"`
+	CustomerName          string            `json:"customer_name,omitempty"`
+	CustomerPhone         string            `json:"customer_phone,omitempty"`
+	DeliveryID            string            `json:"delivery_id,omitempty"`
+	DeliveryFee           string            `json:"delivery_fee,omitempty"`
+	ManualPromotion       string            `json:"manual_promotion,omitempty"`
+	Note                  string            `json:"note,omitempty"`
+	PromotionID           string            `json:"promotion_id,omitempty"`
+	PaymentTypeID         string            `json:"payment_type_id,omitempty"`
+	PaymentMethod         string            `json:"payment_method"`
+	IdempotencyKey        string            `json:"idempotency_key"`
+	Lines                 []SaleLineRequest `json:"lines"`
+}
+
+type DeliveryPaymentRequest struct {
+	DeliveryPaymentStatus string `json:"delivery_payment_status"`
+	ExpectedStatus        string `json:"expected_status"`
+	IdempotencyKey        string `json:"idempotency_key"`
+}
+type DeliveryPaymentResult struct {
+	DeliveryPaymentStatus string `json:"delivery_payment_status"`
 }
 
 type CreateRefundRequest struct {
@@ -182,15 +200,16 @@ type Refund struct {
 }
 
 type SaleOrder struct {
-	ID            string    `json:"id"`
-	OrderNumber   string    `json:"order_number"`
-	Status        string    `json:"status"`
-	CurrencyCode  string    `json:"currency_code"`
-	Subtotal      string    `json:"subtotal"`
-	DiscountTotal string    `json:"discount_total"`
-	TaxTotal      string    `json:"tax_total"`
-	GrandTotal    string    `json:"grand_total"`
-	CreatedAt     time.Time `json:"created_at"`
+	DeliveryPaymentStatus string    `json:"delivery_payment_status,omitempty"`
+	ID                    string    `json:"id"`
+	OrderNumber           string    `json:"order_number"`
+	Status                string    `json:"status"`
+	CurrencyCode          string    `json:"currency_code"`
+	Subtotal              string    `json:"subtotal"`
+	DiscountTotal         string    `json:"discount_total"`
+	TaxTotal              string    `json:"tax_total"`
+	GrandTotal            string    `json:"grand_total"`
+	CreatedAt             time.Time `json:"created_at"`
 }
 
 type SaleQuote struct {
@@ -236,38 +255,67 @@ type InvoiceWorkItem struct {
 }
 
 type Invoice struct {
-	ID               string            `json:"id"`
-	Number           string            `json:"number"`
-	Customer         *string           `json:"customer"`
-	Channel          string            `json:"channel"`
-	CustomerPhone    *string           `json:"customer_phone,omitempty"`
-	MerchantName     string            `json:"merchant_name"`
-	ShopName         *string           `json:"shop_name,omitempty"`
-	ShopID           *string           `json:"shop_id,omitempty"`
-	ShopLogoURL      *string           `json:"shop_logo_url,omitempty"`
-	ShowShopLogo     bool              `json:"show_shop_logo"`
-	CurrencyCode     string            `json:"currency_code"`
-	CreatedAt        time.Time         `json:"created_at"`
-	Status           string            `json:"status"`
-	Kind             string            `json:"kind"`
-	TicketStatus     *string           `json:"ticket_status,omitempty"`
-	PaymentStatus    *string           `json:"payment_status,omitempty"`
-	WaitingStartDate string            `json:"waiting_start_date,omitempty"`
-	WaitingEndDate   string            `json:"waiting_end_date,omitempty"`
-	WaitingDays      int               `json:"waiting_days,omitempty"`
-	Subtotal         string            `json:"subtotal"`
-	DiscountTotal    string            `json:"discount_total"`
-	TaxTotal         string            `json:"tax_total"`
-	GrandTotal       string            `json:"grand_total"`
-	DeliveryName     *string           `json:"delivery_name,omitempty"`
-	DeliveryFee      string            `json:"delivery_fee"`
-	DeliveryContact  *string           `json:"delivery_contact,omitempty"`
-	Note             *string           `json:"note,omitempty"`
-	PaymentType      *string           `json:"payment_type,omitempty"`
-	TaxLabel         string            `json:"tax_label"`
-	ReceiptNote      string            `json:"receipt_note"`
-	FooterNote       string            `json:"footer_note"`
-	Items            []InvoiceLine     `json:"items"`
-	WorkItems        []InvoiceWorkItem `json:"work_items,omitempty"`
-	TicketFields     json.RawMessage   `json:"ticket_fields,omitempty"`
+	DeliveryPaymentStatus string            `json:"delivery_payment_status,omitempty"`
+	ID                    string            `json:"id"`
+	Number                string            `json:"number"`
+	Customer              *string           `json:"customer"`
+	Channel               string            `json:"channel"`
+	CustomerPhone         *string           `json:"customer_phone,omitempty"`
+	MerchantName          string            `json:"merchant_name"`
+	ShopName              *string           `json:"shop_name,omitempty"`
+	ShopID                *string           `json:"shop_id,omitempty"`
+	ShopLogoURL           *string           `json:"shop_logo_url,omitempty"`
+	ShowShopLogo          bool              `json:"show_shop_logo"`
+	CurrencyCode          string            `json:"currency_code"`
+	CreatedAt             time.Time         `json:"created_at"`
+	Status                string            `json:"status"`
+	Kind                  string            `json:"kind"`
+	TicketStatus          *string           `json:"ticket_status,omitempty"`
+	PaymentStatus         *string           `json:"payment_status,omitempty"`
+	WaitingStartDate      string            `json:"waiting_start_date,omitempty"`
+	WaitingEndDate        string            `json:"waiting_end_date,omitempty"`
+	WaitingDays           int               `json:"waiting_days,omitempty"`
+	Subtotal              string            `json:"subtotal"`
+	DiscountTotal         string            `json:"discount_total"`
+	TaxTotal              string            `json:"tax_total"`
+	GrandTotal            string            `json:"grand_total"`
+	DeliveryName          *string           `json:"delivery_name,omitempty"`
+	DeliveryFee           string            `json:"delivery_fee"`
+	DeliveryContact       *string           `json:"delivery_contact,omitempty"`
+	Note                  *string           `json:"note,omitempty"`
+	PaymentType           *string           `json:"payment_type,omitempty"`
+	TaxLabel              string            `json:"tax_label"`
+	ReceiptNote           string            `json:"receipt_note"`
+	FooterNote            string            `json:"footer_note"`
+	Items                 []InvoiceLine     `json:"items"`
+	WorkItems             []InvoiceWorkItem `json:"work_items,omitempty"`
+	TicketFields          json.RawMessage   `json:"ticket_fields,omitempty"`
+}
+
+type TransactionLineRequest struct {
+	VariantID      string `json:"variant_id"`
+	AssetID        string `json:"asset_id,omitempty"`
+	Quantity       string `json:"quantity"`
+	UnitPrice      string `json:"unit_price"`
+	DiscountAmount string `json:"discount_amount"`
+	TaxAmount      string `json:"tax_amount"`
+}
+type TransactionEditRequest struct {
+	IdempotencyKey        string                   `json:"idempotency_key"`
+	ExpectedUpdatedAt     string                   `json:"expected_updated_at"`
+	ShopID                string                   `json:"shop_id"`
+	CustomerName          string                   `json:"customer_name"`
+	CustomerPhone         string                   `json:"customer_phone"`
+	Note                  string                   `json:"note"`
+	PaymentMethod         string                   `json:"payment_method"`
+	DeliveryName          string                   `json:"delivery_name"`
+	DeliveryContact       string                   `json:"delivery_contact"`
+	DeliveryFee           string                   `json:"delivery_fee"`
+	DeliveryPaymentStatus string                   `json:"delivery_payment_status"`
+	Lines                 []TransactionLineRequest `json:"lines"`
+}
+type TransactionDeleteRequest struct {
+	IdempotencyKey    string `json:"idempotency_key"`
+	ExpectedUpdatedAt string `json:"expected_updated_at"`
+	ShopID            string `json:"shop_id"`
 }

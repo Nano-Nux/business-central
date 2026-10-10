@@ -32,7 +32,7 @@ export function QuickGuideModal({ isOpen, onClose }: { isOpen: boolean; onClose:
           width: "100%",
           maxHeight: "88vh",
           overflowY: "auto",
-          padding: "1.75rem",
+          padding: "var(--space-panel)",
           borderRadius: "14px",
           boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
         }}
@@ -45,7 +45,7 @@ export function QuickGuideModal({ isOpen, onClose }: { isOpen: boolean; onClose:
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-start",
-            marginBottom: "1.25rem",
+            marginBottom: "var(--space-panel)",
           }}
         >
           <div>
@@ -70,7 +70,12 @@ export function QuickGuideModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         </div>
 
         <div
-          style={{ display: "flex", flexDirection: "column", gap: "1.25rem", margin: "1.5rem 0" }}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-panel)",
+            margin: "1.5rem 0",
+          }}
         >
           {/* POS Guide */}
           <div

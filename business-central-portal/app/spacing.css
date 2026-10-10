@@ -1,0 +1,16 @@
+/* Shared workspace rhythm; themes continue to own color and typography. */
+:root {
+  --space-page: clamp(16px, 1.5vw, 24px);
+  --space-panel: 16px;
+  --space-section: 16px;
+  --space-grid: 12px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --space-page: 12px;
+    --space-panel: 12px;
+    --space-section: 12px;
+    --space-grid: 10px;
+  }
+}

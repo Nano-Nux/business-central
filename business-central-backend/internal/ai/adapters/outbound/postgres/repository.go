@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"business-central-backend/internal/ai/domain"
 	"business-central-backend/internal/ai/ports/outbound"
+	"business-central-backend/internal/app"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -22,11 +24,24 @@ func NewRepository(pool *pgxpool.Pool) outbound.Repository {
 }
 
 func (r *Repository) CreateConversation(ctx context.Context, merchantID, membershipID string, shopID *string, title string) (domain.Conversation, error) {
+	tx, err := r.beginActorTx(ctx, merchantID, false)
+	if err != nil {
+		return domain.Conversation{}, err
+	}
+	defer tx.Rollback(ctx)
+	if shopID == nil || strings.TrimSpace(*shopID) == "" {
+		err = app.NewError("SHOP_REQUIRED", "Select a shop before using AI chat.", 400)
+		return domain.Conversation{}, err
+	}
+	if err = authorizeShop(ctx, tx, merchantID, membershipID, *shopID, outbound.ActorIdentity(ctx)); err != nil {
+		return domain.Conversation{}, err
+	}
+
 	if strings.TrimSpace(title) == "" {
 		title = "New Conversation"
 	}
 	var c domain.Conversation
-	err := r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		WITH inserted AS (
 			INSERT INTO ai_conversations (merchant_id, membership_id, shop_id, title)
 			VALUES ($1::uuid, $2::uuid, $3::uuid, $4)
@@ -36,12 +51,21 @@ func (r *Repository) CreateConversation(ctx context.Context, merchantID, members
 		FROM inserted i
 		LEFT JOIN shops s ON s.id = i.shop_id AND s.merchant_id = i.merchant_id
 	`, merchantID, membershipID, shopID, title).Scan(&c.ID, &c.MerchantID, &c.MembershipID, &c.ShopID, &c.ShopName, &c.Title, &c.CreatedAt, &c.UpdatedAt)
-	return c, err
+	if err != nil {
+		return c, err
+	}
+	return c, tx.Commit(ctx)
 }
 
 func (r *Repository) GetConversation(ctx context.Context, merchantID, membershipID, id string) (domain.Conversation, error) {
+	tx, err := r.beginActorTx(ctx, merchantID, true)
+	if err != nil {
+		return domain.Conversation{}, err
+	}
+	defer tx.Rollback(ctx)
+
 	var c domain.Conversation
-	err := r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT c.id, c.merchant_id, c.membership_id, c.shop_id, s.name, c.title, c.created_at, c.updated_at
 		FROM ai_conversations c
 		LEFT JOIN shops s ON s.id = c.shop_id AND s.merchant_id = c.merchant_id
@@ -51,6 +75,19 @@ func (r *Repository) GetConversation(ctx context.Context, merchantID, membership
 }
 
 func (r *Repository) ListConversations(ctx context.Context, merchantID, membershipID string, shopID *string, limit int) ([]domain.Conversation, error) {
+	tx, err := r.beginActorTx(ctx, merchantID, true)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	if shopID == nil || strings.TrimSpace(*shopID) == "" {
+		err = app.NewError("SHOP_REQUIRED", "Select a shop before using AI chat.", 400)
+		return nil, err
+	}
+	if err = authorizeShop(ctx, tx, merchantID, membershipID, *shopID, outbound.ActorIdentity(ctx)); err != nil {
+		return nil, err
+	}
+
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
@@ -68,7 +105,7 @@ func (r *Repository) ListConversations(ctx context.Context, merchantID, membersh
 	query += fmt.Sprintf(" ORDER BY c.updated_at DESC LIMIT $%d", len(args)+1)
 	args = append(args, limit)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,25 +123,31 @@ func (r *Repository) ListConversations(ctx context.Context, merchantID, membersh
 }
 
 func (r *Repository) UpdateConversationTitle(ctx context.Context, merchantID, membershipID, id, title string) error {
-	_, err := r.pool.Exec(ctx, `
+	tx, err := r.beginActorTx(ctx, merchantID, false)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
 		UPDATE ai_conversations
 		SET title = $4, updated_at = now()
 		WHERE id = $1::uuid AND merchant_id = $2::uuid AND membership_id = $3::uuid
 	`, id, merchantID, membershipID, title)
-	return err
-}
-
-func (r *Repository) UpdateConversationShop(ctx context.Context, merchantID, membershipID, id, shopID string) error {
-	_, err := r.pool.Exec(ctx, `
-		UPDATE ai_conversations
-		SET shop_id = $4::uuid, updated_at = now()
-		WHERE id = $1::uuid AND merchant_id = $2::uuid AND membership_id = $3::uuid
-	`, id, merchantID, membershipID, shopID)
-	return err
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) DeleteConversation(ctx context.Context, merchantID, membershipID, id string) error {
-	cmdTag, err := r.pool.Exec(ctx, `
+	tx, err := r.beginActorTx(ctx, merchantID, false)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	cmdTag, err := tx.Exec(ctx, `
 		DELETE FROM ai_conversations
 		WHERE id = $1::uuid AND merchant_id = $2::uuid AND membership_id = $3::uuid
 	`, id, merchantID, membershipID)
@@ -114,14 +157,20 @@ func (r *Repository) DeleteConversation(ctx context.Context, merchantID, members
 	if cmdTag.RowsAffected() == 0 {
 		return errors.New("conversation not found or not owned by user")
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) SaveMessage(ctx context.Context, msg domain.Message) (domain.Message, error) {
+	tx, err := r.beginActorTx(ctx, msg.MerchantID, false)
+	if err != nil {
+		return domain.Message{}, err
+	}
+	defer tx.Rollback(ctx)
+
 	var saved domain.Message
-	err := r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO ai_messages (conversation_id, merchant_id, membership_id, sender_type, content, raw_query_data)
-		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6)
+		SELECT c.id,$2::uuid,$3::uuid,$4,$5,$6 FROM ai_conversations c WHERE c.id=$1::uuid AND c.merchant_id=$2::uuid AND c.membership_id=$3::uuid
 		RETURNING id, conversation_id, merchant_id, membership_id, sender_type, content, raw_query_data, created_at
 	`, msg.ConversationID, msg.MerchantID, msg.MembershipID, msg.SenderType, msg.Content, msg.RawQueryData).
 		Scan(&saved.ID, &saved.ConversationID, &saved.MerchantID, &saved.MembershipID, &saved.SenderType, &saved.Content, &saved.RawQueryData, &saved.CreatedAt)
@@ -130,13 +179,19 @@ func (r *Repository) SaveMessage(ctx context.Context, msg domain.Message) (domai
 	}
 
 	// Touch the conversation updated_at
-	_, _ = r.pool.Exec(ctx, `UPDATE ai_conversations SET updated_at = now() WHERE id = $1::uuid`, msg.ConversationID)
+	_, _ = tx.Exec(ctx, `UPDATE ai_conversations SET updated_at = now() WHERE id = $1::uuid AND merchant_id=$2::uuid AND membership_id=$3::uuid`, msg.ConversationID, msg.MerchantID, msg.MembershipID)
 
-	return saved, nil
+	return saved, tx.Commit(ctx)
 }
 
 func (r *Repository) ListMessages(ctx context.Context, merchantID, membershipID, conversationID string) ([]domain.Message, error) {
-	rows, err := r.pool.Query(ctx, `
+	tx, err := r.beginActorTx(ctx, merchantID, true)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
 		SELECT id, conversation_id, merchant_id, membership_id, sender_type, content, raw_query_data, created_at
 		FROM ai_messages
 		WHERE conversation_id = $1::uuid AND merchant_id = $2::uuid AND membership_id = $3::uuid
@@ -158,59 +213,95 @@ func (r *Repository) ListMessages(ctx context.Context, merchantID, membershipID,
 	return messages, rows.Err()
 }
 
-func (r *Repository) ExecuteReadOnlyQuery(ctx context.Context, merchantID, userID, sqlQuery string, isStaff bool) ([]map[string]any, error) {
-	sanitizedSQL, err := ValidateReadOnlyQuery(sqlQuery, merchantID, isStaff)
+// AuthorizeShop checks current database membership rather than trusting a client
+// shop ID or a stale token. The same check runs again inside every data read.
+func authorizeShop(ctx context.Context, tx pgx.Tx, merchantID, membershipID, shopID, identityID string) error {
+	var allowed bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS (
+ SELECT 1 FROM shops s JOIN merchants m ON m.id=s.merchant_id JOIN user_memberships um ON um.merchant_id=s.merchant_id
+ WHERE s.merchant_id=$1::uuid AND s.id=$2::uuid AND s.is_active AND m.is_active
+ AND um.id=$3::uuid AND um.identity_id=$4::uuid AND um.is_active AND (um.shop_id IS NULL OR um.shop_id=s.id))`, merchantID, shopID, membershipID, identityID).Scan(&allowed)
 	if err != nil {
-		return nil, fmt.Errorf("invalid read-only query: %w", err)
+		return fmt.Errorf("authorize shop: %w", err)
 	}
-
+	if !allowed {
+		return errors.New("shop not accessible")
+	}
+	return nil
+}
+func (r *Repository) AuthorizeShop(ctx context.Context, merchantID, membershipID, shopID string) error {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return nil, fmt.Errorf("begin read-only transaction: %w", err)
+		return err
 	}
 	defer tx.Rollback(ctx)
-
-	// Set tenant context and 5-second statement timeout
-	_, err = tx.Exec(ctx, "SELECT set_config('app.merchant_id', $1, true), set_config('app.user_id', $2, true), set_config('statement_timeout', '5000', true)", merchantID, userID)
-	if err != nil {
-		return nil, fmt.Errorf("configure tenant context: %w", err)
+	if _, err = tx.Exec(ctx, "SELECT set_config('app.merchant_id',$1,true),set_config('app.user_id',$2,true)", merchantID, outbound.ActorIdentity(ctx)); err != nil {
+		return err
 	}
-
-	// Limit to max 100 rows to ensure safe memory and payload sizes
-	wrappedQuery := fmt.Sprintf("WITH _query_result AS (%s) SELECT * FROM _query_result LIMIT 100", sanitizedSQL)
-
-	rows, err := tx.Query(ctx, wrappedQuery)
+	return authorizeShop(ctx, tx, merchantID, membershipID, shopID, outbound.ActorIdentity(ctx))
+}
+func (r *Repository) ExecuteReadOnlyQuery(ctx context.Context, merchantID, membershipID, shopID, userID string, query domain.ReadQuery, isStaff bool) ([]map[string]any, error) {
+	sql, args, err := CompileReadQuery(query, merchantID, shopID, isStaff)
 	if err != nil {
-		return nil, fmt.Errorf("execute query: %w", err)
+		return nil, fmt.Errorf("invalid read request: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, "SELECT set_config('app.merchant_id',$1,true), set_config('app.user_id',$2,true), set_config('statement_timeout','5000',true), set_config('lock_timeout','1000',true)", merchantID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err = authorizeShop(ctx, tx, merchantID, membershipID, shopID, userID); err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("execute scoped read: %w", err)
 	}
 	defer rows.Close()
-
 	fields := rows.FieldDescriptions()
 	results := make([]map[string]any, 0)
-
+	payloadBytes := 0
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
-			return nil, fmt.Errorf("scan row values: %w", err)
+			return nil, err
 		}
-		rowMap := make(map[string]any, len(fields))
+		row := make(map[string]any, len(fields))
 		for i, field := range fields {
 			val := values[i]
-			// Format byte slices as string if encountered
 			if b, ok := val.([]byte); ok {
 				val = string(b)
 			}
-			rowMap[field.Name] = val
+			row[field.Name] = val
 		}
-		results = append(results, rowMap)
+		encoded, err := json.Marshal(row)
+		if err != nil {
+			return nil, err
+		}
+		payloadBytes += len(encoded)
+		if payloadBytes > 128*1024 {
+			return nil, errors.New("read result exceeds safe payload size")
+		}
+		results = append(results, row)
 	}
-
 	return results, rows.Err()
 }
 
 func (r *Repository) IsAIAssistantEnabled(ctx context.Context, merchantID string) (bool, error) {
+	tx, err := r.beginActorTx(ctx, merchantID, true)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback(ctx)
+
 	var enabled bool
-	err := r.pool.QueryRow(ctx, `SELECT COALESCE(ai_assistant_enabled, false) FROM merchants WHERE id = $1::uuid`, merchantID).Scan(&enabled)
+	err = tx.QueryRow(ctx, `SELECT COALESCE(ai_assistant_enabled, false) FROM merchants WHERE id = $1::uuid`, merchantID).Scan(&enabled)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -218,8 +309,14 @@ func (r *Repository) IsAIAssistantEnabled(ctx context.Context, merchantID string
 }
 
 func (r *Repository) GetAIUsage(ctx context.Context, merchantID string) (int, int, error) {
+	tx, err := r.beginActorTx(ctx, merchantID, true)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback(ctx)
+
 	var usageCount, usageLimit int
-	err := r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT COALESCE(ai_usage_count, 0), COALESCE(ai_usage_limit, 50)
 		FROM merchants
 		WHERE id = $1::uuid
@@ -231,23 +328,47 @@ func (r *Repository) GetAIUsage(ctx context.Context, merchantID string) (int, in
 }
 
 func (r *Repository) IncrementAIUsage(ctx context.Context, merchantID string) (int, error) {
+	tx, err := r.beginActorTx(ctx, merchantID, false)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
 	var newCount int
-	err := r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		UPDATE merchants
 		SET ai_usage_count = COALESCE(ai_usage_count, 0) + 1, updated_at = now()
-		WHERE id = $1::uuid
+		WHERE id = $1::uuid AND COALESCE(ai_usage_count,0)<COALESCE(ai_usage_limit,50)
 		RETURNING ai_usage_count
 	`, merchantID).Scan(&newCount)
-	return newCount, err
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, app.NewError("AI_USAGE_LIMIT_EXCEEDED", "Nanonux AI Assistant usage limit reached.", 403)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return newCount, tx.Commit(ctx)
 }
 
 func (r *Repository) GetMerchantContext(ctx context.Context, merchantID string) (currency string, merchantName string, err error) {
-	err = r.pool.QueryRow(ctx, `SELECT COALESCE(default_currency_code, 'USD'), COALESCE(name, 'Store') FROM merchants WHERE id = $1::uuid`, merchantID).Scan(&currency, &merchantName)
+	tx, err := r.beginActorTx(ctx, merchantID, true)
+	if err != nil {
+		return "", "", err
+	}
+	defer tx.Rollback(ctx)
+
+	err = tx.QueryRow(ctx, `SELECT COALESCE(default_currency_code, 'USD'), COALESCE(name, 'Store') FROM merchants WHERE id = $1::uuid`, merchantID).Scan(&currency, &merchantName)
 	return currency, merchantName, err
 }
 
 func (r *Repository) GetShopContext(ctx context.Context, merchantID, shopID string) (shopName string, shopCode string, err error) {
-	err = r.pool.QueryRow(ctx, `SELECT COALESCE(name, 'Shop'), COALESCE(code, '') FROM shops WHERE id = $1::uuid AND merchant_id = $2::uuid`, shopID, merchantID).Scan(&shopName, &shopCode)
+	tx, err := r.beginActorTx(ctx, merchantID, true)
+	if err != nil {
+		return "", "", err
+	}
+	defer tx.Rollback(ctx)
+
+	err = tx.QueryRow(ctx, `SELECT COALESCE(name, 'Shop'), COALESCE(code, '') FROM shops WHERE id = $1::uuid AND merchant_id = $2::uuid`, shopID, merchantID).Scan(&shopName, &shopCode)
 	return shopName, shopCode, err
 }
 
@@ -390,3 +511,19 @@ func (r *Repository) ListAIDeletionLogs(ctx context.Context, limit int) ([]domai
 	return logs, rows.Err()
 }
 
+func (r *Repository) beginActorTx(ctx context.Context, merchantID string, readOnly bool) (pgx.Tx, error) {
+	options := pgx.TxOptions{}
+	if readOnly {
+		options.AccessMode = pgx.ReadOnly
+	}
+	tx, err := r.pool.BeginTx(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	_, err = tx.Exec(ctx, "SELECT set_config('app.merchant_id',$1,true),set_config('app.user_id',$2,true)", merchantID, outbound.ActorIdentity(ctx))
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, err
+	}
+	return tx, nil
+}

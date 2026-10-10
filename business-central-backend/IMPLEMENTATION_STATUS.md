@@ -29,7 +29,7 @@ Last reviewed: 2026-08-27
 - The backend now uses context-first DDD + Hexagonal packages: each of `internal/auth`, `internal/catalog`, `internal/pos`, `internal/operations`, `internal/reports`, and `internal/services` owns `domain`, `application`, `ports`, and inbound/outbound adapters; global HTTP composition is under `internal/adapters/inbound/http`, with dependency composition in `cmd/server/main.go`.
 - Catalog, POS, pricing, promotion, and inventory use cases apply domain validation before calling outbound ports. Product create/update saves hierarchical category selections atomically and product reads expose assignment IDs/names for portal editing. Domain tests cover product defaults, variant invariants, POS session transitions, pricing normalization, and inventory command requirements.
 - Product pricing now has one canonical row per merchant price list and sellable variant. Direct upserts update that row, synchronization rejects duplicate creates, and migration `0027_one_price_per_variant` enforces the invariant in PostgreSQL.
-- Merchant POS complexity is stored canonically as SIMPLE, COMPLEX, or MINI. Migration `0022_pos_complexity_level` and `0042_pos_mini_mode` enforce this level. In MINI mode, a default unit 'Pcs' ('PCS') without decimals and a 'RETAIL' price list are provisioned automatically if absent. Product creation defaults to PHYSICAL, combines direct original price (cost on standard variant) and sell price (in default retail price list), and hides standalone unit and pricing pages. Direct stock-in automatically falls back to product original cost, stock barcodes are hidden, and repair operations are consolidated under a unified Repair Hub.
+- Merchant POS complexity is stored canonically as NANO, MINI, SIMPLE, or COMPLEX; new merchants default to NANO. Migration `0022_pos_complexity_level` `0042_pos_mini_mode`, and `0053_pos_nano_mode` enforce this level. In MINI mode, a default unit 'Pcs' ('PCS') without decimals and a 'RETAIL' price list are provisioned automatically if absent. Product creation defaults to PHYSICAL, combines direct original price (cost on standard variant) and sell price (in default retail price list), and hides standalone unit and pricing pages. Direct stock-in automatically falls back to product original cost, stock barcodes are hidden, and repair operations are consolidated under a unified Repair Hub.
 - Merchant pricing model is recorded canonically in `merchants.business_central_pricing_model` as `starter`, `growth`, `professional`, or `enterprise` (defaulting to `starter`). Migration `0043_business_central_pricing_model` enforces this check constraint and backfills existing production data. It is assigned during merchant account/user provisioning and can be updated by platform administrators.
 - Product deletion treats variants and configuration as aggregate children: unused products, including SIMPLE and MINI products with a managed standard variant, delete atomically; stock or immutable business-history references reject the complete delete and require deactivation.
 - Product variant attributes now have merchant-scoped definition/value CRUD APIs, OpenAPI contracts, versioned synchronization entities, and server-side validation/storage for variant `attributes` values. The portal lets merchants configure reusable values and select them from dropdowns during variant creation, including configurable Color/RAM/length-style fields, and queues the same mutations while temporarily offline.
@@ -40,6 +40,7 @@ Last reviewed: 2026-08-27
 - The view-only Storage projection exposes RETAIL prices to merchant and staff users, scopes staff balances to their assigned shop, reserves weighted original cost/profit for the Merchant role, and supports global search plus partial per-column filters, sorting, and zero-based pagination. Optional product manufacture/expiration dates are preserved through online and synchronized product edits.
 - Services and repairs expose merchant-scoped CRUD APIs. Repair orders reference existing service orders and devices, while child records are constrained by their parent route and merchant scope.
 - Portal operations add current-merchant settings, shop-scoped POS catalog and reports, direct product stock-in with explicit or API-reused recent original unit cost, receivable purchase-order lines, server-calculated POS quotes, atomic/idempotent sale checkout, canonical invoices, and single-shop staff assignment. Direct and purchase-order stock receipts are idempotent and create canonical FIFO cost layers; the first receipt for a variant still requires an explicit cost.
+- Stock conversion migration `0052` adds merchant-scoped variant pack ratios and links applied transformations to rules. The new operation consumes unreserved source stock and FIFO cost, then creates destination stock with cent-preserving output cost tiers in one transaction. Merchant-only rule setup and staff/merchant shop-scoped posting use the same canonical variants in all POS modes. Configured-PostgreSQL end-to-end verification and mobile offline parity remain pending.
 - Creating a repair service order also creates its canonical `SERVICE` order. Marking a catalog part `USED` writes the order line, validates any product promotion, and consumes shop inventory in one transaction; completing the repair exposes the pending service invoice.
 - Initial repair intake uses one atomic and idempotent `POST /api/v1/repairs/tickets`. Device, canonical/service/repair orders, per-product quantities, authoritative final total, optional payment, and images commit together or roll back together; child POST APIs remain available for later lifecycle changes.
 - Multi-device repair intake is backward-compatible: callers may submit `work_items[]` with a stable ID, device, issue, and fee per item; the backend validates every item, creates all devices/work items in the same idempotent transaction, backfills existing tickets as one work item, and returns per-item financial projections. Service/part lines and captured payments are attributed to work items while canonical totals, payments, and refunds remain ticket-owned.
@@ -94,7 +95,7 @@ Last reviewed: 2026-08-27
 - The context application services currently preserve the existing endpoint-compatible method surface while delegating persistence through each context's outbound port. They should be split into smaller aggregate/table repositories as each bounded context gains new behavior.
 - Root context packages expose only thin DTO/type aliases for compatibility with existing admin, portal, mobile, and API tests. Canonical request/response DTOs and new command/query contracts live in each context's `application` package.
 - Generated clients
-- Domain-specific synchronization for refunds, inventory receiving/transfers/
+- Domain-specific synchronization for refunds, inventory transfers/generic
   adjustments, pricing/promotions, staff/permissions/modules, service billing,
   repair lifecycle deletes, work-item delete operations, mobile dynamic-form
   definition/value synchronization, and reversals
@@ -138,3 +139,29 @@ must correct the issue and send a new command. The existing outbox retries only
 receipt delivery for successfully committed orders, never the commerce operation.
 Turning OFF restores manual confirmation for subsequent orders. Existing pending
 orders remain pending, and already confirmed orders remain confirmed.
+
+## Storage stock management ? 2026-10-02
+
+The portal combines receiving and stock checking in Storage (/stock-in redirects there). Only active merchant/owner roles can receive or reduce stock and see original cost/profit. Staff, managers and custom roles cannot modify stock through Storage or the stock-in API, even with legacy stock_in permission. Reductions append audited immutable ADJUSTMENT movements and consume FIFO cost while preserving reservations. Portal reductions queue through deferred API replay; receipts retain typed synchronization with merchant-only role and shop checks. No schema migration is required; native mobile parity remains pending.
+
+Verified: gofmt, `go test ./...`, `go vet ./...`, the configured HTTP merchant provisioning/receiving integration flow, and the configured PostgreSQL stock reduction integration test using a non-superuser application role. Database coverage includes tenant/shop scope, original-price redaction, role expiry, reservation protection, concurrent reductions, FIFO allocation, audit/history publication and permanent idempotent retries. Generic reductions reject batch/expiry/serial/unique-asset inventory until a traceable workflow supplies its identity.
+
+- POS mode now accepts NANO/MINI/SIMPLE/COMPLEX. NANO is the new-merchant default in provisioning and migration `0053_pos_nano_mode`; existing merchant values are unchanged. Nano reuses Mini catalog provisioning and pricing without changing the stock ledger, tenant scope or sync schema.
+
+## Independent delivery payment
+
+Implemented for all four POS modes with scoped defaults, separate receipts,
+transaction detail edits, migration and offline/mobile parity. See
+[workflow and acceptance evidence](../DELIVERY_PAYMENT.md).
+
+POS/Telegram transaction corrections now have owner-only PATCH/DELETE routes,
+atomic stock/FIFO restoration and owned-history cleanup, optimistic versions and
+hashed idempotency. Migration 0055 preserves ledger guards outside the scoped
+order-delete trigger. Configured private-schema PostgreSQL tests cover edit,
+retry, stock rollback, merchant/staff scope, stale versions, refunds and deletion.
+Linked services and stock-return dependencies remain protected.
+
+
+## AI chat security refactor
+
+AI chat now uses structured read proposals and enforced shop relationships instead of model-generated SQL and regex checks. Customer/delivery fields are available; user and credential data are excluded. Legacy unscoped conversations are inaccessible. See [security limits and rollout](../AI_CHAT_SECURITY.md).

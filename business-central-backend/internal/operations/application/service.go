@@ -2,10 +2,14 @@ package application
 
 import (
 	"context"
+	"strings"
+
+	"github.com/google/uuid"
 
 	"business-central-backend/internal/app"
 	authdto "business-central-backend/internal/auth/application/dto"
 	operationsdto "business-central-backend/internal/operations/application/dto"
+	operationsdomain "business-central-backend/internal/operations/domain"
 	domainops "business-central-backend/internal/operations/domain/entities"
 	operationsinbound "business-central-backend/internal/operations/ports/inbound"
 	operationsoutbound "business-central-backend/internal/operations/ports/outbound"
@@ -99,6 +103,62 @@ func (s *Service) StockOut(ctx context.Context, claims *authdto.Claims, request 
 		return operationsdto.Movement{}, invalid("order_line_id, variant_id, source_location_id, quantity, and event_key are required.")
 	}
 	return s.Repository.StockOut(ctx, claims, request)
+}
+
+func (s *Service) ReduceStock(ctx context.Context, claims *authdto.Claims, request operationsdto.StockReductionRequest) (operationsdto.Movement, error) {
+	request.Quantity = strings.TrimSpace(request.Quantity)
+	request.Reason = strings.TrimSpace(request.Reason)
+	request.EventKey = strings.TrimSpace(request.EventKey)
+	if _, err := uuid.Parse(request.VariantID); err != nil {
+		return operationsdto.Movement{}, invalid("A valid product variant is required.")
+	}
+	if _, err := uuid.Parse(request.SourceLocationID); err != nil {
+		return operationsdto.Movement{}, invalid("A valid stock location is required.")
+	}
+	if err := operationsdomain.ValidateStockReduction(request.Quantity, request.Reason, request.EventKey); err != nil {
+		return operationsdto.Movement{}, invalid(err.Error())
+	}
+	return s.Repository.ReduceStock(ctx, claims, request)
+}
+
+func (s *Service) SaveStockConversionRule(ctx context.Context, claims *authdto.Claims, request operationsdto.StockConversionRuleRequest) (operationsdto.StockConversionRule, error) {
+	if strings.TrimSpace(request.SourceVariantID) == "" || strings.TrimSpace(request.DestinationVariantID) == "" || request.SourceVariantID == request.DestinationVariantID || request.DestinationQuantity < 1 || request.DestinationQuantity > 1000000 {
+		return operationsdto.StockConversionRule{}, invalid("Choose two different variants and a destination quantity from 1 to 1000000.")
+	}
+	if _, err := uuid.Parse(request.SourceVariantID); err != nil {
+		return operationsdto.StockConversionRule{}, invalid("source_variant_id must be a UUID.")
+	}
+	if _, err := uuid.Parse(request.DestinationVariantID); err != nil {
+		return operationsdto.StockConversionRule{}, invalid("destination_variant_id must be a UUID.")
+	}
+	return s.Repository.SaveStockConversionRule(ctx, claims, request)
+}
+
+func validateStockConversionRequest(request operationsdto.StockConversionRequest) error {
+	if strings.TrimSpace(request.RuleID) == "" || strings.TrimSpace(request.LocationID) == "" || request.Quantity < 1 || request.Quantity > 1000000 || len(request.Notes) > 2000 {
+		return invalid("rule_id, location_id, and a quantity from 1 to 1000000 are required; notes must be at most 2000 characters.")
+	}
+	if _, err := uuid.Parse(request.RuleID); err != nil {
+		return invalid("rule_id must be a UUID.")
+	}
+	if _, err := uuid.Parse(request.LocationID); err != nil {
+		return invalid("location_id must be a UUID.")
+	}
+	return nil
+}
+
+func (s *Service) ApplyStockConversion(ctx context.Context, claims *authdto.Claims, request operationsdto.StockConversionRequest) (operationsdto.StockConversion, error) {
+	if err := validateStockConversionRequest(request); err != nil {
+		return operationsdto.StockConversion{}, err
+	}
+	return s.Repository.ApplyStockConversion(ctx, claims, request)
+}
+
+func (s *Service) PreviewStockConversion(ctx context.Context, claims *authdto.Claims, request operationsdto.StockConversionRequest) (operationsdto.StockConversionPreview, error) {
+	if err := validateStockConversionRequest(request); err != nil {
+		return operationsdto.StockConversionPreview{}, err
+	}
+	return s.Repository.PreviewStockConversion(ctx, claims, request)
 }
 
 func (s *Service) ListTransactionHistory(ctx context.Context, claims *authdto.Claims, query app.ListQuery) ([]operationsdto.TransactionHistoryEntry, int, error) {

@@ -2,19 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Icon } from "./icons";
-import {
-  Badge,
-  Button,
-  EmptyState,
-  ListControls,
-  Loading,
-  Modal,
-  PageHeader,
-  Pagination,
-  useListPagination,
-} from "./ui";
+import { Button, EmptyState, Loading, Modal } from "./ui";
 import { useTranslation } from "@/lib/i18n";
 import { downloadInvoicePDF, invoiceCanvas } from "@/lib/invoice";
 import {
@@ -26,8 +14,6 @@ import {
 } from "@/lib/thermal-printer";
 import { useResource } from "@/lib/use-resource";
 import type { Invoice, Shop } from "@/lib/types";
-import { formatMoney } from "@/lib/currency";
-import { formatShopDateTime } from "@/lib/date-time";
 import { InvoiceReceipt } from "./invoice-receipt";
 import { useShop } from "@/lib/shop";
 import { formatShopAddress } from "@/lib/shop-address";
@@ -59,6 +45,7 @@ type ApiInvoice = {
   grand_total: string;
   delivery_name?: string;
   delivery_fee?: string;
+  delivery_payment_status?: Invoice["deliveryPaymentStatus"];
   delivery_contact?: string;
   note?: string;
   payment_type?: string;
@@ -108,7 +95,7 @@ function mapInvoice(item: ApiInvoice): Invoice {
   return {
     id: item.id,
     number: item.number,
-    customer: item.customer ?? "",
+    customer: item.customer ?? null,
     channel: item.channel,
     customerPhone: item.customer_phone,
     merchantName: item.merchant_name,
@@ -119,6 +106,7 @@ function mapInvoice(item: ApiInvoice): Invoice {
     showLogo: item.show_shop_logo,
     deliveryName: item.delivery_name,
     deliveryFee: Number(item.delivery_fee ?? 0),
+    deliveryPaymentStatus: item.delivery_payment_status,
     deliveryContact: item.delivery_contact,
     note: item.note,
     paymentType: item.payment_type,
@@ -180,15 +168,16 @@ function ThermalProof({ invoice, shop }: { invoice: Invoice; shop: Shop | null }
   ) : null;
 }
 
-export function InvoicesPage() {
+export function InvoiceDetailModal({
+  invoiceId,
+  onClose,
+}: {
+  invoiceId: string;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const { currentShop } = useShop();
-  const params = useSearchParams();
-  const resource = useResource<ApiInvoice>("/invoices?page_index=0&page_size=200");
-  const [manualSelection, setManualSelection] = useState("");
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("ALL");
-  const [sort, setSort] = useState("NEWEST");
+  const resource = useResource<ApiInvoice>("/invoices?page_index=0&page_size=200", undefined, true);
   const [message, setMessage] = useState("");
   const invoices = useMemo(
     () =>
@@ -222,7 +211,7 @@ export function InvoicesPage() {
                   workItem.model,
                 ]
                   .filter(Boolean)
-                  .join(" Â· "),
+                  .join(" · "),
               )
               .filter(Boolean)
               .join("; "),
@@ -248,37 +237,10 @@ export function InvoicesPage() {
       }),
     [currentShop, resource.data],
   );
-  const visible = useMemo(
-    () =>
-      invoices
-        .filter(
-          (item) =>
-            (!currentShop || item.shopId === currentShop.id) &&
-            `${item.number} ${item.customer}`.toLowerCase().includes(query.toLowerCase()) &&
-            (filter === "ALL" ||
-              filter === item.kind?.toUpperCase() ||
-              filter === item.status.toUpperCase()),
-        )
-        .sort((a, b) => {
-          if (sort === "OLDEST")
-            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          if (sort === "CUSTOMER") return a.customer.localeCompare(b.customer);
-          if (sort === "TOTAL_DESC") return b.total - a.total;
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }),
-    [currentShop, filter, invoices, query, sort],
-  );
-  const pagination = useListPagination(
-    visible,
-    10,
-    `${currentShop?.id}|${query}|${filter}|${sort}`,
-  );
-  const selectedId = manualSelection || params.get("invoice") || "";
-  const selected = invoices.find((item) => item.id === selectedId) ?? null;
-  function openInvoice(id: string) {
-    setManualSelection(id);
-    setMessage("");
-  }
+  const selected =
+    invoices.find(
+      (item) => item.id === invoiceId && (!currentShop || item.shopId === currentShop.id),
+    ) ?? null;
   async function thermal() {
     if (!selected) return;
     const printer = getActivePrinter();
@@ -300,154 +262,45 @@ export function InvoicesPage() {
   }
 
   return (
-    <>
-      <PageHeader
-        eyebrow={t("invoices.eyebrow")}
-        title={t("invoices.title")}
-        description={t("invoices.description")}
-      />
-      <ListControls
-        search={query}
-        onSearchChange={setQuery}
-        searchPlaceholder={t("common.search_placeholder")}
-        filter={filter}
-        onFilterChange={setFilter}
-        filterLabel={t("common.filter")}
-        filterOptions={[
-          { value: "ALL", label: t("invoices.all_invoices") },
-          { value: "POS", label: t("invoices.sales_invoices") },
-          { value: "REPAIR", label: t("invoices.repair_invoices") },
-          { value: "PAID", label: t("invoices.paid") },
-          { value: "REFUNDED", label: t("invoices.refunded") },
-        ]}
-        sort={sort}
-        onSortChange={setSort}
-        sortLabel={t("common.actions")}
-        sortOptions={[
-          { value: "NEWEST", label: "Newest first" },
-          { value: "OLDEST", label: "Oldest first" },
-          { value: "CUSTOMER", label: `${t("invoices.customer")} A–Z` },
-          { value: "TOTAL_DESC", label: "Highest total" },
-        ]}
-      />
-      <div className="table-card">
-        {resource.loading ? (
-          <Loading />
-        ) : resource.error ? (
-          <EmptyState icon="receipt" title="Invoices could not load" message={resource.error} />
-        ) : visible.length === 0 ? (
-          <EmptyState
-            icon="receipt"
-            title={t("invoices.no_invoices_found")}
-            message={query ? "No invoice matches this search." : t("invoices.no_invoices_desc")}
-          />
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t("invoices.invoice_number")}</th>
-                <th>{t("invoices.customer")}</th>
-                <th>{t("common.date")}</th>
-                <th>{t("common.status")}</th>
-                <th>{t("common.total")}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagination.pageItems.map((item) => (
-                <tr
-                  className="invoice-row"
-                  key={item.id}
-                  tabIndex={0}
-                  aria-label={`Open ${item.number}`}
-                  onClick={() => openInvoice(item.id)}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget) return;
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      openInvoice(item.id);
-                    }
-                  }}
-                >
-                  <td>
-                    <strong>{item.number}</strong>
-                  </td>
-                  <td>{item.customer}</td>
-                  <td>{formatShopDateTime(item.createdAt, currentShop?.timezone)}</td>
-                  <td>
-                    <Badge
-                      tone={
-                        item.status === "Paid"
-                          ? "success"
-                          : item.status === "Refunded"
-                            ? "danger"
-                            : "warning"
-                      }
-                    >
-                      {item.status}
-                    </Badge>
-                  </td>
-                  <td>
-                    <strong>{formatMoney(item.total, item.currencyCode)}</strong>
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openInvoice(item.id);
-                        }}
-                        aria-label={`Open ${item.number}`}
-                      >
-                        <Icon name="arrow" size={15} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-      <Pagination
-        pageIndex={pagination.pageIndex}
-        pageSize={pagination.pageSize}
-        totalItems={pagination.totalItems}
-        totalPages={pagination.totalPages}
-        itemLabel={t("invoices.title")}
-        onPageChange={pagination.setPageIndex}
-      />
-      <Modal
-        open={!!selected}
-        onClose={() => setManualSelection("__closed__")}
-        title="Invoice details"
-        description={selected?.number}
-      >
-        {selected && (
-          <>
-            <div className="invoice-modal-body">
-              <InvoiceReceipt
-                invoice={selected}
-                variant={selected.kind === "repair" ? "repair" : "pos"}
-              />
-              <ThermalProof invoice={selected} shop={currentShop} />
-            </div>
-            {message && <div className="notice">{message}</div>}
-            <div className="modal-actions no-print">
-              <Button variant="secondary" icon="printer" onClick={() => window.print()}>
-                {t("common.print")}
-              </Button>
-              <Button variant="secondary" onClick={() => downloadInvoicePDF(selected)}>
-                {t("repairs.download_pdf")}
-              </Button>
-              <Button icon="printer" onClick={thermal}>
-                {t("repairs.thermal_print")}
-              </Button>
-            </div>
-          </>
-        )}
-      </Modal>
-    </>
+    <Modal
+      open={true}
+      onClose={onClose}
+      title="Invoice details"
+      description={selected?.number}
+      className="invoice-detail-modal"
+    >
+      {resource.loading ? (
+        <Loading />
+      ) : resource.error ? (
+        <EmptyState title="Invoice could not load" message={resource.error} />
+      ) : !selected ? (
+        <EmptyState
+          title="Invoice unavailable"
+          message="No invoice was found for this transaction in the selected shop."
+        />
+      ) : (
+        <>
+          <div className="invoice-modal-body">
+            <InvoiceReceipt
+              invoice={selected}
+              variant={selected.kind === "repair" ? "repair" : "pos"}
+            />
+            <ThermalProof invoice={selected} shop={currentShop} />
+          </div>
+          {message && <div className="notice">{message}</div>}
+          <div className="modal-actions no-print">
+            <Button variant="secondary" icon="printer" onClick={() => window.print()}>
+              {t("common.print")}
+            </Button>
+            <Button variant="secondary" onClick={() => downloadInvoicePDF(selected)}>
+              {t("repairs.download_pdf")}
+            </Button>
+            <Button icon="printer" onClick={thermal}>
+              {t("repairs.thermal_print")}
+            </Button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }

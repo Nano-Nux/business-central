@@ -36,6 +36,14 @@ export async function queueVariantCreate(
   payload: VariantMutation,
 ) {
   const id = crypto.randomUUID();
+  // Show the same stable identifier the backend will generate on sync replay.
+  const projected = {
+    id,
+    product_id: productID,
+    ...payload,
+    sku: payload.sku.trim() || `OPT-${id.replaceAll("-", "")}`,
+  };
+
   const productDependency = await pendingCreate(scope, "CATALOG_PRODUCT", productID);
   const operation = await queueOperationWithEntity(
     scope,
@@ -47,15 +55,15 @@ export async function queueVariantCreate(
       baseVersion: 0,
       dependencyOperationId: productDependency?.operationId,
     },
-    { id, product_id: productID, ...payload },
+    projected,
   );
   await updateVariantCollection(scope, productID, (items) => [
     ...items.filter((item) => item.id !== id),
-    { id, product_id: productID, ...payload },
+    projected,
   ]);
   await updatePosCatalogVariants(scope, (items) => [
     ...items.filter((item) => item.id !== id),
-    { id, product_id: productID, ...payload },
+    projected,
   ]);
   requestBackgroundSync();
   return operation;

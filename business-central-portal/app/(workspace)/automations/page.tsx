@@ -1,19 +1,36 @@
+"use client";
+
 import Link from "next/link";
 import { Icon } from "@/components/icons";
+import { useTranslation } from "@/lib/i18n";
 import styles from "./page.module.css";
 
 export default function AutomationsPage() {
+  const { t } = useTranslation();
+  const upcoming = [
+    {
+      name: "Facebook",
+      mark: "f",
+      description: t("automations.facebook.description"),
+    },
+    {
+      name: "WhatsApp",
+      mark: "W",
+      description: t("automations.whatsapp.description"),
+    },
+  ];
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <span className={styles.eyebrow}>AI / Automations</span>
-        <h1>Automations</h1>
-        <p>Connect your sales channels. Keep your orders in one place.</p>
+        <span className={styles.eyebrow}>{t("automations.eyebrow")}</span>
+        <h1>{t("automations.title")}</h1>
+        <p>{t("automations.description")}</p>
       </header>
       <section aria-labelledby="available-title">
         <div className={styles.sectionHeading}>
-          <h2 id="available-title">Available now</h2>
-          <span>1 integration</span>
+          <h2 id="available-title">{t("automations.available_now")}</h2>
+          <span>{t("automations.integration_count", { count: 1 })}</span>
         </div>
         <article className={styles.available} aria-labelledby="telegram-title">
           <div className={styles.integration}>
@@ -23,26 +40,23 @@ export default function AutomationsPage() {
               </span>
               <span className={styles.availableBadge}>
                 <Icon name="check" size={13} />
-                Available
+                {t("automations.available")}
               </span>
             </div>
             <h3 id="telegram-title">Telegram</h3>
-            <p>
-              Turn group conversations into shop orders. Connect your groups, give sellers access,
-              and review drafts before confirming a sale.
-            </p>
+            <p>{t("automations.telegram.description")}</p>
             <ul className={styles.features}>
               <li>
                 <Icon name="users" size={15} />
-                Multiple shop groups
+                {t("automations.telegram.multiple_groups")}
               </li>
               <li>
                 <Icon name="lock" size={15} />
-                Seller permissions
+                {t("automations.telegram.seller_permissions")}
               </li>
               <li>
                 <Icon name="receipt" size={15} />
-                Draft order review
+                {t("automations.telegram.draft_review")}
               </li>
             </ul>
             <div className={styles.cardAction}>
@@ -50,22 +64,22 @@ export default function AutomationsPage() {
                 href="/automations/telegram"
                 className={`button button-primary ${styles.openLink}`}
               >
-                Manage Telegram
+                {t("automations.telegram.manage")}
                 <Icon name="arrow" size={17} />
               </Link>
-              <span>Requires Telegram automation enabled for your merchant.</span>
+              <span>{t("automations.telegram.requirement")}</span>
             </div>
           </div>
           <div className={styles.workflow}>
-            <span className={styles.eyebrow}>From conversation to sale</span>
+            <span className={styles.eyebrow}>{t("automations.telegram.workflow")}</span>
             <ol>
               <li>
                 <span>
                   <Icon name="send" size={18} />
                 </span>
                 <div>
-                  <strong>Connect your group</strong>
-                  <p>Pair a Telegram group with your shop.</p>
+                  <strong>{t("automations.telegram.step_connect_title")}</strong>
+                  <p>{t("automations.telegram.step_connect_body")}</p>
                 </div>
               </li>
               <li>
@@ -73,8 +87,8 @@ export default function AutomationsPage() {
                   <Icon name="receipt" size={18} />
                 </span>
                 <div>
-                  <strong>Receive draft orders</strong>
-                  <p>Authorized sellers create orders in chat.</p>
+                  <strong>{t("automations.telegram.step_orders_title")}</strong>
+                  <p>{t("automations.telegram.step_orders_body")}</p>
                 </div>
               </li>
               <li>
@@ -82,8 +96,8 @@ export default function AutomationsPage() {
                   <Icon name="check" size={18} />
                 </span>
                 <div>
-                  <strong>Review & confirm</strong>
-                  <p>Confirmed sales appear in your order history.</p>
+                  <strong>{t("automations.telegram.step_review_title")}</strong>
+                  <p>{t("automations.telegram.step_review_body")}</p>
                 </div>
               </li>
             </ol>
@@ -92,38 +106,27 @@ export default function AutomationsPage() {
       </section>
       <section aria-labelledby="upcoming-title">
         <div className={styles.sectionHeading}>
-          <h2 id="upcoming-title">Coming soon</h2>
-          <span>More channels on the way</span>
+          <h2 id="upcoming-title">{t("automations.coming_soon")}</h2>
+          <span>{t("automations.more_channels")}</span>
         </div>
         <div className={styles.upcomingGrid}>
-          {[
-            {
-              name: "Facebook",
-              mark: "f",
-              description: "Bring your Facebook social selling workflows into Business Central.",
-            },
-            {
-              name: "WhatsApp",
-              mark: "W",
-              description: "Manage WhatsApp commerce conversations alongside your shop orders.",
-            },
-          ].map((item) => (
+          {upcoming.map((item) => (
             <article
               key={item.name}
               className={styles.upcoming}
-              aria-label={`${item.name} coming soon`}
+              aria-label={t("automations.channel_coming_soon", { channel: item.name })}
             >
               <div className={styles.cardTop}>
                 <span className={styles.plannedIcon} aria-hidden="true">
                   {item.mark}
                 </span>
-                <span className={styles.comingBadge}>Coming soon</span>
+                <span className={styles.comingBadge}>{t("automations.coming_soon")}</span>
               </div>
               <h3>{item.name}</h3>
               <p>{item.description}</p>
               <div className={styles.plannedFooter}>
                 <Icon name="lock" size={14} />
-                <span>Not available yet</span>
+                <span>{t("automations.not_available_yet")}</span>
               </div>
             </article>
           ))}

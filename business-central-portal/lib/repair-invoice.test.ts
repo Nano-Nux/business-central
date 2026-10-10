@@ -29,6 +29,7 @@ describe("repair invoice service lines", () => {
       currencyCode: "USD",
     });
 
+    expect(invoice.customer).toBeNull();
     expect(invoice.items.slice(0, 2)).toEqual([
       { name: "Screen replacement", quantity: 1, price: 100 },
       { name: "Diagnostics", quantity: 1, price: 50 },

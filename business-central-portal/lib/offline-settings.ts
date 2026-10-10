@@ -18,6 +18,7 @@ export type ShopSettingsUpdate = {
   tax_rate: string;
   tax_label: string;
   receipt_note: string;
+  delivery_payment_status_auto_complete?: boolean;
 };
 
 export type QueueShopSettingsOptions = {
@@ -55,6 +56,10 @@ export async function queueShopSettingsUpdate(
     tax_rate: update.tax_rate,
     tax_label: update.tax_label,
     receipt_note: update.receipt_note,
+    delivery_payment_status_auto_complete:
+      update.delivery_payment_status_auto_complete ??
+      shop.delivery_payment_status_auto_complete ??
+      false,
     logo_url: logoURL,
     logo_source_type:
       typeof updateAddress.logo_source_type === "string"

@@ -1,3 +1,5 @@
+import { getCanonicalWorkspaceHref, getWorkspaceSourcePath } from "./workspace-routes";
+
 import type { IconName } from "@/components/icons";
 
 export type NavItem = {
@@ -17,7 +19,6 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
   {
     label: "Overview",
     items: [
-      { href: "/dashboard", label: "Today", icon: "home" },
       {
         href: "/pos",
         label: "Point of sale",
@@ -50,10 +51,10 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
         permission: "tenant.read",
       },
       {
-        href: "/stock-in",
-        label: "Stock in",
-        icon: "package",
-        permission: "stock_in",
+        href: "/stock-conversions",
+        label: "Stock conversion",
+        icon: "swap",
+        permission: "tenant.write",
       },
       {
         href: "/stock-assets",
@@ -73,8 +74,19 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
         icon: "receipt",
         permission: "tenant.read",
       },
-      { href: "/customers", label: "Customers", icon: "users", permission: "tenant.read" },
-      { href: "/deliveries", label: "Deliveries", icon: "package", permission: "tenant.write" },
+      {
+        href: "/promotions",
+        label: "Promotions",
+        icon: "tag",
+        permission: "tenant.write",
+        merchantOnly: true,
+      },
+      {
+        href: "/customers",
+        label: "Customers & deliveries",
+        icon: "users",
+        permission: "tenant.read",
+      },
       {
         href: "/repairs",
         label: "Repair",
@@ -107,23 +119,10 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
     label: "Insights",
     items: [
       {
-        href: "/invoices",
-        label: "Invoices",
-        icon: "receipt",
-        permission: "tenant.read",
-      },
-      {
         href: "/reports",
         label: "Reports",
         icon: "chart",
         permission: "tenant.read",
-        merchantOnly: true,
-      },
-      {
-        href: "/promotions",
-        label: "Promotions",
-        icon: "tag",
-        permission: "tenant.write",
         merchantOnly: true,
       },
     ],
@@ -161,11 +160,6 @@ export const NAVIGATION_GROUPS: NavGroup[] = [
         label: "Settings",
         icon: "settings",
       },
-      // {
-      //   href: "/guide",
-      //   label: "Quick guide",
-      //   icon: "book",
-      // },
     ],
   },
 ];
@@ -175,58 +169,134 @@ export type NavigationFilterOptions = {
   isMerchant?: boolean;
   can?: (permission: string) => boolean;
   moduleCodes?: string[];
-  mapDashboardForRole?: boolean;
   aiAssistantEnabled?: boolean;
 };
+
+export function isAiWorkspacePath(path: string): boolean {
+  return NAVIGATION_GROUPS.filter((group) => group.label === "AI").some((group) =>
+    group.items.some((item) => path === item.href || path.startsWith(`${item.href}/`)),
+  );
+}
 
 export function getFilteredNavigationGroups({
   posComplexityLevel,
   isMerchant = true,
   can,
   moduleCodes,
-  mapDashboardForRole = true,
-  aiAssistantEnabled = true,
+  aiAssistantEnabled = false,
 }: NavigationFilterOptions): NavGroup[] {
+  if (posComplexityLevel === "NANO") {
+    const core: NavItem[] = [
+      { href: "/pos", label: "POS", icon: "cart", permission: "tenant.write" },
+      { href: "/catalog", label: "Products & storage", icon: "package", permission: "tenant.read" },
+      {
+        href: "/promotions",
+        label: "Promotions",
+        icon: "tag",
+        permission: "tenant.write",
+        merchantOnly: true,
+      },
+      {
+        href: "/transaction-history",
+        label: "Transaction history",
+        icon: "receipt",
+        permission: "tenant.read",
+      },
+      {
+        href: "/reports",
+        label: "Reports",
+        icon: "chart",
+        permission: "tenant.read",
+        merchantOnly: true,
+      },
+      {
+        href: "/customers",
+        label: "Customers & deliveries",
+        icon: "users",
+        permission: "tenant.read",
+      },
+      {
+        href: "/accounts",
+        label: "Staff accounts",
+        icon: "users",
+        permission: "membership.manage",
+        merchantOnly: true,
+      },
+      { href: "/settings", label: "Settings", icon: "settings" },
+    ];
+    const services = NAVIGATION_GROUPS.flatMap((group) => group.items).filter(
+      (item) => item.href.startsWith("/repairs") && moduleCodes?.includes("repair"),
+    );
+    return [
+      { label: "Workspace", items: core },
+      { label: "Services", items: services },
+      ...NAVIGATION_GROUPS.filter((group) => group.label === "AI" && aiAssistantEnabled),
+    ]
+      .map((group) => ({
+        ...group,
+        items: group.items.filter(
+          (item) =>
+            (!item.merchantOnly || isMerchant) &&
+            (!item.permission || !can || can(item.permission)),
+        ),
+      }))
+      .filter((group) => group.items.length > 0)
+      .map((group) => ({
+        ...group,
+        items: group.items.map((item) => ({
+          ...item,
+          href: getCanonicalWorkspaceHref(item.href, posComplexityLevel),
+        })),
+      }));
+  }
   const isMini = posComplexityLevel === "MINI";
   const isComplex = posComplexityLevel === "COMPLEX";
 
-  return NAVIGATION_GROUPS.map((group) => ({
-    ...group,
-    items: group.items
-      .filter((item) => {
-        if (item.merchantOnly && !isMerchant) return false;
-        if (item.href === "/ai-assistant" && aiAssistantEnabled === false) return false;
-        if (item.permission && can && !can(item.permission)) return false;
+  return NAVIGATION_GROUPS.filter((group) => group.label !== "AI" || aiAssistantEnabled)
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .map((item): NavItem => {
+          if (isMini && item.href === "/storage") return { ...item, label: "Products & storage" };
+          if (isMini && item.href === "/stock-movements")
+            return { ...item, href: "/history", label: "History" };
+          return item;
+        })
+        .filter((item) => {
+          if (item.merchantOnly && !isMerchant) return false;
+          if (item.permission && can && !can(item.permission)) return false;
 
-        // POS complexity level rules
-        if (item.href === "/catalog/attributes" && !isComplex) return false;
-        if (isMini && item.href === "/stock-assets") return false;
-        if (
-          isMini &&
-          (item.href === "/repairs/catalog" ||
-            item.href === "/repairs/issue-presets" ||
-            item.href === "/repairs/condition-presets")
-        ) {
-          return false;
-        }
+          if (isMini && item.href === "/transaction-history") return false;
 
-        // Shop module rules
-        if (item.href.startsWith("/repairs") && moduleCodes && !moduleCodes.includes("repair")) {
-          return false;
-        }
+          // POS complexity level rules
+          if (item.href === "/catalog/attributes" && !isComplex) return false;
+          if (isMini && (item.href === "/stock-assets" || item.href === "/stock-conversions"))
+            return false;
+          if (
+            isMini &&
+            (item.href === "/repairs/catalog" ||
+              item.href === "/repairs/issue-presets" ||
+              item.href === "/repairs/condition-presets")
+          ) {
+            return false;
+          }
 
-        return true;
-      })
-      .map((item) => {
-        if (mapDashboardForRole && item.href === "/dashboard") {
-          return {
-            ...item,
-            href: isMerchant ? "/merchant/dashboard" : "/staff/dashboard",
-          };
-        }
-        return item;
-      }),
-  })).filter((group) => group.items.length > 0);
+          // Shop module rules
+          if (item.href.startsWith("/repairs") && moduleCodes && !moduleCodes.includes("repair")) {
+            return false;
+          }
+
+          return true;
+        }),
+    }))
+    .filter((group) => group.items.length > 0)
+    .map((group) => ({
+      ...group,
+      items: group.items.map((item) => ({
+        ...item,
+        href: getCanonicalWorkspaceHref(item.href, posComplexityLevel),
+      })),
+    }));
 }
 
 export type LandingPageOption = {
@@ -239,31 +309,26 @@ export type LandingPageGroup = {
   items: LandingPageOption[];
 };
 
-export function getLandingPageOptions(
-  options: Omit<NavigationFilterOptions, "mapDashboardForRole">,
-): LandingPageGroup[] {
-  // For landing pages, we do not rewrite /dashboard into /merchant/dashboard or /staff/dashboard
-  // so the canonical "/dashboard" URL works universally across both merchant and staff logins.
-  const groups = getFilteredNavigationGroups({
-    ...options,
-    mapDashboardForRole: false,
-  });
+export function getLandingPageOptions(options: NavigationFilterOptions): LandingPageGroup[] {
+  const groups = getFilteredNavigationGroups(options);
 
   return groups.map((group) => ({
     label: group.label,
     items: group.items.map((item) => ({
       value: item.href,
-      label: item.href === "/dashboard" ? "Dashboard (Today)" : item.label,
+      label: item.label,
     })),
   }));
 }
 
 export function formatPosModeName(posComplexityLevel?: string): {
-  code: "pos-mini" | "pos-simple" | "pos-complex";
+  code: "pos-nano" | "pos-mini" | "pos-simple" | "pos-complex";
   name: string;
   badge: string;
 } {
   switch (posComplexityLevel) {
+    case "NANO":
+      return { code: "pos-nano", name: "POS Nano", badge: "pos-nano" };
     case "MINI":
       return {
         code: "pos-mini",
@@ -292,6 +357,8 @@ export function getLocalizedNavLabel(
   t?: (key: string, fallback: string) => string,
 ): string {
   if (!t) return fallback;
+  if (fallback === "Products & storage") return t("nav.products_storage", fallback);
+  if (fallback === "Customers & deliveries") return t("nav.customers_deliveries", fallback);
   const map: Record<string, string> = {
     "/dashboard": "nav.today",
     "/ai-assistant": "nav.nanonux_ai",
@@ -304,7 +371,9 @@ export function getLocalizedNavLabel(
     "/stock-in": "nav.stock_in",
     "/stock-assets": "nav.stock_barcodes",
     "/stock-movements": "nav.stock_history",
+    "/history": "nav.history",
     "/transaction-history": "nav.transaction_history",
+    "/stock-conversions": "nav.stock_conversion",
     "/customers": "nav.customers",
     "/deliveries": "nav.deliveries",
     "/repairs": "nav.repairs",
@@ -319,7 +388,7 @@ export function getLocalizedNavLabel(
     "/guide": "nav.guide",
     "/automations": "nav.automations",
   };
-  const key = map[href];
+  const key = map[getWorkspaceSourcePath(href)];
   return key ? t(key, fallback) : fallback;
 }
 

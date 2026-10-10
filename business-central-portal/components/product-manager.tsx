@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { NanoProductForm, saveNanoRetailPrices } from "./nano-product-form";
+import { shopStockLocation } from "@/lib/shop-stock-location";
+import { NanoProductsTable } from "./nano-products-table";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";
 import {
   Badge,
@@ -17,7 +20,11 @@ import {
   useListPagination,
 } from "./ui";
 import { resolveMediaURL } from "@/lib/media-url";
-import { patch, post, remove } from "@/lib/api";
+import { api, patch, post, remove } from "@/lib/api";
+import { useShop } from "@/lib/shop";
+import { randomUuid } from "@/lib/random-uuid";
+import { defaultSellableOption } from "@/lib/sellable-option-defaults";
+import { queueStockReceipt } from "@/lib/offline-stock";
 import { formatMoney } from "@/lib/currency";
 import { useResource } from "@/lib/use-resource";
 import { useOffline } from "@/lib/offline";
@@ -40,6 +47,7 @@ import type {
   Product,
   Unit,
   Variant,
+  Location,
 } from "@/lib/types";
 import { BarcodeScanner } from "./barcode-scanner";
 import { ImageSourceField, imageAction, prepareImageSubmissions } from "./image-source-input";
@@ -104,21 +112,38 @@ async function saveSingleImage(
   else await post(basePath, body);
 }
 
-function VariantManager({ product, onClose }: { product: Product; onClose: () => void }) {
+export function VariantManager({
+  product,
+  onClose,
+  startAdding = false,
+  onOptionsChanged,
+}: {
+  product: Product;
+  onClose: () => void;
+  startAdding?: boolean;
+  onOptionsChanged?: () => Promise<void>;
+}) {
   const offline = useOffline();
+  const { merchant } = useAuth();
+  const nano = merchant?.pos_complexity_level === "NANO";
+  const compact = merchant?.pos_complexity_level !== "COMPLEX";
   const variants = useResource<Variant>(
     `/catalog/products/${product.id}/variants?page_index=0&page_size=100`,
+    undefined,
+    true,
   );
-  const units = useResource<Unit>("/units?page_index=0&page_size=100");
+  const units = useResource<Unit>("/units?page_index=0&page_size=100", undefined, true);
   const attributes = useResource<AttributeDefinition>(
     "/catalog/attributes?page_index=0&page_size=100",
   );
   const [editing, setEditing] = useState<Variant | null>(null);
   const [variantBarcode, setVariantBarcode] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(startAdding);
   const [valueDefinition, setValueDefinition] = useState<AttributeDefinition | null>(null);
   const [error, setError] = useState("");
   const [valueError, setValueError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const defaultOption = defaultSellableOption(product.id, variants.data);
   function openValueForm(definition: AttributeDefinition) {
     setValueError("");
     setValueDefinition(definition);
@@ -127,11 +152,19 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
     event.preventDefault();
     const values = new FormData(event.currentTarget);
     const body = {
-      sku: String(values.get("sku")).trim(),
+      sku: String(values.get("sku") ?? "").trim() || editing?.sku || "",
       barcode: variantBarcode.trim() || undefined,
       name: String(values.get("name")).trim(),
-      base_unit_id: String(values.get("base_unit_id")),
-      unit_of_measure: String(values.get("unit_of_measure") || "").trim() || "EA",
+      base_unit_id:
+        String(values.get("base_unit_id") ?? "").trim() ||
+        editing?.base_unit_id ||
+        defaultOption?.base_unit_id ||
+        "",
+      unit_of_measure:
+        String(values.get("unit_of_measure") ?? "").trim() ||
+        editing?.unit_of_measure ||
+        defaultOption?.unit_of_measure ||
+        "",
       attributes: Object.fromEntries(
         attributes.data.flatMap((definition) => {
           const field = `attribute_${definition.code}`;
@@ -174,6 +207,9 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
       ),
       is_stock_tracked: values.get("tracked") === "on",
     };
+    if (saving) return;
+    setSaving(true);
+    setError("");
     const imageChanged = imageAction(values) !== "KEEP";
     let saved: Variant | undefined;
     try {
@@ -200,9 +236,12 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
       setFormOpen(false);
       setEditing(null);
       await variants.reload();
+      await onOptionsChanged?.();
     } catch (reason) {
       if (!editing && saved) setEditing(saved);
-      setError(reason instanceof Error ? reason.message : "Variant could not be saved.");
+      setError(reason instanceof Error ? reason.message : "Sellable option could not be saved.");
+    } finally {
+      setSaving(false);
     }
   }
   async function saveAttributeValue(event: FormEvent<HTMLFormElement>) {
@@ -247,6 +286,7 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
           await remove(`/catalog/variants/${item.id}`);
         }
         await variants.reload();
+        await onOptionsChanged?.();
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : "Variant could not be deleted.");
       }
@@ -255,13 +295,21 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
   return (
     <Modal
       open
-      title={`${product.name} · Variants`}
-      description="Each sellable SKU and its stock-tracking unit."
+      title={`${product.name} · ${compact ? "Sellable options" : "Variants"}`}
+      description="Create the larger pack and smaller unit under this product. Each option has its own stock and price; set how many smaller units a pack contains in Stock conversion."
       onClose={onClose}
     >
       <div className="modal-toolbar">
-        <Link className="button button-secondary" href="/pricing">
-          Manage prices
+        {!nano && (
+          <Link className="button button-secondary" href="/pricing">
+            Manage prices
+          </Link>
+        )}
+        <Link
+          className="button button-secondary"
+          href={`/stock-conversions?product_id=${encodeURIComponent(product.id)}`}
+        >
+          Stock conversion
         </Link>
         <Button
           icon="plus"
@@ -273,16 +321,20 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
             setFormOpen(true);
           }}
         >
-          Add variant
+          {compact ? "Add sellable option" : "Add variant"}
         </Button>
       </div>
       {error && <div className="form-error">{error}</div>}
-      {variants.loading ? (
+      {variants.error ? (
+        <div className="form-error" role="alert">
+          Sellable options could not load: {variants.error}
+        </div>
+      ) : variants.loading ? (
         <Loading />
       ) : variants.data.length === 0 ? (
         <EmptyState
           icon="box"
-          title="No variants"
+          title={compact ? "No sellable options" : "No variants"}
           message="Add at least one sellable SKU before pricing or selling this product."
         />
       ) : (
@@ -307,7 +359,7 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
               <div className="variant-row-actions">
                 <button
                   type="button"
-                  title="Edit variant"
+                  title={compact ? "Edit sellable option" : "Edit variant"}
                   aria-label={`Edit ${item.name}`}
                   onClick={() => {
                     setEditing(item);
@@ -317,15 +369,17 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
                 >
                   <Icon name="edit" size={15} />
                 </button>
-                <button
-                  type="button"
-                  className="danger"
-                  title="Delete variant"
-                  aria-label={`Delete ${item.name}`}
-                  onClick={() => destroy(item)}
-                >
-                  <Icon name="trash" size={15} />
-                </button>
+                {item.sku !== `STD-${product.id.replaceAll("-", "")}` && (
+                  <button
+                    type="button"
+                    className="danger"
+                    title={compact ? "Delete sellable option" : "Delete variant"}
+                    aria-label={`Delete ${item.name}`}
+                    onClick={() => destroy(item)}
+                  >
+                    <Icon name="trash" size={15} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -333,16 +387,40 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
       )}
       <Modal
         open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title={editing ? "Edit variant" : "New variant"}
+        onClose={() => {
+          if (!saving) setFormOpen(false);
+        }}
+        title={
+          compact
+            ? editing
+              ? "Edit sellable option"
+              : "New sellable option"
+            : editing
+              ? "Edit variant"
+              : "New variant"
+        }
       >
         <Form onSubmit={save}>
           <div className="form-grid">
-            <Field label="Variant name">
-              <input name="name" defaultValue={editing?.name} required placeholder="Standard" />
+            <Field
+              label={compact ? "Sellable option name" : "Variant name"}
+              hint="For example: Large pack or Small packet"
+            >
+              <input name="name" defaultValue={editing?.name} required placeholder="Small packet" />
             </Field>
-            <Field label="SKU">
-              <input name="sku" defaultValue={editing?.sku} required />
+            <Field
+              label="SKU"
+              hint={
+                editing
+                  ? "Optional: leaving it blank keeps the current SKU."
+                  : "Optional: leave blank to generate a unique SKU automatically."
+              }
+            >
+              <input
+                name="sku"
+                defaultValue={editing?.sku}
+                readOnly={editing?.sku === `STD-${product.id.replaceAll("-", "")}`}
+              />
             </Field>
             <Field label="Barcode">
               <BarcodeScanner
@@ -355,9 +433,16 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
               key={editing?.id ?? "new-variant"}
               currentUrl={editing?.images?.[0]?.image_url}
             />
-            <Field label="Base unit">
-              <select name="base_unit_id" defaultValue={editing?.base_unit_id} required>
-                <option value="">Select unit</option>
+            <Field
+              label="Base unit"
+              hint="Optional: leave unchanged to use the product's default sellable option unit."
+            >
+              <select name="base_unit_id" defaultValue={editing?.base_unit_id ?? ""}>
+                <option value="">
+                  {defaultOption
+                    ? `Use product default (${units.data.find((unit) => unit.id === defaultOption.base_unit_id)?.name ?? defaultOption.unit_of_measure})`
+                    : "Use product default"}
+                </option>
                 {units.data
                   .filter((unit) => unit.is_active)
                   .map((unit) => (
@@ -368,10 +453,13 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
               </select>
             </Field>
             <div className="wide">
-              <Field label="Unit label">
+              <Field
+                label="Unit label"
+                hint="Optional: leave blank to inherit the product default."
+              >
                 <input
                   name="unit_of_measure"
-                  defaultValue={editing?.unit_of_measure}
+                  defaultValue={editing?.unit_of_measure ?? defaultOption?.unit_of_measure}
                   placeholder="piece"
                 />
               </Field>
@@ -506,12 +594,26 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
               );
             })}
           </div>
-          {error && <div className="form-error">{error}</div>}
+          {units.error && (
+            <div className="form-error" role="alert">
+              Units could not load: {units.error}.{" "}
+              <Button type="button" variant="secondary" onClick={() => void units.reload()}>
+                Retry units
+              </Button>
+            </div>
+          )}
+          {error && (
+            <div className="form-error" role="alert">
+              {error}
+            </div>
+          )}
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit">Save variant</Button>
+            <Button type="submit" disabled={saving}>
+              {compact ? "Save sellable option" : "Save variant"}
+            </Button>
           </div>
         </Form>
       </Modal>
@@ -546,12 +648,38 @@ function VariantManager({ product, onClose }: { product: Product; onClose: () =>
   );
 }
 
-export function ProductManager() {
+export function ProductManager({
+  onSaved,
+  combinedStorage = false,
+}: { onSaved?: () => void; combinedStorage?: boolean } = {}) {
   const offline = useOffline();
   const { merchant } = useAuth();
-  const mini = merchant?.pos_complexity_level === "MINI";
+  const nano = merchant?.pos_complexity_level === "NANO" || combinedStorage;
+  const mini = merchant?.pos_complexity_level === "MINI" || nano;
   const simple = merchant?.pos_complexity_level === "SIMPLE" || mini;
-  const products = useResource<Product>("/catalog/products?page_index=0&page_size=100");
+  const { currentShop } = useShop();
+  const locations = useResource<Location>(
+    nano ? "/inventory/locations?page_index=0&page_size=100" : "",
+  );
+  const stockLocations = locations.data.filter(
+    (location) => location.is_active && location.shop_id === currentShop?.id,
+  );
+  const stockRequest = useRef<{ body: string; id: string } | null>(null);
+  const [categoryChoice, setCategoryChoice] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [categoryBusy, setCategoryBusy] = useState(false);
+  const [brandChoice, setBrandChoice] = useState("");
+  const [newBrand, setNewBrand] = useState("");
+  const [brandBusy, setBrandBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [stockQuantity, setStockQuantity] = useState("0");
+  const [stockProductReady, setStockProductReady] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const products = useResource<Product>(
+    "/catalog/products?page_index=0&page_size=100",
+    undefined,
+    nano,
+  );
   const categories = useResource<Category>("/catalog/categories?page_index=0&page_size=200");
   const brands = useResource<Brand>("/catalog/brands?page_index=0&page_size=200");
   const brandMap = useMemo(() => {
@@ -578,6 +706,13 @@ export function ProductManager() {
   const [filter, setFilter] = useState("ALL");
   const [sort, setSort] = useState("NAME_ASC");
   const [editing, setEditing] = useState<Product | null>(null);
+  const editingVariants = useResource<Variant>(
+    editing ? `/catalog/products/${editing.id}/variants?page_index=0&page_size=100` : "",
+  );
+  const hasManagedStandardVariant = editingVariants.data.some(
+    (variant) => variant.sku === `STD-${editing?.id.replaceAll("-", "")}`,
+  );
+  const canEditInlinePrice = !editing || hasManagedStandardVariant || stockProductReady;
   const [productBarcode, setProductBarcode] = useState("");
   const [selected, setSelected] = useState<Product | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -608,6 +743,8 @@ export function ProductManager() {
   const pagination = useListPagination(visible, 10, `${query}|${filter}|${sort}`);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (savingProduct || brandBusy) return;
+    setSavingProduct(true);
     const values = new FormData(event.currentTarget);
     const originalPriceRaw = values.get("original_price");
     const sellPriceRaw = values.get("sell_price");
@@ -629,10 +766,11 @@ export function ProductManager() {
       expired_date: String(values.get("expired_date") || "") || undefined,
       brand_id: String(values.get("brand_id") || "") || undefined,
       is_active: values.get("active") === "on",
-      category_ids:
-        simple && values.get("category_id")
+      category_ids: simple
+        ? values.get("category_id")
           ? [String(values.get("category_id"))]
-          : editing?.category_ids,
+          : []
+        : editing?.category_ids,
       ...(mini
         ? {
             original_price: originalPrice,
@@ -675,12 +813,24 @@ export function ProductManager() {
     const imageChanged = imageAction(values) !== "KEEP";
     let saved: Product | undefined;
     try {
-      if (simple && offline.status === "offline") {
+      const openingQuantity = nano ? String(values.get("opening_quantity") || "0") : "0";
+      const stockLocation = shopStockLocation(stockLocations, currentShop?.id);
+      if (nano && editing && values.get("nano_prices_ready") !== "yes") {
         throw new Error(
-          "POS simple product creation requires a connection so the backend can create its standard variant atomically.",
+          "Wait for retail prices to load before saving. Check any pricing error above.",
         );
       }
-      if (offline.status === "offline" && (!offline.scope || !offline.storageAvailable)) {
+      if (Number(openingQuantity) > 0 && (!stockLocation || (!editing && !originalPrice))) {
+        throw new Error(
+          "The current shop needs an active stock location and an original price before adding opening stock.",
+        );
+      }
+      if (simple && !navigator.onLine) {
+        throw new Error(
+          "Product saving requires a connection so the backend can manage its standard variant atomically.",
+        );
+      }
+      if (!navigator.onLine && (!offline.scope || !offline.storageAvailable)) {
         throw new Error("Offline storage is required to save products while disconnected.");
       }
       if (!simple && offline.scope && offline.storageAvailable) {
@@ -703,6 +853,44 @@ export function ProductManager() {
         if (navigator.onLine) await offline.syncNow();
       } else if (editing) saved = await patch<Product>(`/catalog/products/${editing.id}`, body);
       else saved = await post<Product>("/catalog/products", body);
+      if (nano && editing && saved) await saveNanoRetailPrices(values);
+      if (nano && saved && Number(openingQuantity) > 0 && stockLocation?.shop_id) {
+        // Keep the created product on a partial failure; retry only edits it.
+        if (!editing || hasManagedStandardVariant) setStockProductReady(true);
+        setEditing(saved);
+        const savedProductID = saved.id;
+        const variants = await api<Variant[]>(
+          `/catalog/products/${saved.id}/variants?page_index=0&page_size=100`,
+        );
+        const standard = variants.find(
+          (variant) => variant.sku === `STD-${savedProductID.replaceAll("-", "")}`,
+        );
+        if (!standard)
+          throw new Error("Product saved. Add stock to its existing variants in Storage.");
+        const receipt = {
+          variant_id: standard.id,
+          destination_location_id: stockLocation.id,
+          unit_id: standard.base_unit_id,
+          quantity: openingQuantity,
+          ...(originalPrice ? { unit_cost: originalPrice } : {}),
+        };
+        const receiptBody = JSON.stringify(receipt);
+        if (stockRequest.current?.body !== receiptBody)
+          stockRequest.current = { body: receiptBody, id: randomUuid() };
+        const id = stockRequest.current.id;
+        const payload = { ...receipt, event_key: `nano-opening-stock:${id}` };
+        if (offline.scope && offline.storageAvailable) {
+          await queueStockReceipt(offline.scope, stockLocation.shop_id, payload, id);
+          if (navigator.onLine) await offline.syncNow();
+          await offline.refresh();
+          setNotice(
+            "Product saved. Opening stock recorded locally; check synchronization details for its validation status.",
+          );
+        } else {
+          await post("/inventory/stock-in", payload);
+          setNotice("Product and opening stock saved.");
+        }
+      }
       if (saved && imageChanged) {
         // SIMPLE mode intentionally stores the image on the product, never on
         // its backend-managed Standard variant.
@@ -710,10 +898,53 @@ export function ProductManager() {
       }
       setFormOpen(false);
       setEditing(null);
+      stockRequest.current = null;
       await products.reload();
+      onSaved?.();
     } catch (reason) {
       if (!editing && saved) setEditing(saved);
-      setError(reason instanceof Error ? reason.message : "Product could not be saved.");
+      const message = reason instanceof Error ? reason.message : "Product could not be saved.";
+      setError(saved && nano ? `Product saved. ${message}` : message);
+    } finally {
+      setSavingProduct(false);
+    }
+  }
+  async function createCategory() {
+    if (!newCategory.trim() || categoryBusy) return;
+    setCategoryBusy(true);
+    try {
+      const saved = await post<Category>("/catalog/categories", {
+        name: newCategory.trim(),
+        sort_order: 0,
+      });
+      await categories.reload();
+      setCategoryChoice(saved.id);
+      setNewCategory("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Category could not be saved.");
+    } finally {
+      setCategoryBusy(false);
+    }
+  }
+  async function createBrand() {
+    if (!newBrand.trim() || brandBusy || savingProduct) return;
+    setBrandBusy(true);
+    setError("");
+    try {
+      const saved = await post<Brand>("/catalog/brands", {
+        name: newBrand.trim(),
+        is_active: true,
+      });
+      await brands.reload();
+      brands.updateLocal((rows) =>
+        rows.some((row) => row.id === saved.id) ? rows : [...rows, saved],
+      );
+      setBrandChoice(saved.id);
+      setNewBrand("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Brand could not be saved.");
+    } finally {
+      setBrandBusy(false);
     }
   }
   async function destroy(item: Product) {
@@ -738,10 +969,12 @@ export function ProductManager() {
     <>
       <PageHeader
         eyebrow="Catalog"
-        title="Products"
+        title={nano ? "Products & storage" : "Products"}
         description={
           mini
-            ? "Create products with direct original and sell pricing."
+            ? nano
+              ? "Manage products, prices and stock in one place."
+              : "Create products with direct original and sell pricing."
             : simple
               ? "Create products with one automatically managed selling and stock unit."
               : "Manage product records and the variants that become sellable SKUs."
@@ -751,6 +984,13 @@ export function ProductManager() {
             icon="plus"
             onClick={() => {
               setEditing(null);
+              stockRequest.current = null;
+              setCategoryChoice("");
+              setBrandChoice("");
+              setNewBrand("");
+              setStockQuantity("0");
+              setStockProductReady(false);
+
               setProductBarcode("");
               setError("");
               setFormOpen(true);
@@ -761,36 +1001,43 @@ export function ProductManager() {
         }
       />
       {error && <div className="form-error">{error}</div>}
-      <div className="stats-grid products-stats-grid">
-        <StatCard
-          label="Total Products"
-          value={String(stats.total)}
-          note={`${stats.active} active in catalog`}
-          icon="box"
-          tone="mint"
-        />
-        <StatCard
-          label="Active vs Inactive"
-          value={`${stats.active} / ${stats.inactive}`}
-          note="Sellable in POS"
-          icon="check"
-          tone="blue"
-        />
-        <StatCard
-          label="Physical & Services"
-          value={`${stats.physical} / ${stats.services}`}
-          note={stats.digital > 0 ? `${stats.digital} digital items` : "Catalog item types"}
-          icon="tag"
-          tone="amber"
-        />
-        <StatCard
-          label="Catalog Coverage"
-          value={`${categories.data.length} categories`}
-          note={`${brands.data.length} brands configured`}
-          icon="catalog"
-          tone="purple"
-        />
-      </div>
+      {notice && (
+        <p role="status" className="banner">
+          {notice}
+        </p>
+      )}
+      {!nano && (
+        <div className="stats-grid products-stats-grid">
+          <StatCard
+            label="Total Products"
+            value={String(stats.total)}
+            note={`${stats.active} active in catalog`}
+            icon="box"
+            tone="mint"
+          />
+          <StatCard
+            label="Active vs Inactive"
+            value={`${stats.active} / ${stats.inactive}`}
+            note="Sellable in POS"
+            icon="check"
+            tone="blue"
+          />
+          <StatCard
+            label="Physical & Services"
+            value={`${stats.physical} / ${stats.services}`}
+            note={stats.digital > 0 ? `${stats.digital} digital items` : "Catalog item types"}
+            icon="tag"
+            tone="amber"
+          />
+          <StatCard
+            label="Catalog Coverage"
+            value={`${categories.data.length} categories`}
+            note={`${brands.data.length} brands configured`}
+            icon="catalog"
+            tone="purple"
+          />
+        </div>
+      )}
 
       <div className="products-controls">
         <div className="products-controls-top">
@@ -822,12 +1069,14 @@ export function ProductManager() {
                 <option value="TYPE_ASC">Sort by Type</option>
               </select>
             </div>
-            <Link href="/pricing" className="button button-secondary">
-              <Icon name="tag" size={15} />
-              <span>Prices</span>
-            </Link>
+            {!nano && (
+              <Link href="/pricing" className="button button-secondary">
+                <Icon name="tag" size={15} />
+                <span>Prices</span>
+              </Link>
+            )}
             {!simple && (
-              <Link href="/catalog/attributes" className="button button-secondary">
+              <Link href="/catalog/variant-attributes" className="button button-secondary">
                 <Icon name="catalog" size={15} />
                 <span>Variant attributes</span>
               </Link>
@@ -889,506 +1138,619 @@ export function ProductManager() {
         </div>
       </div>
 
-      <div className="table-card products-table-card">
-        {products.loading ? (
-          <Loading />
-        ) : products.error ? (
-          <EmptyState title="Products could not load" message={products.error} />
-        ) : visible.length === 0 ? (
-          <EmptyState
-            icon="box"
-            title="No products found"
-            message={
-              query
-                ? "No product matches this search."
-                : mini
-                  ? "Create a product to get started."
-                  : simple
-                    ? "Create a product, then set its price."
-                    : "Create a product, add a variant, then set its price."
-            }
-          />
-        ) : (
-          <>
-            <div className="products-desktop-table">
-              <table className="products-table data-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Classification</th>
-                    {!mini && <th>Type</th>}
-                    {mini && <th>Cost</th>}
-                    {mini && <th>Sell price</th>}
-                    <th>Status</th>
-                    {!simple && <th>Variants</th>}
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagination.pageItems.map((item) => {
-                    const imageUrl = item.images?.[0]?.image_url
-                      ? resolveMediaURL(item.images[0].image_url)
-                      : null;
-                    const brandName = item.brand_id ? brandMap.get(item.brand_id) : null;
-                    const primaryCategoryId = item.category_ids?.[0];
-                    const categoryName = primaryCategoryId
-                      ? categoryLabels.get(primaryCategoryId)
-                      : null;
+      {nano ? (
+        <NanoProductsTable
+          products={visible}
+          resetKey={`${query}|${filter}|${sort}`}
+          loading={products.loading}
+          error={products.error}
+          brandMap={brandMap}
+          categoryLabels={categoryLabels}
+          onEdit={(item) => {
+            setEditing(item);
+            setCategoryChoice("");
+            setBrandChoice("");
+            setNewBrand("");
+            setStockQuantity("0");
+            setStockProductReady(false);
 
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <button
-                            className="product-cell-btn product-link"
-                            onClick={() => {
-                              if (simple) {
-                                setEditing(item);
-                                setProductBarcode(item.barcode ?? "");
-                                setFormOpen(true);
-                              } else {
-                                setSelected(item);
-                              }
-                            }}
-                          >
-                            <div className="product-avatar">
-                              {imageUrl ? (
-                                <img
-                                  src={imageUrl}
-                                  alt={item.name}
-                                  className="product-thumb-img"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = "none";
-                                    const next = e.currentTarget
-                                      .nextElementSibling as HTMLElement | null;
-                                    if (next) next.style.display = "grid";
-                                  }}
-                                />
-                              ) : null}
-                              <span
-                                className="product-thumb-placeholder"
-                                style={imageUrl ? { display: "none" } : undefined}
-                              >
-                                <Icon name="box" size={18} />
-                              </span>
-                            </div>
-                            <div className="product-cell-copy cell-main">
-                              <strong>{item.name}</strong>
-                              <small>{item.description || "No description"}</small>
-                              {item.barcode && (
-                                <span
-                                  className="product-barcode-pill"
-                                  title={`Barcode: ${item.barcode}`}
-                                >
-                                  <Icon name="cart" size={11} />
-                                  <span>{item.barcode}</span>
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        </td>
-                        <td>
-                          <div className="product-classification">
-                            {brandName && <span className="product-brand-tag">{brandName}</span>}
-                            {categoryName && (
-                              <span className="product-category-tag" title={categoryName}>
-                                {categoryName}
-                              </span>
-                            )}
-                            {!brandName && !categoryName && <small className="muted">—</small>}
-                          </div>
-                        </td>
-                        {!mini && (
-                          <td>
-                            <Badge
-                              tone={
-                                item.product_type === "PHYSICAL"
-                                  ? "info"
-                                  : item.product_type === "SERVICE"
-                                    ? "warning"
-                                    : "neutral"
-                              }
-                            >
-                              {item.product_type.charAt(0) +
-                                item.product_type.slice(1).toLowerCase()}
-                            </Badge>
-                          </td>
-                        )}
-                        {mini && (
-                          <td>
-                            {item.original_price
-                              ? formatMoney(item.original_price, merchant?.default_currency_code)
-                              : "—"}
-                          </td>
-                        )}
-                        {mini && (
-                          <td>
-                            {item.sell_price
-                              ? formatMoney(item.sell_price, merchant?.default_currency_code)
-                              : "—"}
-                          </td>
-                        )}
-                        <td>
-                          <Badge tone={item.is_active ? "success" : "neutral"}>
-                            {item.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </td>
-                        {!simple && (
+            stockRequest.current = null;
+            setProductBarcode(item.barcode ?? "");
+            setError("");
+            setFormOpen(true);
+          }}
+          onPacks={setSelected}
+          onDelete={destroy}
+        />
+      ) : (
+        <div className="table-card products-table-card">
+          {products.loading ? (
+            <Loading />
+          ) : products.error ? (
+            <EmptyState title="Products could not load" message={products.error} />
+          ) : visible.length === 0 ? (
+            <EmptyState
+              icon="box"
+              title="No products found"
+              message={
+                query
+                  ? "No product matches this search."
+                  : mini
+                    ? "Create a product to get started."
+                    : simple
+                      ? "Create a product, then set its price."
+                      : "Create a product, add a variant, then set its price."
+              }
+            />
+          ) : (
+            <>
+              <div className="products-desktop-table">
+                <table className="products-table data-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Classification</th>
+                      {!mini && <th>Type</th>}
+                      {mini && <th>Cost</th>}
+                      {mini && <th>Sell price</th>}
+                      <th>Status</th>
+                      <th>{simple ? "Pack sizes" : "Variants"}</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagination.pageItems.map((item) => {
+                      const imageUrl = item.images?.[0]?.image_url
+                        ? resolveMediaURL(item.images[0].image_url)
+                        : null;
+                      const brandName = item.brand_id ? brandMap.get(item.brand_id) : null;
+                      const primaryCategoryId = item.category_ids?.[0];
+                      const categoryName = primaryCategoryId
+                        ? categoryLabels.get(primaryCategoryId)
+                        : null;
+
+                      return (
+                        <tr key={item.id}>
                           <td>
                             <button
-                              type="button"
-                              className="variant-pill-btn"
-                              title="Manage variants"
-                              onClick={() => setSelected(item)}
-                            >
-                              <Icon name="catalog" size={14} />
-                              <span>Variants</span>
-                            </button>
-                          </td>
-                        )}
-                        <td>
-                          <div className="row-actions">
-                            {!simple && (
-                              <button
-                                type="button"
-                                title="Manage variants"
-                                aria-label={`Manage variants for ${item.name}`}
-                                onClick={() => setSelected(item)}
-                              >
-                                <Icon name="catalog" size={15} />
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              title="Edit"
-                              aria-label={`Edit ${item.name}`}
+                              className="product-cell-btn product-link"
                               onClick={() => {
-                                setEditing(item);
-                                setProductBarcode(item.barcode ?? "");
-                                setFormOpen(true);
+                                if (simple) {
+                                  setEditing(item);
+                                  setCategoryChoice("");
+                                  setBrandChoice("");
+                                  setNewBrand("");
+                                  setStockQuantity("0");
+                                  setStockProductReady(false);
+
+                                  stockRequest.current = null;
+                                  setProductBarcode(item.barcode ?? "");
+                                  setFormOpen(true);
+                                } else {
+                                  setSelected(item);
+                                }
                               }}
                             >
-                              <Icon name="edit" size={15} />
+                              <div className="product-avatar">
+                                {imageUrl ? (
+                                  <img
+                                    src={imageUrl}
+                                    alt={item.name}
+                                    className="product-thumb-img"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                      const next = e.currentTarget
+                                        .nextElementSibling as HTMLElement | null;
+                                      if (next) next.style.display = "grid";
+                                    }}
+                                  />
+                                ) : null}
+                                <span
+                                  className="product-thumb-placeholder"
+                                  style={imageUrl ? { display: "none" } : undefined}
+                                >
+                                  <Icon name="box" size={18} />
+                                </span>
+                              </div>
+                              <div className="product-cell-copy cell-main">
+                                <strong>{item.name}</strong>
+                                <small>{item.description || "No description"}</small>
+                                {item.barcode && (
+                                  <span
+                                    className="product-barcode-pill"
+                                    title={`Barcode: ${item.barcode}`}
+                                  >
+                                    <Icon name="cart" size={11} />
+                                    <span>{item.barcode}</span>
+                                  </span>
+                                )}
+                              </div>
                             </button>
-                            <button
-                              type="button"
-                              className="danger"
-                              title="Delete"
-                              aria-label={`Delete ${item.name}`}
-                              onClick={() => destroy(item)}
-                            >
-                              <Icon name="trash" size={15} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Product Cards */}
-            <div className="products-mobile-cards">
-              {pagination.pageItems.map((item) => {
-                const imageUrl = item.images?.[0]?.image_url
-                  ? resolveMediaURL(item.images[0].image_url)
-                  : null;
-                const brandName = item.brand_id ? brandMap.get(item.brand_id) : null;
-                const primaryCategoryId = item.category_ids?.[0];
-                const categoryName = primaryCategoryId
-                  ? categoryLabels.get(primaryCategoryId)
-                  : null;
-
-                return (
-                  <div className="product-mobile-card" key={item.id}>
-                    <div className="product-mobile-card-top">
-                      <div className="product-avatar">
-                        {imageUrl ? (
-                          <img
-                            src={imageUrl}
-                            alt={item.name}
-                            className="product-thumb-img"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                              const next = e.currentTarget.nextElementSibling as HTMLElement | null;
-                              if (next) next.style.display = "grid";
-                            }}
-                          />
-                        ) : null}
-                        <span
-                          className="product-thumb-placeholder"
-                          style={imageUrl ? { display: "none" } : undefined}
-                        >
-                          <Icon name="box" size={18} />
-                        </span>
-                      </div>
-                      <div className="product-mobile-card-copy">
-                        <strong>{item.name}</strong>
-                        <small>{item.description || "No description"}</small>
-                      </div>
-                      <Badge tone={item.is_active ? "success" : "neutral"}>
-                        {item.is_active ? "Active" : "Inactive"}
-                      </Badge>
-                    </div>
-
-                    <div className="product-mobile-card-tags">
-                      {!mini && (
-                        <Badge
-                          tone={
-                            item.product_type === "PHYSICAL"
-                              ? "info"
-                              : item.product_type === "SERVICE"
-                                ? "warning"
-                                : "neutral"
+                          </td>
+                          <td>
+                            <div className="product-classification">
+                              {brandName && <span className="product-brand-tag">{brandName}</span>}
+                              {categoryName && (
+                                <span className="product-category-tag" title={categoryName}>
+                                  {categoryName}
+                                </span>
+                              )}
+                              {!brandName && !categoryName && <small className="muted">—</small>}
+                            </div>
+                          </td>
+                          {!mini && (
+                            <td>
+                              <Badge
+                                tone={
+                                  item.product_type === "PHYSICAL"
+                                    ? "info"
+                                    : item.product_type === "SERVICE"
+                                      ? "warning"
+                                      : "neutral"
+                                }
+                              >
+                                {item.product_type.charAt(0) +
+                                  item.product_type.slice(1).toLowerCase()}
+                              </Badge>
+                            </td>
+                          )}
+                          {mini && (
+                            <td>
+                              {item.original_price
+                                ? formatMoney(item.original_price, merchant?.default_currency_code)
+                                : "—"}
+                            </td>
+                          )}
+                          {mini && (
+                            <td>
+                              {item.sell_price
+                                ? formatMoney(item.sell_price, merchant?.default_currency_code)
+                                : "—"}
+                            </td>
+                          )}
+                          <td>
+                            <Badge tone={item.is_active ? "success" : "neutral"}>
+                              {item.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </td>
+                          {
+                            <td>
+                              <button
+                                type="button"
+                                className="variant-pill-btn"
+                                title={simple ? "Manage pack sizes" : "Manage variants"}
+                                onClick={() => setSelected(item)}
+                              >
+                                <Icon name="catalog" size={14} />
+                                <span>{simple ? "Pack sizes" : "Variants"}</span>
+                              </button>
+                            </td>
                           }
-                        >
-                          {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
+                          <td>
+                            <div className="row-actions">
+                              {
+                                <button
+                                  type="button"
+                                  title={simple ? "Manage pack sizes" : "Manage variants"}
+                                  aria-label={`Manage pack sizes for ${item.name}`}
+                                  onClick={() => setSelected(item)}
+                                >
+                                  <Icon name="catalog" size={15} />
+                                </button>
+                              }
+                              <button
+                                type="button"
+                                title="Edit"
+                                aria-label={`Edit ${item.name}`}
+                                onClick={() => {
+                                  setEditing(item);
+                                  setCategoryChoice("");
+                                  setBrandChoice("");
+                                  setNewBrand("");
+                                  setStockQuantity("0");
+                                  setStockProductReady(false);
+
+                                  stockRequest.current = null;
+                                  setProductBarcode(item.barcode ?? "");
+                                  setFormOpen(true);
+                                }}
+                              >
+                                <Icon name="edit" size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                className="danger"
+                                title="Delete"
+                                aria-label={`Delete ${item.name}`}
+                                onClick={() => destroy(item)}
+                              >
+                                <Icon name="trash" size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Product Cards */}
+              <div className="products-mobile-cards">
+                {pagination.pageItems.map((item) => {
+                  const imageUrl = item.images?.[0]?.image_url
+                    ? resolveMediaURL(item.images[0].image_url)
+                    : null;
+                  const brandName = item.brand_id ? brandMap.get(item.brand_id) : null;
+                  const primaryCategoryId = item.category_ids?.[0];
+                  const categoryName = primaryCategoryId
+                    ? categoryLabels.get(primaryCategoryId)
+                    : null;
+
+                  return (
+                    <div className="product-mobile-card" key={item.id}>
+                      <div className="product-mobile-card-top">
+                        <div className="product-avatar">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={item.name}
+                              className="product-thumb-img"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                                const next = e.currentTarget
+                                  .nextElementSibling as HTMLElement | null;
+                                if (next) next.style.display = "grid";
+                              }}
+                            />
+                          ) : null}
+                          <span
+                            className="product-thumb-placeholder"
+                            style={imageUrl ? { display: "none" } : undefined}
+                          >
+                            <Icon name="box" size={18} />
+                          </span>
+                        </div>
+                        <div className="product-mobile-card-copy">
+                          <strong>{item.name}</strong>
+                          <small>{item.description || "No description"}</small>
+                        </div>
+                        <Badge tone={item.is_active ? "success" : "neutral"}>
+                          {item.is_active ? "Active" : "Inactive"}
                         </Badge>
-                      )}
-                      {mini && item.original_price && (
-                        <span className="product-barcode-pill" title="Cost">
-                          Cost: {formatMoney(item.original_price, merchant?.default_currency_code)}
-                        </span>
-                      )}
-                      {mini && item.sell_price && (
-                        <span className="product-barcode-pill" title="Sell price">
-                          Price: {formatMoney(item.sell_price, merchant?.default_currency_code)}
-                        </span>
-                      )}
-                      {item.barcode && (
-                        <span className="product-barcode-pill">
-                          <Icon name="cart" size={11} />
-                          <span>{item.barcode}</span>
-                        </span>
-                      )}
-                      {brandName && <span className="product-brand-tag">{brandName}</span>}
-                      {categoryName && <span className="product-category-tag">{categoryName}</span>}
-                    </div>
+                      </div>
 
-                    <div className="product-mobile-card-footer">
-                      {!simple ? (
-                        <button
-                          type="button"
-                          className="variant-pill-btn"
-                          onClick={() => setSelected(item)}
-                        >
-                          <Icon name="catalog" size={14} />
-                          <span>Variants</span>
-                        </button>
-                      ) : (
-                        <span />
-                      )}
+                      <div className="product-mobile-card-tags">
+                        {!mini && (
+                          <Badge
+                            tone={
+                              item.product_type === "PHYSICAL"
+                                ? "info"
+                                : item.product_type === "SERVICE"
+                                  ? "warning"
+                                  : "neutral"
+                            }
+                          >
+                            {item.product_type.charAt(0) + item.product_type.slice(1).toLowerCase()}
+                          </Badge>
+                        )}
+                        {mini && item.original_price && (
+                          <span className="product-barcode-pill" title="Cost">
+                            Cost:{" "}
+                            {formatMoney(item.original_price, merchant?.default_currency_code)}
+                          </span>
+                        )}
+                        {mini && item.sell_price && (
+                          <span className="product-barcode-pill" title="Sell price">
+                            Price: {formatMoney(item.sell_price, merchant?.default_currency_code)}
+                          </span>
+                        )}
+                        {item.barcode && (
+                          <span className="product-barcode-pill">
+                            <Icon name="cart" size={11} />
+                            <span>{item.barcode}</span>
+                          </span>
+                        )}
+                        {brandName && <span className="product-brand-tag">{brandName}</span>}
+                        {categoryName && (
+                          <span className="product-category-tag">{categoryName}</span>
+                        )}
+                      </div>
 
-                      <div className="product-mobile-card-actions">
-                        <button
-                          type="button"
-                          title="Edit"
-                          aria-label={`Edit ${item.name}`}
-                          onClick={() => {
-                            setEditing(item);
-                            setProductBarcode(item.barcode ?? "");
-                            setFormOpen(true);
-                          }}
-                        >
-                          <Icon name="edit" size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          className="danger"
-                          title="Delete"
-                          aria-label={`Delete ${item.name}`}
-                          onClick={() => destroy(item)}
-                        >
-                          <Icon name="trash" size={16} />
-                        </button>
+                      <div className="product-mobile-card-footer">
+                        {
+                          <button
+                            type="button"
+                            className="variant-pill-btn"
+                            onClick={() => setSelected(item)}
+                          >
+                            <Icon name="catalog" size={14} />
+                            <span>{simple ? "Pack sizes" : "Variants"}</span>
+                          </button>
+                        }
+
+                        <div className="product-mobile-card-actions">
+                          <button
+                            type="button"
+                            title="Edit"
+                            aria-label={`Edit ${item.name}`}
+                            onClick={() => {
+                              setEditing(item);
+                              setCategoryChoice("");
+                              setBrandChoice("");
+                              setNewBrand("");
+                              setStockQuantity("0");
+                              setStockProductReady(false);
+
+                              stockRequest.current = null;
+                              setProductBarcode(item.barcode ?? "");
+                              setFormOpen(true);
+                            }}
+                          >
+                            <Icon name="edit" size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="danger"
+                            title="Delete"
+                            aria-label={`Delete ${item.name}`}
+                            onClick={() => destroy(item)}
+                          >
+                            <Icon name="trash" size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-      <Pagination
-        pageIndex={pagination.pageIndex}
-        pageSize={pagination.pageSize}
-        totalItems={pagination.totalItems}
-        totalPages={pagination.totalPages}
-        itemLabel="products"
-        onPageChange={pagination.setPageIndex}
-      />
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      {!nano && (
+        <Pagination
+          pageIndex={pagination.pageIndex}
+          pageSize={pagination.pageSize}
+          totalItems={pagination.totalItems}
+          totalPages={pagination.totalPages}
+          itemLabel="products"
+          onPageChange={pagination.setPageIndex}
+        />
+      )}
       <Modal
         open={formOpen}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          if (!savingProduct) setFormOpen(false);
+        }}
+        description={
+          nano
+            ? editing
+              ? "Update product details and retail prices in one place."
+              : "Start with a name and price. Add optional details when needed."
+            : undefined
+        }
         title={editing ? "Edit product" : "New product"}
       >
-        <Form onSubmit={save}>
-          <div className="form-grid">
-            <Field label="Product name">
-              <input name="name" defaultValue={editing?.name} required />
-            </Field>
-            <Field label="Product barcode">
-              <BarcodeScanner
-                value={productBarcode}
-                onChange={setProductBarcode}
-                placeholder="Optional product barcode"
-              />
-            </Field>
-            {mini ? (
-              <input type="hidden" name="product_type" value="PHYSICAL" />
-            ) : (
-              <Field label="Product type">
-                <select name="product_type" defaultValue={editing?.product_type ?? "PHYSICAL"}>
-                  <option value="PHYSICAL">Physical</option>
-                  <option value="DIGITAL">Digital</option>
-                  <option value="SERVICE">Service</option>
-                </select>
+        {nano ? (
+          <NanoProductForm
+            allowInlineCatalogCreation={merchant?.pos_complexity_level !== "MINI"}
+            key={formOpen ? "open-product" : "closed-product"}
+            editing={editing}
+            barcode={productBarcode}
+            onBarcode={setProductBarcode}
+            categories={categories.data}
+            brands={brands.data}
+            categoryChoice={categoryChoice}
+            onCategory={setCategoryChoice}
+            newCategory={newCategory}
+            onNewCategory={setNewCategory}
+            categoryBusy={categoryBusy}
+            onCreateCategory={createCategory}
+            brandChoice={brandChoice}
+            onBrand={setBrandChoice}
+            newBrand={newBrand}
+            onNewBrand={setNewBrand}
+            brandBusy={brandBusy}
+            onCreateBrand={createBrand}
+            canEditCost={canEditInlinePrice}
+            stockQuantity={stockQuantity}
+            onStockQuantity={setStockQuantity}
+            shopName={currentShop?.name}
+            error={error}
+            busy={savingProduct}
+            onSubmit={save}
+            onClose={() => setFormOpen(false)}
+          />
+        ) : (
+          <Form onSubmit={save}>
+            <div className="form-grid">
+              <Field label="Product name">
+                <input name="name" defaultValue={editing?.name} required />
               </Field>
-            )}
-            {mini && (
-              <>
-                <Field label="Original price (cost)" hint="Baseline purchase cost for this product">
-                  <input
-                    name="original_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    defaultValue={editing?.original_price ?? ""}
-                  />
-                </Field>
-                <Field
-                  label="Sell price (retail)"
-                  hint="Selling price in standard retail price list"
-                >
-                  <input
-                    name="sell_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    defaultValue={editing?.sell_price ?? ""}
-                  />
-                </Field>
-              </>
-            )}
-            <Field label="Manufacture date (optional)">
-              <input
-                name="manufacture_date"
-                type="date"
-                defaultValue={editing?.manufacture_date?.slice(0, 10)}
-              />
-            </Field>
-            <Field label="Expired date (optional)">
-              <input
-                name="expired_date"
-                type="date"
-                defaultValue={editing?.expired_date?.slice(0, 10)}
-              />
-            </Field>
-            {simple && (
-              <Field label="Catalog attachment">
-                <select name="category_id" defaultValue={editing?.category_ids?.[0] ?? ""}>
-                  <option value="">No catalog category</option>
-                  {categories.data.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {categoryLabels.get(category.id) ?? category.name}
-                    </option>
-                  ))}
-                </select>
-                <Link className="text-link" href="/categories">
-                  Manage catalog choices
-                </Link>
+              <Field label="Product barcode">
+                <BarcodeScanner
+                  value={productBarcode}
+                  onChange={setProductBarcode}
+                  placeholder="Optional product barcode"
+                />
               </Field>
-            )}
-            <Field label="Brand">
-              <select name="brand_id" defaultValue={editing?.brand_id ?? ""}>
-                <option value="">No brand</option>
-                {brands.data
-                  .filter((brand) => brand.is_active)
-                  .map((brand) => (
-                    <option key={brand.id} value={brand.id}>
-                      {brand.name}
-                    </option>
-                  ))}
-              </select>
-              <Link className="text-link" href="/brands">
-                Manage brands
-              </Link>
-            </Field>
-            <div className="wide">
-              <Field label="Description">
-                <textarea name="description" defaultValue={editing?.description} />
-              </Field>
-            </div>
-            <ImageSourceField
-              key={editing?.id ?? "new-product"}
-              currentUrl={editing?.images?.[0]?.image_url}
-            />
-            {simple && !editing && !mini && (
-              <>
-                <Field label="Unit attachment">
-                  <select name="base_unit_id" required defaultValue="">
-                    <option value="">Select unit</option>
-                    {units.data
-                      .filter((unit) => unit.is_active)
-                      .map((unit) => (
-                        <option key={unit.id} value={unit.id}>
-                          {unit.name} ({unit.code})
-                        </option>
-                      ))}
+              {mini ? (
+                <input
+                  type="hidden"
+                  name="product_type"
+                  value={editing?.product_type ?? "PHYSICAL"}
+                />
+              ) : (
+                <Field label="Product type">
+                  <select name="product_type" defaultValue={editing?.product_type ?? "PHYSICAL"}>
+                    <option value="PHYSICAL">Physical</option>
+                    <option value="DIGITAL">Digital</option>
+                    <option value="SERVICE">Service</option>
                   </select>
-                  <Link className="text-link" href="/units">
-                    Manage unit choices
+                </Field>
+              )}
+              {mini && canEditInlinePrice && (
+                <>
+                  <Field
+                    label="Original price (cost)"
+                    hint="Baseline purchase cost for this product"
+                  >
+                    <input
+                      name="original_price"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      defaultValue={editing?.original_price ?? ""}
+                    />
+                  </Field>
+                  <Field
+                    label="Sell price (retail)"
+                    hint="Selling price in standard retail price list"
+                  >
+                    <input
+                      name="sell_price"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      defaultValue={editing?.sell_price ?? ""}
+                    />
+                  </Field>
+                </>
+              )}
+              {mini && editing && !editingVariants.loading && !hasManagedStandardVariant && (
+                <p className="wide">
+                  This product was created with explicit variants. Use Pack sizes and Manage prices
+                  to edit each sellable option; changing POS mode keeps those variants and prices.
+                </p>
+              )}
+              <Field label="Manufacture date (optional)">
+                <input
+                  name="manufacture_date"
+                  type="date"
+                  defaultValue={editing?.manufacture_date?.slice(0, 10)}
+                />
+              </Field>
+              <Field label="Expired date (optional)">
+                <input
+                  name="expired_date"
+                  type="date"
+                  defaultValue={editing?.expired_date?.slice(0, 10)}
+                />
+              </Field>
+              {simple && !nano && (
+                <Field label="Catalog attachment">
+                  <select name="category_id" defaultValue={editing?.category_ids?.[0] ?? ""}>
+                    <option value="">No catalog category</option>
+                    {categories.data.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {categoryLabels.get(category.id) ?? category.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Link className="text-link" href="/categories">
+                    Manage catalog choices
                   </Link>
                 </Field>
-                {attributes.data.map((definition) => (
-                  <Field key={definition.id} label={`${definition.name} attachment`}>
-                    {definition.options.length > 0 ? (
-                      <select name={`attribute_${definition.code}`} defaultValue="">
-                        <option value="">Not attached</option>
-                        {definition.options.map((option) => (
-                          <option key={option.id} value={option.value}>
-                            {option.label}
+              )}
+              <Field label="Brand">
+                <select name="brand_id" defaultValue={editing?.brand_id ?? ""}>
+                  <option value="">No brand</option>
+                  {brands.data
+                    .filter((brand) => brand.is_active)
+                    .map((brand) => (
+                      <option key={brand.id} value={brand.id}>
+                        {brand.name}
+                      </option>
+                    ))}
+                </select>
+                {!nano && (
+                  <Link className="text-link" href="/brands">
+                    Manage brands
+                  </Link>
+                )}
+              </Field>
+              <div className="wide">
+                <Field label="Description">
+                  <textarea name="description" defaultValue={editing?.description} />
+                </Field>
+              </div>
+              <ImageSourceField
+                key={editing?.id ?? "new-product"}
+                currentUrl={editing?.images?.[0]?.image_url}
+              />
+              {simple && !editing && !mini && (
+                <>
+                  <Field label="Unit attachment">
+                    <select name="base_unit_id" required defaultValue="">
+                      <option value="">Select unit</option>
+                      {units.data
+                        .filter((unit) => unit.is_active)
+                        .map((unit) => (
+                          <option key={unit.id} value={unit.id}>
+                            {unit.name} ({unit.code})
                           </option>
                         ))}
-                      </select>
-                    ) : definition.value_type === "BOOLEAN" ? (
-                      <select name={`attribute_${definition.code}`} defaultValue="">
-                        <option value="">Not attached</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
-                      </select>
-                    ) : (
-                      <input
-                        name={`attribute_${definition.code}`}
-                        type={definition.value_type === "NUMBER" ? "number" : "text"}
-                      />
-                    )}
+                    </select>
+                    <Link className="text-link" href="/units">
+                      Manage unit choices
+                    </Link>
                   </Field>
-                ))}
-              </>
-            )}
-            <label className="check-field wide">
-              <input type="checkbox" name="active" defaultChecked={editing?.is_active ?? true} />
-              <span>
-                <strong>Active product</strong>
-                <small>Can be configured for sale</small>
-              </span>
-            </label>
-          </div>
-          {error && <div className="form-error">{error}</div>}
-          <div className="modal-actions">
-            <Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">Save product</Button>
-          </div>
-        </Form>
+                  {attributes.data.map((definition) => (
+                    <Field key={definition.id} label={`${definition.name} attachment`}>
+                      {definition.options.length > 0 ? (
+                        <select name={`attribute_${definition.code}`} defaultValue="">
+                          <option value="">Not attached</option>
+                          {definition.options.map((option) => (
+                            <option key={option.id} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : definition.value_type === "BOOLEAN" ? (
+                        <select name={`attribute_${definition.code}`} defaultValue="">
+                          <option value="">Not attached</option>
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select>
+                      ) : (
+                        <input
+                          name={`attribute_${definition.code}`}
+                          type={definition.value_type === "NUMBER" ? "number" : "text"}
+                        />
+                      )}
+                    </Field>
+                  ))}
+                </>
+              )}
+              <label className="check-field wide">
+                <input type="checkbox" name="active" defaultChecked={editing?.is_active ?? true} />
+                <span>
+                  <strong>Active product</strong>
+                  <small>Can be configured for sale</small>
+                </span>
+              </label>
+            </div>
+            {error && <div className="form-error">{error}</div>}
+            <div className="modal-actions">
+              <Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save product</Button>
+            </div>
+          </Form>
+        )}
       </Modal>
-      {!simple && selected && (
-        <VariantManager product={selected} onClose={() => setSelected(null)} />
+      {selected && (
+        <VariantManager
+          product={selected}
+          onClose={() => {
+            setSelected(null);
+            if (nano) void products.reload();
+          }}
+        />
       )}
     </>
   );

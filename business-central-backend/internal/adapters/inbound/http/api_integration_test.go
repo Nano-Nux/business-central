@@ -458,6 +458,11 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	if conversionCreate.StatusCode != http.StatusCreated {
 		t.Fatalf("unit conversion creation status = %d, body = %s", conversionCreate.StatusCode, responseBody(conversionCreate))
 	}
+	// This fixture exercises explicit variants, independently of the SIMPLE
+	// merchant provisioning default.
+	if _, err = pool.Exec(ctx, `UPDATE merchants SET pos_complexity_level='COMPLEX' WHERE id=$1::uuid`, account.Data.Merchant.ID); err != nil {
+		t.Fatal(err)
+	}
 	productCreate := requestJSON(t, app, http.MethodPost, "/api/v1/catalog/products", map[string]any{
 		"name": "Integration Product", "product_type": "PHYSICAL",
 	}, managerSession.Data.AccessToken)
@@ -649,10 +654,37 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	}
 
 	directEventKey := "direct-stock-in:" + uuid.NewString()
+	managerStockDenied := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", map[string]any{
+		"variant_id": variantBody.Data.ID, "destination_location_id": stockLocationID,
+		"quantity": "1", "unit_cost": "12.34", "event_key": uuid.NewString(),
+	}, managerSession.Data.AccessToken)
+	if managerStockDenied.StatusCode != http.StatusForbidden {
+		t.Fatalf("manager stock-in must be forbidden: %d %s", managerStockDenied.StatusCode, responseBody(managerStockDenied))
+	}
+	// The existing owner identity can belong to this merchant as well. Receipts
+	// must use a merchant session; ordinary manager permissions are insufficient.
+	stockOwnerRole, stockOwnerMembership := uuid.NewString(), uuid.NewString()
+	if _, err = pool.Exec(ctx, `INSERT INTO roles(id,merchant_id,code,name,is_system) VALUES($1,$2,'merchant','Merchant',true)`, stockOwnerRole, account.Data.Merchant.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO user_memberships(id,merchant_id,identity_id,display_name) VALUES($1,$2,$3,'Stock owner')`, stockOwnerMembership, account.Data.Merchant.ID, onboardBody.Data.User.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO membership_roles(merchant_id,membership_id,role_id) VALUES($1,$2,$3)`, account.Data.Merchant.ID, stockOwnerMembership, stockOwnerRole); err != nil {
+		t.Fatal(err)
+	}
+	stockOwnerLogin := requestJSON(t, app, http.MethodPost, "/api/v1/auth/login", map[string]any{"email": ownerEmail, "password": "Merchant-owner-password-123", "merchant_id": account.Data.Merchant.ID}, "")
+	if stockOwnerLogin.StatusCode != http.StatusOK {
+		t.Fatalf("stock owner login: %d %s", stockOwnerLogin.StatusCode, responseBody(stockOwnerLogin))
+	}
+	var stockOwnerSession struct {
+		Data auth.Session `json:"data"`
+	}
+	decodeResponse(t, stockOwnerLogin, &stockOwnerSession)
 	batchTrackedStockIn := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", map[string]any{
 		"variant_id": variantBody.Data.ID, "destination_location_id": stockLocationID,
 		"unit_id": unitBody.Data.ID, "quantity": "5", "unit_cost": "12.34", "event_key": directEventKey,
-	}, managerSession.Data.AccessToken)
+	}, stockOwnerSession.Data.AccessToken)
 	if batchTrackedStockIn.StatusCode != http.StatusBadRequest {
 		t.Fatalf("batch-tracked direct stock-in status = %d, body = %s", batchTrackedStockIn.StatusCode, responseBody(batchTrackedStockIn))
 	}
@@ -665,7 +697,7 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	firstStockInWithoutCost := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", map[string]any{
 		"variant_id": variantBody.Data.ID, "destination_location_id": stockLocationID,
 		"unit_id": unitBody.Data.ID, "quantity": "1", "event_key": "direct-stock-in:" + uuid.NewString(),
-	}, managerSession.Data.AccessToken)
+	}, stockOwnerSession.Data.AccessToken)
 	if firstStockInWithoutCost.StatusCode != http.StatusBadRequest {
 		t.Fatalf("first stock-in without cost status = %d, body = %s", firstStockInWithoutCost.StatusCode, responseBody(firstStockInWithoutCost))
 	}
@@ -673,7 +705,7 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 		"variant_id": variantBody.Data.ID, "destination_location_id": stockLocationID,
 		"unit_id": unitBody.Data.ID, "quantity": "5", "unit_cost": "12.34", "event_key": directEventKey,
 	}
-	stockIn := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", stockInRequest, managerSession.Data.AccessToken)
+	stockIn := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", stockInRequest, stockOwnerSession.Data.AccessToken)
 	if stockIn.StatusCode != http.StatusCreated {
 		t.Fatalf("direct stock-in status = %d, body = %s", stockIn.StatusCode, responseBody(stockIn))
 	}
@@ -690,7 +722,7 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	if stockInBody.Data.MovementType != "RECEIPT" || stockInBody.Data.ReceiptLineID != nil || stockInBody.Data.UnitCost == nil || *stockInBody.Data.UnitCost != "12.34" {
 		t.Fatalf("unexpected direct stock-in response: %+v", stockInBody.Data)
 	}
-	idempotentStockIn := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", stockInRequest, managerSession.Data.AccessToken)
+	idempotentStockIn := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", stockInRequest, stockOwnerSession.Data.AccessToken)
 	if idempotentStockIn.StatusCode != http.StatusCreated {
 		t.Fatalf("idempotent stock-in status = %d, body = %s", idempotentStockIn.StatusCode, responseBody(idempotentStockIn))
 	}
@@ -759,7 +791,7 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 		"unit_id": unitBody.Data.ID, "receipt_number": "GR-" + uuid.NewString()[:8],
 		"quantity": "2", "event_key": purchaseEventKey,
 	}
-	purchaseStockIn := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", purchaseStockInRequest, managerSession.Data.AccessToken)
+	purchaseStockIn := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", purchaseStockInRequest, stockOwnerSession.Data.AccessToken)
 	if purchaseStockIn.StatusCode != http.StatusCreated {
 		t.Fatalf("purchase-order stock-in status = %d, body = %s", purchaseStockIn.StatusCode, responseBody(purchaseStockIn))
 	}
@@ -774,7 +806,7 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 	if purchaseStockInBody.Data.MovementType != "RECEIPT" || purchaseStockInBody.Data.ReceiptLineID == nil {
 		t.Fatalf("purchase-order receipt lost its receipt-line link: %+v", purchaseStockInBody.Data)
 	}
-	purchaseStockInRetry := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", purchaseStockInRequest, managerSession.Data.AccessToken)
+	purchaseStockInRetry := requestJSON(t, app, http.MethodPost, "/api/v1/inventory/stock-in", purchaseStockInRequest, stockOwnerSession.Data.AccessToken)
 	if purchaseStockInRetry.StatusCode != http.StatusCreated {
 		t.Fatalf("idempotent purchase-order stock-in status = %d, body = %s", purchaseStockInRetry.StatusCode, responseBody(purchaseStockInRetry))
 	}
@@ -857,7 +889,7 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 
 	staffRoleUpdate := requestJSON(t, app, http.MethodPatch, "/api/v1/roles/"+staffRoleID, map[string]any{
 		"permission_codes": []string{"tenant.read", "tenant.write", "stock_in"},
-	}, loginBody.Data.AccessToken)
+	}, stockOwnerSession.Data.AccessToken)
 	if staffRoleUpdate.StatusCode != http.StatusOK {
 		t.Fatalf("tenant staff role update status = %d, body = %s", staffRoleUpdate.StatusCode, responseBody(staffRoleUpdate))
 	}
@@ -899,7 +931,7 @@ func TestConfiguredDatabasePlatformAdminCreatesMerchant(t *testing.T) {
 
 	staffRoleDisable := requestJSON(t, app, http.MethodPatch, "/api/v1/roles/"+staffRoleID, map[string]any{
 		"permission_codes": []string{"tenant.read", "tenant.write"},
-	}, loginBody.Data.AccessToken)
+	}, stockOwnerSession.Data.AccessToken)
 	if staffRoleDisable.StatusCode != http.StatusOK {
 		t.Fatalf("tenant staff role disable stock_in status = %d, body = %s", staffRoleDisable.StatusCode, responseBody(staffRoleDisable))
 	}

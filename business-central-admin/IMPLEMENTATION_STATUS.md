@@ -8,7 +8,7 @@ Last reviewed: 2026-08-04
 - Platform administrators authenticate through the backend and see live backend health and merchant-scope counts on the overview.
 - The current navigation contains Overview, Users, Roles, Currencies, Business types, and Shops. Merchant creation is embedded in Add User: the default Merchant role provisions a merchant and its owner user atomically.
 - Users are listed and managed within a backend-provided merchant scope. Create and update forms use canonical identity/membership fields: email, password, display name, phone, active state, and role IDs. When editing a user with the Merchant role, the edit form also provides fields to edit the merchant's currency, POS complexity level, and Business Central pricing model.
-- Add User defaults to the Merchant account role. Merchant mode collects merchant details, POS complexity level (SIMPLE by default, COMPLEX, or MINI), and Business Central pricing model (Starter by default, Growth, Professional, or Enterprise) and calls `POST /api/v1/admin/merchant-users`; other roles require an existing merchant and show `Please create a merchant first.` when none exists.
+- Add User defaults to the Merchant account role. Merchant mode collects merchant details, POS complexity level (NANO by default, MINI, SIMPLE, or COMPLEX), and Business Central pricing model (Starter by default, Growth, Professional, or Enterprise) and calls `POST /api/v1/admin/merchant-users`; other roles require an existing merchant and show `Please create a merchant first.` when none exists.
 - User roles are selected from a multi-select dropdown populated by the selected merchant's backend role records.
 - Custom merchant roles support create, list, update, and delete operations with permission assignments from the backend permission catalogue. System roles remain editable but cannot have their stable code changed or be deleted.
 - Platform currencies support create, list, update, and delete operations. Referenced currencies are protected from deletion by the backend.
@@ -40,3 +40,5 @@ Last reviewed: 2026-08-04
 `/telegram-groups` provides backend-authorized global visibility and controls for merchant/shop ownership, chat identity, creator snapshots, bot health, member counts, known users, authorized sellers, order activity, errors, and timestamps. Backend audit events remain authoritative.
 
 The Telegram webhook panel reads Telegram's current registration and explicitly registers a public HTTPS backend URL. Backend-only credentials, configuration readiness, pending updates, last delivery errors, and manual status refresh are supported. Registration is restricted to platform administrators and preserves pending updates. Status reads never register automatically.
+
+- The Merchant account POS selector now defaults to NANO and supports all four modes. Existing merchant edits retain their mode.
