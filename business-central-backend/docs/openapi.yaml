@@ -47,6 +47,36 @@ tags:
   - name: Telegram
     description: Shared-bot shop-group pairing and canonical Telegram draft orders.
 paths:
+  /api/v1/public/receptionist/status:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1public~1receptionist~1status'
+  /api/v1/public/receptionist/conversations:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1public~1receptionist~1conversations'
+  /api/v1/public/receptionist/conversations/{id}:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1public~1receptionist~1conversations~1{id}'
+  /api/v1/public/receptionist/conversations/{id}/messages:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1public~1receptionist~1conversations~1{id}~1messages'
+  /api/v1/public/receptionist/conversations/{id}/slots:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1public~1receptionist~1conversations~1{id}~1slots'
+  /api/v1/public/receptionist/conversations/{id}/bookings:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1public~1receptionist~1conversations~1{id}~1bookings'
+  /api/v1/admin/receptionist/conversations:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1admin~1receptionist~1conversations'
+  /api/v1/admin/receptionist/conversations/{id}:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1admin~1receptionist~1conversations~1{id}'
+  /api/v1/admin/receptionist/bookings:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1admin~1receptionist~1bookings'
+  /api/v1/admin/receptionist/bookings/{id}:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1admin~1receptionist~1bookings~1{id}'
+  /api/v1/admin/receptionist/settings:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1admin~1receptionist~1settings'
+  /api/v1/admin/receptionist/google/connect:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1admin~1receptionist~1google~1connect'
+  /api/v1/admin/receptionist/google/connection:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1admin~1receptionist~1google~1connection'
+  /api/v1/public/receptionist/google/start:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1public~1receptionist~1google~1start'
+  /api/v1/public/receptionist/google/callback:
+    $ref: './receptionist.openapi.json#/paths/~1api~1v1~1public~1receptionist~1google~1callback'
   /api/v1/admin/telegram/webhook:
     get:
       tags: [Telegram]
@@ -2341,7 +2371,10 @@ paths:
       description: |
         Requires ai.chat and merchant AI enablement. The backend supplies immutable
         tenant/shop scope to structured read tools; raw SQL and writes are unavailable.
-        Quota is reserved atomically before the model call, including failed calls.
+        Up to five sequential planning steps may read approved data or correct rejected
+        proposals, with shared row/payload/time limits and per-step access checks.
+        Results are returned as sanitized semantic HTML with completeness notices.
+        Quota is reserved once per question before the model call, including failures.
         Existing conversations must belong to the caller and selected shop.
       requestBody:
         required: true
@@ -2454,6 +2487,10 @@ paths:
 
 components:
   securitySchemes:
+    ReceptionistSession:
+      type: http
+      scheme: bearer
+      description: Conversation-scoped visitor capability; not a merchant JWT.
     bearerAuth:
       type: http
       scheme: bearer

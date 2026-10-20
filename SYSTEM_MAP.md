@@ -33,3 +33,7 @@ Public visitors ── business-central-public-facing
 - All core business operations (catalog, customers, inventory, checkout, invoices, printing, scanning) execute 100% locally offline.
 - Nanonux AI Assistant (`/api/v1/ai`): Online-only conversational and business analytics service utilizing Gemini tool calling against merchant database scopes via read-only transactions, returning humanized HTML responses. Gated by Admin merchant enablement (`ai_assistant_enabled`), merchant query usage limits (`ai_usage_limit`, default 50, with admin controls and portal quota monitoring), and user-level role permission (`ai.chat`).
 - Portal and mobile should be designed from the same workflow specification and acceptance criteria.
+
+## Nanonux public support
+
+Public-facing chat and demo CTAs call `/api/v1/public/receptionist` on the existing Go backend. Its isolated `internal/receptionist` module calls Gemini and Google Calendar; it has no merchant data tools. Platform administrators use `/receptionist` in Admin to review all transcripts, linked booking details, approved support knowledge and scheduling/Calendar configuration. This platform-only feature has no portal/mobile workflow or synchronization path.

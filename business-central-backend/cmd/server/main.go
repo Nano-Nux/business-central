@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"log"
 	"time"
 
@@ -24,6 +25,11 @@ import (
 	operationsapp "business-central-backend/internal/operations/application"
 	pospostgres "business-central-backend/internal/pos/adapters/outbound/postgres"
 	posapp "business-central-backend/internal/pos/application"
+	receptionisthttp "business-central-backend/internal/receptionist/adapters/inbound/http"
+	receptionistgemini "business-central-backend/internal/receptionist/adapters/outbound/gemini"
+	receptionistgoogle "business-central-backend/internal/receptionist/adapters/outbound/google"
+	receptionistpostgres "business-central-backend/internal/receptionist/adapters/outbound/postgres"
+	receptionistapp "business-central-backend/internal/receptionist/application"
 	reportspostgres "business-central-backend/internal/reports/adapters/outbound/postgres"
 	reportsapp "business-central-backend/internal/reports/application"
 	servicespostgres "business-central-backend/internal/services/adapters/outbound/postgres"
@@ -99,9 +105,16 @@ func main() {
 	aiService := aiapp.NewService(aipostgres.NewRepository(pool), aiLLMClient, authapp.NewService(authService))
 	telegramService := telegramapp.NewService(telegrampostgres.NewRepository(pool), telegramhttp.New(cfg.TelegramBotToken), cfg.TelegramWebhookSecret, cfg.TelegramBotName, cfg.PublicBaseURL)
 	go telegramService.RunOutbox(context.Background())
+	receptionistKey, keyErr := base64.StdEncoding.DecodeString(cfg.ReceptionistEncryptionKey)
+	if cfg.ReceptionistEncryptionKey != "" && (keyErr != nil || len(receptionistKey) != 32) {
+		log.Fatal("RECEPTIONIST_ENCRYPTION_KEY must be a base64-encoded 32-byte key")
+	}
+	googleCalendar := &receptionistgoogle.Client{ClientID: cfg.ReceptionistGoogleClientID, ClientSecret: cfg.ReceptionistGoogleClientSecret, RedirectURL: cfg.ReceptionistGoogleRedirectURL}
+	receptionist := &receptionistapp.Service{Repo: &receptionistpostgres.Repository{Pool: pool}, LLM: &receptionistgemini.Client{APIKey: cfg.ReceptionistGeminiAPIKey, Model: cfg.ReceptionistModel}, Calendar: googleCalendar, OAuth: googleCalendar, EncryptionKey: receptionistKey}
 
 	api := httpadapter.New(pool, httpadapter.Dependencies{
 		AI:              aiService,
+		Receptionist:    &receptionisthttp.Handler{Service: receptionist, AdminURL: cfg.ReceptionistAdminURL, CallbackURL: cfg.ReceptionistGoogleRedirectURL},
 		Authentication:  authapp.NewService(authService),
 		Backup:          backupService,
 		BundlesDir:      "./data/bundles",

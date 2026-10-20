@@ -28,7 +28,7 @@ This project showcases the complete enterprise capabilities of Business Central:
 9. **Customer Stories & Metrics (`TestimonialsAndMetrics.tsx`)**: Retail and repair operator testimonials with verified production metrics.
 10. **Transparent Pricing (`PricingSection.tsx`)**: Clear tiers at MMK 80,000 / MMK 150,000 / MMK 400,000 per month with annual savings toggle and AI-assisted business intelligence included.
 11. **Store Owner FAQ (`FaqSection.tsx`)**: Searchable accordion answering key operational questions on offline reliability, hardware compatibility, data migration, and AI-assisted tools.
-12. **Demo Scheduling Modal (`DemoModal.tsx`)**: Lead capture modal with sandbox provisioning feedback.
+12. **Demo Scheduling (`DemoModal.tsx` / `ReceptionistWidget.tsx`)**: Shared AI support chat and real Calendar slot selection with visitor-confirmed booking.
 13. **Global Footer (`Footer.tsx`)**: Structured site links and operational badges.
 
 ## Scope Rule
@@ -41,3 +41,7 @@ Operational merchant workflows and authenticated operations belong exclusively t
 - `npm run build` — Create an optimized production build
 - `npm run start` — Run production server
 - `npm run lint` — Run ESLint across application code
+
+## Public AI support and real appointments
+
+The floating **Ask Nanonux** launcher and demo CTAs share the `ReceptionistWidget` conversation. Approved product/support answers and tool-driven availability come from the existing Go backend. Visitors choose an available time, supply contact details and explicitly confirm before booking. Pending outcomes preserve the booking request ID across retries and reloads. Session capabilities use tab-scoped session storage. The previous simulated demo/sandbox success screen is replaced; no automatic sandbox provisioning is promised. Set `NEXT_PUBLIC_API_URL` before building and configure/enable reception in Admin. See [backend setup and boundaries](../business-central-backend/internal/receptionist/README.md).

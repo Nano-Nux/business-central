@@ -2,9 +2,24 @@ package postgres
 
 import (
 	"business-central-backend/internal/ai/domain"
+	"context"
+	"errors"
 	"strings"
 	"testing"
 )
+
+func TestRejectedReadIsClassifiedWithoutDatabaseAccess(t *testing.T) {
+	r := Repository{} // A rejected proposal must not need a database connection.
+	for _, q := range []domain.ReadQuery{{Dataset: "user_identities"}, {Dataset: "orders", Columns: []string{"*"}}, {Dataset: "sales_profit"}} {
+		_, err := r.ExecuteReadOnlyQuery(context.Background(), testMerchantID, "", testShopID, "", q, true)
+		if !errors.Is(err, domain.ErrInvalidRead) {
+			t.Fatalf("compiler rejection was not safely classified: %v", err)
+		}
+		if q.Dataset == "sales_profit" && !errors.Is(err, domain.ErrReadRestricted) {
+			t.Fatal("financial denial lost its typed restriction")
+		}
+	}
+}
 
 const testMerchantID = "11111111-1111-4111-8111-111111111111"
 const testShopID = "22222222-2222-4222-8222-222222222222"

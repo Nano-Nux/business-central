@@ -243,7 +243,7 @@ func (r *Repository) AuthorizeShop(ctx context.Context, merchantID, membershipID
 func (r *Repository) ExecuteReadOnlyQuery(ctx context.Context, merchantID, membershipID, shopID, userID string, query domain.ReadQuery, isStaff bool) ([]map[string]any, error) {
 	sql, args, err := CompileReadQuery(query, merchantID, shopID, isStaff)
 	if err != nil {
-		return nil, fmt.Errorf("invalid read request: %w", err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrInvalidRead, err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()

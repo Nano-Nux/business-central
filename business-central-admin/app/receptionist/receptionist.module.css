@@ -1,0 +1,143 @@
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.tabs button {
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+  background: var(--green);
+  color: white;
+}
+.settings {
+  max-width: 900px;
+  display: grid;
+  gap: 18px;
+}
+.settings label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.settings textarea {
+  resize: vertical;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  font: inherit;
+  line-height: 1.6;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+.settings .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.check input {
+  width: auto;
+  margin: 0;
+}
+.days,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.actions {
+  margin: 12px 0;
+  justify-content: space-between;
+}
+.settings fieldset {
+  border: 1px solid var(--line);
+  padding: 14px;
+  border-radius: 8px;
+}
+.table {
+  overflow-x: auto;
+}
+.table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.table small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.detail {
+  width: min(850px, 100%);
+}
+.reference {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.transcript {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.transcript article {
+  padding: 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.transcript article[data-role="user"] {
+  background: var(--mint);
+}
+.transcript small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.transcript p,
+.facts dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.facts {
+  display: grid;
+  gap: 16px;
+  margin: 24px 0;
+}
+.facts div {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px;
+}
+.facts dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.facts dd {
+  margin: 0;
+  font-size: 13px;
+}
+@media (max-width: 500px) {
+  .facts div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
