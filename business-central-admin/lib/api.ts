@@ -192,6 +192,111 @@ async function request<T>(
   return response.json();
 }
 
+export type ReceptionistSlot = { start: string; end: string };
+export type ReceptionistMessage = {
+  id: string;
+  role: string;
+  content: string;
+  slots?: ReceptionistSlot[];
+  created_at: string;
+};
+export type ReceptionistBooking = {
+  id: string;
+  conversation_id: string;
+  name: string;
+  email: string;
+  company: string;
+  notes: string;
+  start: string;
+  end: string;
+  timezone: string;
+  calendar_id: string;
+  status: string;
+  event_id: string;
+  event_url: string;
+  last_error: string;
+  created_at: string;
+};
+export type ReceptionistConversation = {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  created_at: string;
+  updated_at: string;
+  messages?: ReceptionistMessage[];
+  bookings?: ReceptionistBooking[];
+};
+export type ReceptionistSettings = {
+  enabled: boolean;
+  greeting: string;
+  knowledge: string;
+  timezone: string;
+  calendar_id: string;
+  duration_minutes: number;
+  start_hour: number;
+  end_hour: number;
+  weekdays: number[];
+  daily_limit: number;
+  calendar_connected: boolean;
+  oauth_configured: boolean;
+};
+export type ReceptionistPage<T> = {
+  data: T[];
+  meta: { total: number; limit: number; offset: number };
+};
+export const getReceptionistSettings = (token: string) =>
+  request<{ data: ReceptionistSettings }>(
+    "/admin/receptionist/settings",
+    {},
+    token,
+  ).then((v) => v.data);
+export const saveReceptionistSettings = (
+  token: string,
+  settings: ReceptionistSettings,
+) =>
+  request<{ data: ReceptionistSettings }>(
+    "/admin/receptionist/settings",
+    { method: "PUT", body: JSON.stringify(settings) },
+    token,
+  ).then((v) => v.data);
+export const connectReceptionistGoogle = (token: string) =>
+  request<{ data: { url: string } }>(
+    "/admin/receptionist/google/connect",
+    { method: "POST" },
+    token,
+  ).then((v) => v.data);
+export const disconnectReceptionistGoogle = (token: string) =>
+  request("/admin/receptionist/google/connection", { method: "DELETE" }, token);
+export const listReceptionistConversations = (token: string, offset: number) =>
+  request<ReceptionistPage<ReceptionistConversation>>(
+    `/admin/receptionist/conversations?limit=25&offset=${offset}`,
+    {},
+    token,
+  );
+export const getReceptionistConversation = (token: string, id: string) =>
+  request<{ data: ReceptionistConversation }>(
+    `/admin/receptionist/conversations/${encodeURIComponent(id)}`,
+    {},
+    token,
+  ).then((v) => v.data);
+export const listReceptionistBookings = (
+  token: string,
+  offset: number,
+  status: string,
+) =>
+  request<ReceptionistPage<ReceptionistBooking>>(
+    `/admin/receptionist/bookings?limit=25&offset=${offset}&status=${encodeURIComponent(status)}`,
+    {},
+    token,
+  );
+export const getReceptionistBooking = (token: string, id: string) =>
+  request<{ data: ReceptionistBooking }>(
+    `/admin/receptionist/bookings/${encodeURIComponent(id)}`,
+    {},
+    token,
+  ).then((v) => v.data);
+
 export async function login(email: string, password: string): Promise<Session> {
   const result = await request<{ data: Session }>("/auth/login", {
     method: "POST",

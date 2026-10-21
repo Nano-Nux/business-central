@@ -269,3 +269,16 @@ the programmatic fallback remains English for non-Myanmar questions.
 ## Shop-scoped AI reads
 
 See [AI chat security, catalog, financial semantics and client rollout](../AI_CHAT_SECURITY.md). AI tools accept structured read proposals, never raw SQL. Shop selection is mandatory. Chat metadata remains writable by infrastructure; business-data tools are read-only.
+
+The planner can now investigate through up to five sequential reads/corrections
+per question. Current-turn results retain query/period/currency provenance and
+are untrusted input to subsequent planning. Shared limits cap accepted results at
+300 rows/128 KB, planning at 45 seconds, formatting at 25 seconds, and the complete
+service request at 85 seconds. Every step rechecks access, and role/scope changes
+discard the answer. The separate tool-free formatter and programmatic fallback
+return sanitized HTML; partial/limited reads receive a server-generated notice.
+The HTTP DTOs, quota unit, database schema and offline behavior are unchanged.
+
+## Nanonux public AI receptionist
+
+The separate `internal/receptionist` module serves public support chat and visitor-confirmed Google Calendar appointments. Admin reviews full conversation and booking history, configures approved knowledge/scheduling, and connects Google Calendar. It is disabled by default and has no merchant data tools. See [setup, API, safety boundaries and verification](internal/receptionist/README.md).

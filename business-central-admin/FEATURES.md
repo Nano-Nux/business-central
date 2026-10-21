@@ -16,3 +16,9 @@
 | Business type administration | Implemented | Platform business type CRUD and shop-level assignment; detailed catalog/unit/pricing configuration is planned |
 | Shop administration | Implemented | Shop CRUD scoped by selected merchant and `X-Merchant-ID` |
 | Audit visibility | Planned | Display relevant merchant/module changes |
+
+## Public receptionist
+
+| Feature | Status | Evidence |
+|---|---|---|
+| Public transcripts, booking history/details, content/schedule and Calendar connection | Implemented | `/receptionist`; backend platform-admin authorization |

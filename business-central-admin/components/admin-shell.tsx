@@ -13,9 +13,15 @@ export type AdminSection =
   | "roles"
   | "shops"
   | "telegram-groups"
+  | "receptionist"
   | "ai-maintenance";
 
 const navigation: { href: string; label: string; section: AdminSection }[] = [
+  {
+    href: "/receptionist",
+    label: "Public receptionist",
+    section: "receptionist",
+  },
   { href: "/", label: "Overview", section: "overview" },
   { href: "/merchants", label: "Merchants", section: "merchants" },
   { href: "/users", label: "Users", section: "users" },

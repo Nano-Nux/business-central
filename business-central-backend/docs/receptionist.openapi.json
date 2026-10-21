@@ -1,0 +1,1297 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Nanonux Public Receptionist API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/public/receptionist/status": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Read public availability status",
+        "description": "",
+        "operationId": "getApiV1PublicReceptionistStatus",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "greeting": {
+                          "type": "string"
+                        },
+                        "timezone": {
+                          "type": "string"
+                        },
+                        "calendar_connected": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/receptionist/conversations": {
+      "post": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Start a visitor conversation",
+        "description": "Receptionist must be enabled. Returns the raw random session capability once. Store it in tab-scoped session storage; never put it in a URL.",
+        "operationId": "postApiV1PublicReceptionistConversations",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "conversation": {
+                          "$ref": "#/components/schemas/Conversation"
+                        },
+                        "token": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/receptionist/conversations/{id}": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Read own transcript and bookings",
+        "description": "The bearer capability must belong to this conversation and be unexpired. Unknown/wrong/expired capabilities return NOT_FOUND.",
+        "operationId": "getApiV1PublicReceptionistConversationsId",
+        "security": [
+          {
+            "ReceptionistSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Conversation"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/public/receptionist/conversations/{id}/messages": {
+      "post": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Send a support message",
+        "description": "Uses persisted history, approved knowledge and only the check_calendar_slots tool. Plain text output. Max 4KB UTF-8 input; bounded history, tool rounds and daily chat turn quota.",
+        "operationId": "postApiV1PublicReceptionistConversationsIdMessages",
+        "security": [
+          {
+            "ReceptionistSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Conversation"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  }
+                },
+                "required": [
+                  "message"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/public/receptionist/conversations/{id}/slots": {
+      "post": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Check and record available appointments",
+        "description": "Date uses the configured business timezone. Applies working days/hours, duration, >1 hour lead time, 60-day horizon, Google free/busy and local reservations. Stores the offered slots in the transcript, valid for 15 minutes.",
+        "operationId": "postApiV1PublicReceptionistConversationsIdSlots",
+        "security": [
+          {
+            "ReceptionistSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Slot"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                },
+                "required": [
+                  "date"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/public/receptionist/conversations/{id}/bookings": {
+      "post": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Confirm or retry a visitor-approved appointment",
+        "description": "Requires confirmed=true and a recently offered slot. Rechecks policy and Google availability. Uses request_id as the durable booking ID and deterministic Google event ID. Changed details on retry return IDEMPOTENCY_CONFLICT. One active booking per conversation. BOOKING_PENDING is a 503 with an uncertain provider outcome; retry identical details. Google guest notifications are requested.",
+        "operationId": "postApiV1PublicReceptionistConversationsIdBookings",
+        "security": [
+          {
+            "ReceptionistSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Booking"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/receptionist/conversations": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "List all platform conversations",
+        "description": "Platform administrators only; merchant users are forbidden. Returns data[] plus meta {total,limit,offset}. Newest activity/creation first; no tenant selector applies.",
+        "operationId": "getApiV1AdminReceptionistConversations",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Conversation"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "offset": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/receptionist/conversations/{id}": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Read full platform conversation detail",
+        "description": "Platform administrators only. Conversations include full messages and linked bookings. Booking status is the integration creation outcome, not a live mirror of Google edits.",
+        "operationId": "getApiV1AdminReceptionistConversationsId",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Conversation"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/receptionist/bookings": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "List all platform bookings",
+        "description": "Platform administrators only; merchant users are forbidden. Returns data[] plus meta {total,limit,offset}. Newest activity/creation first; no tenant selector applies.",
+        "operationId": "getApiV1AdminReceptionistBookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Booking"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "offset": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "FAILED"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/receptionist/bookings/{id}": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Read full platform booking detail",
+        "description": "Platform administrators only. Conversations include full messages and linked bookings. Booking status is the integration creation outcome, not a live mirror of Google edits.",
+        "operationId": "getApiV1AdminReceptionistBookingsId",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Booking"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/receptionist/settings": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Read receptionist settings and integration readiness",
+        "description": "Platform administrators only. Secrets are never returned.",
+        "operationId": "getApiV1AdminReceptionistSettings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SettingsView"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Replace receptionist settings",
+        "description": "Platform administrators only. Validates IANA timezone, unique weekday numbers (Sunday=0), hours, duration, knowledge and quotas. Default enabled=false.",
+        "operationId": "putApiV1AdminReceptionistSettings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SettingsView"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/receptionist/google/connect": {
+      "post": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Begin Google Calendar OAuth",
+        "description": "Platform administrators only. Navigate the browser to the returned backend start URL. A top-level redirect establishes a host-only HttpOnly state cookie before navigating to Google. PKCE and encrypted, 10-minute single-use state protect the exchange.",
+        "operationId": "postApiV1AdminReceptionistGoogleConnect",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/receptionist/google/connection": {
+      "delete": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Disconnect stored Calendar credential",
+        "description": "Platform administrators only. Deletes local credential. Existing Google events remain; revoke the app in Google settings to remove the Google authorization grant too.",
+        "operationId": "deleteApiV1AdminReceptionistGoogleConnection",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connected": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Validation, session, authorization, availability, quota or provider error. BOOKING_PENDING means retry the identical request ID and details; the event may already exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/receptionist/google/start": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Google OAuth start",
+        "description": "OAuth browser redirect endpoint. Callback requires matching state cookie and unexpired, single-use state; exchanges code with PKCE. Redirects to configured Admin URL after success. No tokens are returned to the browser.",
+        "operationId": "getApiV1PublicReceptionistGoogleStart",
+        "security": [],
+        "responses": {
+          "302": {
+            "description": "Redirect to Google consent or configured Admin URL."
+          },
+          "default": {
+            "description": "Invalid, expired, mismatched or denied OAuth request."
+          }
+        },
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/public/receptionist/google/callback": {
+      "get": {
+        "tags": [
+          "Receptionist"
+        ],
+        "summary": "Google OAuth callback",
+        "description": "OAuth browser redirect endpoint. Callback requires matching state cookie and unexpired, single-use state; exchanges code with PKCE. Redirects to configured Admin URL after success. No tokens are returned to the browser.",
+        "operationId": "getApiV1PublicReceptionistGoogleCallback",
+        "security": [],
+        "responses": {
+          "302": {
+            "description": "Redirect to Google consent or configured Admin URL."
+          },
+          "default": {
+            "description": "Invalid, expired, mismatched or denied OAuth request."
+          }
+        },
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bc_receptionist_oauth",
+            "in": "cookie",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ReceptionistSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Random conversation-scoped capability, not a merchant JWT. Expires after 30 days."
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authenticated platform administrator session."
+      }
+    },
+    "schemas": {
+      "Slot": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Slot"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "created_at"
+        ]
+      },
+      "Booking": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "calendar_id": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "event_url": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "FAILED"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "company",
+          "notes",
+          "timezone",
+          "calendar_id",
+          "event_id",
+          "event_url",
+          "last_error",
+          "id",
+          "conversation_id",
+          "start",
+          "end",
+          "created_at",
+          "status"
+        ]
+      },
+      "Conversation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "bookings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Booking"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "greeting": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "knowledge": {
+            "type": "string",
+            "maxLength": 24000
+          },
+          "timezone": {
+            "type": "string",
+            "example": "Asia/Bangkok"
+          },
+          "calendar_id": {
+            "type": "string",
+            "example": "primary"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 120
+          },
+          "start_hour": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 23
+          },
+          "end_hour": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          },
+          "weekdays": {
+            "type": "array",
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 7,
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            }
+          },
+          "daily_limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          }
+        },
+        "required": [
+          "enabled",
+          "greeting",
+          "knowledge",
+          "timezone",
+          "calendar_id",
+          "duration_minutes",
+          "start_hour",
+          "end_hour",
+          "weekdays",
+          "daily_limit"
+        ]
+      },
+      "SettingsView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Settings"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "calendar_connected": {
+                "type": "boolean",
+                "description": "A credential is stored; validity is checked when Google is called."
+              },
+              "oauth_configured": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
+      "BookRequest": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "request_id",
+          "name",
+          "email",
+          "start",
+          "confirmed"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      }
+    }
+  }
+}

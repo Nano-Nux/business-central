@@ -82,3 +82,7 @@ portal/backend feature is paired.
 ## Completion standard
 
 A feature is not complete when only its table or screen exists. It must have backend behavior, authorization, client behavior, error handling, tests, and updated implementation records.
+
+## Public receptionist
+
+Run `go test ./...` and the isolated PostgreSQL receptionist integration suite using `RECEPTIONIST_TEST_DATABASE_URL` as documented in the [module README](business-central-backend/internal/receptionist/README.md). Verify both Next.js apps with lint, TypeScript and production builds. Browser checks cover chat, Calendar slot selection, explicit confirmation, pending retry/reload, Admin transcript/booking details and settings. Provider tests use fake HTTP responses and do not create real events.

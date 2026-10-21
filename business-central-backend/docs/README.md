@@ -151,3 +151,7 @@ OpenAPI 3-compatible linter, for example:
 ```powershell
 npx @redocly/cli lint docs/openapi.yaml
 ```
+
+## Public receptionist
+
+The main Swagger document references [receptionist.openapi.json](receptionist.openapi.json) for public conversation/booking and platform-admin history/settings/OAuth operations. Visitor bearer capabilities are distinct from merchant JWTs. See [setup and invariants](../internal/receptionist/README.md).

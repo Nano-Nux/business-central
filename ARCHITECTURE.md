@@ -225,3 +225,7 @@ Minimal hashed idempotency and sync tombstones survive permanent deletion.
 ## AI read boundary
 
 The model proposes a domain `ReadQuery`; the PostgreSQL adapter compiles only approved datasets, projections, filters and aggregates with bound values and immutable tenant/shop constraints. No model-generated SQL is executed. The application owns permission checks and immutable shop conversation scope. Chat lifecycle persistence/quota reservation is distinct from the sole read-only business-data tool. See [AI security policy](AI_CHAT_SECURITY.md).
+
+## Public receptionist module
+
+`internal/receptionist` is a separate platform bounded context inside the existing Go backend. Public support has only approved product knowledge and Calendar availability tools; it cannot invoke merchant analytics tools. Explicit visitor confirmation creates an idempotent, locally reserved Google appointment. Admin-only APIs expose transcripts and booking details. Platform support conversations and bookings are not merchant customer/order masters. See [module setup, invariants and limits](business-central-backend/internal/receptionist/README.md).

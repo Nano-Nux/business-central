@@ -42,3 +42,9 @@ Last reviewed: 2026-08-04
 The Telegram webhook panel reads Telegram's current registration and explicitly registers a public HTTPS backend URL. Backend-only credentials, configuration readiness, pending updates, last delivery errors, and manual status refresh are supported. Registration is restricted to platform administrators and preserves pending updates. Status reads never register automatically.
 
 - The Merchant account POS selector now defaults to NANO and supports all four modes. Existing merchant edits retain their mode.
+
+## Public receptionist increment
+
+`/receptionist` implements paginated full public conversation history, all booking records and detail/linked-transcript views, status filters and approved knowledge/scheduling/quota settings with Google connect/disconnect. Provider configuration is backend-only. No merchant operational workflow is added.
+
+Verification (2026-10-20): ESLint and production build (including TypeScript) passed. The shared six-test Playwright suite verified Admin transcripts/pagination, booking details and links, settings, Google connection launch and signed-out access.
