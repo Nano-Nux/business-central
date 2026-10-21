@@ -18,3 +18,7 @@ persistence; it uses APIs from `business-central-backend`. Read the
 repository-level `BUSINESS_CONTEXT.md` and `SYSTEM_MAP.md` before development.
 
 New Merchant users default to POS Nano. The POS complexity selector also retains Mini, Simple and Complex; editing an existing merchant preserves its stored selection.
+
+## Public receptionist
+
+`/receptionist` is platform-admin-only and provides paginated public chat history, full transcripts with linked appointments, all bookings with status filtering and detail views, approved support knowledge, scheduling/quota settings and Google Calendar connect/disconnect. Configure backend credentials using the [receptionist setup guide](../business-central-backend/internal/receptionist/README.md); the browser never receives provider credentials. Booking status reflects creation outcome, not external Google edits.

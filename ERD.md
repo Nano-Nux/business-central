@@ -125,3 +125,7 @@ corrections remove owned order/line/payment/refund/fulfillment, accounting and
 stock-history dependencies after restoring stock/FIFO values. Shared catalog and
 customer records remain. SQLite uses scoped metadata for correction versions and
 idempotency, with no schema-version change.
+
+## Platform public receptionist (migration 0056)
+
+`receptionist_conversations` owns many `receptionist_messages` and `receptionist_bookings`. Conversation tokens are hashed and expire after 30 days. Bookings retain contact snapshots, UTC interval, timezone, calendar/event identity, status and diagnostics; one active booking is allowed per conversation. `receptionist_settings` is a singleton containing approved content, schedule, quota and encrypted Google refresh credential. `receptionist_oauth_states` stores hashed single-use state and encrypted PKCE verifier; `receptionist_daily_usage` enforces the UTC turn budget. These platform-owned RLS tables have no merchant/customer/order foreign keys and are excluded from mobile synchronization. See [invariants](business-central-backend/internal/receptionist/README.md).

@@ -77,4 +77,10 @@ optimistic version and idempotency enforcement (migration 0055).
 
 ## AI chat security refactor
 
-Implemented: mandatory authenticated shop scope, 113 approved operational/analytical datasets, structured parameterized read compiler, staff cost protections, atomic quota reservation and sanitized HTML. See [policy and acceptance tests](../AI_CHAT_SECURITY.md). Model behavior is not a 100% security guarantee.
+Implemented: bounded multi-step read-only investigations (five steps, shared row/payload/time budgets, current-turn observations, query correction, per-step access checks and HTML completeness notices), mandatory authenticated shop scope, 113 approved operational/analytical datasets, structured parameterized read compiler, staff cost protections, atomic quota reservation and sanitized HTML. See [policy and acceptance tests](../AI_CHAT_SECURITY.md). Model behavior is not a 100% security guarantee.
+
+## Public receptionist
+
+| Feature | Status | Evidence |
+|---|---|---|
+| Isolated public AI receptionist, Google availability and confirmed booking | Implemented; credentials required | `internal/receptionist`, migration 0056, restricted tool adapter, idempotent pending recovery, public/Admin HTTP routes |

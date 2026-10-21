@@ -12,14 +12,25 @@ authorization boundary and cannot execute SQL or modify business records.
    never moves to another shop, including when the user explicitly requests it.
 4. Reserve one usage unit atomically before query generation. Provider failures or
    rejected model requests consume the reserved unit because a model call was attempted.
-5. The planner proposes `read_shop_data` with a dataset, approved columns, AND filters,
-   aggregates, grouping, ordering and a maximum of 100 rows. It cannot supply SQL,
-   expressions, joins, arbitrary functions, tenant/shop IDs, or a write operation.
+5. The planner proposes one `read_shop_data` call per step with a dataset, approved
+   columns, AND filters, aggregates, grouping, ordering and at most 100 rows. Up to
+   five planning steps may perform dependent reads or correct a rejected proposal.
+   It cannot supply SQL, expressions, joins, arbitrary functions, tenant/shop IDs,
+   or a write operation. Unknown tools and multiple simultaneous calls fail closed.
 6. The backend compiles fixed projections and scope relationships, binds every value,
    checks membership again, and executes a PostgreSQL READ ONLY transaction. Tenant
    context is set in transactions, including chat metadata queries, for RLS support.
-7. A separate formatter has no tools. It receives approved results, the question,
-   and merchant currency, with user/database content marked as untrusted data.
+7. Approved, currency-formatted current-turn observations return to the planner as
+   explicitly untrusted JSON in a fresh planning request. Each observation retains
+   its exact query, records, safe rejection/unavailability status and possible row
+   truncation. No native assistant/tool transcript is replayed. Identical reads
+   stop the loop. Compiler rejections may be corrected; database failures stop it
+   without exposing SQL or driver diagnostics. Access and role are checked before
+   every planning call/read and before/after formatting; revoked or changed access
+   discards the answer. The repository also rechecks membership inside each read
+   transaction. A separate formatter has no tools and produces semantic HTML from
+   the observations, question and merchant currency. Planner text after reads is
+   only a stop signal, never the final business answer.
 8. The server sanitizes HTML before storage and again on history reads. The portal
    also sanitizes responses and resets chat state when merchant/membership/shop/permissions change.
 
@@ -52,7 +63,9 @@ absent from their catalog and denied by the compiler in projections, filters,
 aggregates, grouping, and ordering. Default projections never expand to `SELECT *`.
 Stored responses generated with financial access are hidden after a role downgrade;
 legacy assistant messages with no permission marker are conservatively hidden from
-staff. Assistant answers and database records are not replayed to the planner.
+staff. Stored assistant answers and previous-turn database records are never
+replayed to the planner. Only approved current-turn observations are available
+for follow-up planning; they cannot widen backend permissions or scope.
 
 ## Financial semantics
 
@@ -92,11 +105,26 @@ Inputs: 8,000 text bytes, 6 MB decoded transcription audio. Structured tool argu
 16 KB, at most 24 selected columns, 16 filters (500 bytes each), 8 aggregates,
 6 grouping columns, 4 order columns, and 100 rows. Read queries: 5-second statement
 and 1-second lock timeouts, 6-second context deadline, 128 KB result payload cap.
-Provider responses: 1 MB; formatted responses: 64 KB; at most 8 concurrent planner/transcription
-requests per backend process, and 10 combined chat/transcription HTTP requests per
+Each chat is limited to five planning steps (including malformed/rejected proposals),
+300 accepted rows across all reads, and 128 KB of cumulative serialized observations
+including currency formatting and query metadata. A result exceeding the cumulative
+budget is discarded before another model call. Individual database results retain
+their 128 KB cap. Planning shares a 45-second deadline; each planner step has at most
+15 seconds including provider fallback, formatting has at most 25 seconds including
+fallbacks, and the complete chat service has an 85-second deadline inside the HTTP
+90-second deadline. Formatting attempts share the remaining deadline so a slow
+primary cannot consume all time reserved for the fallback models. Provider
+responses: 1 MB; formatted responses: 64 KB; at most
+8 concurrent investigations/transcriptions per backend process (the slot remains
+held during formatting), and 10 combined chat/transcription HTTP requests per
 minute per merchant membership per process. Merchant quota reservation is atomic in PostgreSQL.
 HTML permits formatting/tables and a few presentation classes; no URLs, images,
 styles, scripts, forms, event attributes, SVG or embedded resources survive.
+
+A deterministic HTML notice is appended when reads fail, a work/data/time budget
+is reached, or a returned listing may be truncated. A tool-free programmatic HTML
+fallback renders reads separately with their filters when formatting models fail.
+These are conservative completeness signals, not guarantees of model accuracy.
 
 Only chat infrastructure writes conversations, messages and quota counters. Explicit
 user conversation deletion and separate platform-admin maintenance still work. These
@@ -121,8 +149,17 @@ Run `go test ./...`, `go vet ./...`, and
 The database regression creates/drops only a private generated schema. It validates
 all catalog queries against the canonical schema and tests tenant/shop isolation,
 current membership access, staff denials, currency grouping and quota reservation.
+Investigation tests cover dependent reads, fixed scope, one quota unit per question,
+query correction, repeat/step/row/payload budgets, permission/module/role revocation,
+cancellation, injected tool names, diagnostic concealment and HTML sanitization.
 Provider contract tests use a fake HTTP transport. Live AI tests are opt-in with
 `RUN_LIVE_AI_TESTS=1` and `GEMINI_API_KEY`; no credential is stored in test code.
+`TestLiveDependentReadToolCallingAndHTML` uses synthetic stock/price observations
+to check a result-dependent follow-up tool call, termination and sanitized HTML.
+It never connects to a business database.
+`TestLiveShopScopedReadInvestigation` additionally exercises the complete service
+loop, full approved catalog, real query compiler, fixed authenticated scope,
+shared deadlines, one quota unit and final HTML using a synthetic repository.
 
 These controls prevent a model proposal from widening database scope or issuing
 arbitrary commands. They do not promise 100% security or perfect model answers.

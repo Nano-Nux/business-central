@@ -164,4 +164,12 @@ Linked services and stock-return dependencies remain protected.
 
 ## AI chat security refactor
 
+AI chat supports up to five sequential read-only planning steps with dependent queries and safe compiler-error correction. Current-turn query/result observations are explicitly untrusted; stored answers/results are excluded. Limits cover steps, rows, observation bytes and elapsed time, access/roles are rechecked throughout, and the tool-free formatter retains sanitized HTML plus server-enforced partial-result notices. API DTOs, schema, online/offline behavior and one-unit quota accounting are unchanged.
+
 AI chat now uses structured read proposals and enforced shop relationships instead of model-generated SQL and regex checks. Customer/delivery fields are available; user and credential data are excluded. Legacy unscoped conversations are inaccessible. See [security limits and rollout](../AI_CHAT_SECURITY.md).
+
+## Public receptionist increment
+
+Migration 0056 and the isolated hexagonal receptionist module implement public support chat, a bounded Gemini availability-tool loop, visitor-confirmed Google appointments, encrypted OAuth/PKCE, session privacy, quotas, pending recovery and Admin history/settings APIs. Provider credentials and Admin enablement are required; live account authorization is environment setup. No merchant tools, Slack/CRM, automatic sandbox provisioning or Google edit synchronization are introduced. See [setup and verification](internal/receptionist/README.md).
+
+Verification (2026-10-20): `go test ./...` and `go vet ./...` passed. The receptionist PostgreSQL lifecycle suite ran against a temporary PostgreSQL 18 instance under a restricted RLS role. Provider HTTP tests cover tool state, OAuth parameters, event retries and definite rejection. Real Google credentials and live LLM calls were not used.

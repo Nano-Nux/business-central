@@ -123,7 +123,7 @@ func CompileReadQuery(q domain.ReadQuery, merchantID, shopID string, isStaff boo
 		return "", nil, fmt.Errorf("dataset is not available")
 	}
 	if isStaff && d.ownerOnly {
-		return "", nil, fmt.Errorf("confidential data is restricted to merchant owners")
+		return "", nil, domain.ErrReadRestricted
 	}
 	if len(q.Columns) > 24 || len(q.Filters) > 16 || len(q.Aggregates) > 8 || len(q.GroupBy) > 6 || len(q.OrderBy) > 4 || q.Limit < 0 || q.Limit > 100 {
 		return "", nil, fmt.Errorf("read request exceeds allowed bounds")

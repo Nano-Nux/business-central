@@ -1,6 +1,6 @@
 # Public-Facing Implementation Status
 
-Last reviewed: 2026-09-15
+Last reviewed: 2026-10-20
 
 ## Current state
 
@@ -22,9 +22,15 @@ Last reviewed: 2026-09-15
   9. `TestimonialsAndMetrics`: Authentic customer testimonials from multi-location retail and service operators with production metrics.
   10. `PricingSection`: Transparent tiers at MMK 80,000 / MMK 150,000 / MMK 400,000 per month with annual savings toggle and AI-assisted business intelligence included.
   11. `FaqSection`: Searchable interactive accordion answering key store owner questions on offline protection, hardware peripherals, data migration, and AI-assisted query capabilities.
-  12. `DemoModal`: Accessible modal dialog for requesting personalized walkthroughs with instant sandbox confirmation feedback.
+  12. `DemoModal`: Shared receptionist launcher for support chat and real walkthrough appointments with explicit visitor confirmation.
   13. `Footer`: Grounded footer with structured navigation, customer reassurance badges, and copyright notice.
 
 ## Scope rule adherence
 
 Operational merchant workflows and authenticated administration remain strictly isolated to `business-central-portal`, `business_central_mobile`, and `business-central-admin`.
+
+## Public receptionist increment
+
+Existing demo CTAs now open the real booking flow shared with the floating support chat. Visitors receive the AI/storage notice, converse using backend-approved content, choose real slots, explicitly confirm contact sharing and retry pending bookings with stable IDs. Simulated sandbox provisioning is replaced. Runtime requires backend configuration and Admin enablement; no real provider secrets are embedded in this app.
+
+Verification (2026-10-20): formatting, ESLint, `npm run typecheck`, production build and all six `npm run test:e2e` browser checks passed. Browser checks use mocked API responses; Go tests verify provider requests separately.

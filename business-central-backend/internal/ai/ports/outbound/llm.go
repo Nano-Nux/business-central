@@ -16,7 +16,7 @@ type ConversationMessage struct {
 }
 
 type LLMClient interface {
-	GenerateQueryToolCall(ctx context.Context, systemPrompt string, history []ConversationMessage, userPrompt string) (directResponse string, toolCall *ToolCallResult, err error)
-	HumanizeAndFormatHTML(ctx context.Context, userPrompt string, queryData []map[string]any, defaultCurrency string) (string, error)
+	GenerateQueryToolCall(ctx context.Context, systemPrompt string, history []ConversationMessage, userPrompt string, observations []domain.ReadObservation) (directResponse string, toolCall *ToolCallResult, err error)
+	HumanizeAndFormatHTML(ctx context.Context, userPrompt string, observations []domain.ReadObservation, defaultCurrency string) (string, error)
 	TranscribeAudio(ctx context.Context, audioBytes []byte, mimeType string) (string, error)
 }

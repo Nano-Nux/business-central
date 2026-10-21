@@ -23,6 +23,9 @@ var deliveryPaymentStatus string
 //go:embed 0055_transaction_corrections.sql
 var transactionCorrections string
 
+//go:embed 0056_public_receptionist.sql
+var publicReceptionist string
+
 const userManagementPolicies = `
 CREATE OR REPLACE FUNCTION app_can_manage_memberships(p_merchant_id UUID) RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog AS $$
@@ -1532,6 +1535,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		{version: "0053_pos_nano_mode", sql: posNanoMode},
 		{version: "0054_delivery_payment_status", sql: deliveryPaymentStatus},
 		{version: "0055_transaction_corrections", sql: transactionCorrections},
+		{version: "0056_public_receptionist", sql: publicReceptionist},
 	}
 	for _, migration := range migrations {
 		var applied bool

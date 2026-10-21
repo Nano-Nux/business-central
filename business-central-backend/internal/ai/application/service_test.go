@@ -27,6 +27,8 @@ type mockRepo struct {
 	lastShop      string
 	shopErr       error
 	capturedQuery domain.ReadQuery
+	readHook      func(context.Context, string, string, string, string, domain.ReadQuery, bool) ([]map[string]any, error)
+	readCalls     int
 	usageLimit    int
 	usageCount    int
 	currency      string
@@ -180,6 +182,10 @@ func (m *mockRepo) ListMessages(ctx context.Context, merchantID, membershipID, c
 }
 
 func (m *mockRepo) ExecuteReadOnlyQuery(ctx context.Context, merchantID, membershipID, shopID, userID string, query domain.ReadQuery, isStaff bool) ([]map[string]any, error) {
+	m.readCalls++
+	if m.readHook != nil {
+		return m.readHook(ctx, merchantID, membershipID, shopID, userID, query, isStaff)
+	}
 	m.lastIsStaff = isStaff
 	m.lastShop = shopID
 	m.capturedQuery = query
@@ -237,16 +243,35 @@ type mockLLM struct {
 	capturedSystemPrompt string
 	capturedCurrency     string
 	capturedRecords      []map[string]any
+	capturedObservations []domain.ReadObservation
+	plannerCalls         int
+	formatCalls          int
+	formatHook           func(context.Context)
+	planHook             func(context.Context, []outbound.ConversationMessage, []domain.ReadObservation) (string, *outbound.ToolCallResult, error)
 }
 
-func (l *mockLLM) GenerateQueryToolCall(ctx context.Context, systemPrompt string, history []outbound.ConversationMessage, userPrompt string) (string, *outbound.ToolCallResult, error) {
+func (l *mockLLM) GenerateQueryToolCall(ctx context.Context, systemPrompt string, history []outbound.ConversationMessage, userPrompt string, observations []domain.ReadObservation) (string, *outbound.ToolCallResult, error) {
 	l.capturedSystemPrompt = systemPrompt
+	l.plannerCalls++
+	if l.planHook != nil {
+		return l.planHook(ctx, history, observations)
+	}
+	if l.plannerCalls > 1 {
+		return "done", nil, nil
+	}
 	return l.directResponse, l.toolCall, nil
 }
 
-func (l *mockLLM) HumanizeAndFormatHTML(ctx context.Context, userPrompt string, queryData []map[string]any, defaultCurrency string) (string, error) {
+func (l *mockLLM) HumanizeAndFormatHTML(ctx context.Context, userPrompt string, observations []domain.ReadObservation, defaultCurrency string) (string, error) {
 	l.capturedCurrency = defaultCurrency
-	l.capturedRecords = queryData
+	l.formatCalls++
+	if l.formatHook != nil {
+		l.formatHook(ctx)
+	}
+	l.capturedObservations = observations
+	for _, observation := range observations {
+		l.capturedRecords = append(l.capturedRecords, observation.Records...)
+	}
 	return l.htmlOutput, nil
 }
 
@@ -574,7 +599,7 @@ func TestSendMessage_StaffConfidentiality_QueryBlockedNotice(t *testing.T) {
 		aiEnabled:     true,
 		conversations: make(map[string]domain.Conversation),
 		messages:      make(map[string][]domain.Message),
-		queryErr:      errors.New("access to confidential business metric 'profit' (profit and original cost price) is restricted to merchant owners"),
+		queryErr:      domain.ErrReadRestricted,
 	}
 	// Staff member
 	auth := &mockAuth{allowed: true, isOwner: false}

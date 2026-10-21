@@ -15,7 +15,13 @@
 | Transparent Pricing & Add-on Calculator | Implemented | MMK 80,000 / MMK 150,000 / MMK 400,000 per month with annual savings toggle |
 | Searchable Store Owner FAQ | Implemented | Instant search and expandable accordion answering key operational questions |
 | AI-Assisted Business Features | Implemented | Developed AI-assisted business features with structured data queries and context-based responses |
-| Interactive Enterprise Demo Request Modal | Implemented | Accessible dialog with business qualification and instant sandbox confirmation |
+| Interactive Enterprise Demo Request Modal | Implemented | Shared AI reception and backend-confirmed Calendar appointments; no automatic sandbox provisioning |
 | Multi-Column Grounded Footer | Implemented | System status, solutions, modules, and reliability badges |
 | Merchant dashboard or operational POS | Out of scope | Belongs to `business-central-portal` and `business_central_mobile` |
 | Authenticated merchant administration | Out of scope | Belongs to `business-central-admin` |
+
+## Public receptionist
+
+| Feature | Status | Evidence |
+|---|---|---|
+| AI support chat and real demo/support appointment confirmation | Implemented; backend setup required | `ReceptionistWidget`, session-isolated transcripts, selectable slots, explicit confirmation and pending retry |

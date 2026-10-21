@@ -91,3 +91,7 @@ Staff do not receive transaction detail edit/delete controls.
 ## AI data-read policy
 
 `ai.chat` and merchant enablement remain required. Every AI chat is constrained to one accessible, active shop and its current authenticated membership; owner prompts cannot widen that scope. Merchant/owner roles and platform administrators may use financial datasets, while other roles retain existing cost/profit restrictions. Employee identities/contacts, credentials, tokens, roles and arbitrary configuration/payload data are excluded for everyone. Approved customers and delivery contacts are permitted within shop relationships. See [AI security policy](AI_CHAT_SECURITY.md).
+
+## Platform receptionist
+
+Public visitors can start a conversation and access only that conversation using its random, unexpired bearer capability; this never grants merchant access. Only authenticated platform administrators may list/read all public transcripts and bookings or change knowledge, schedule, quotas and Google connection. Merchant owners, managers and staff are forbidden from `/admin/receptionist/*`, regardless of merchant selection. The model can only request availability; visitor confirmation is required for event creation.

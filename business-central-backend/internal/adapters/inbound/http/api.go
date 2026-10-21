@@ -24,6 +24,7 @@ import (
 	operationsinbound "business-central-backend/internal/operations/ports/inbound"
 	poshttp "business-central-backend/internal/pos/adapters/inbound/http"
 	posinbound "business-central-backend/internal/pos/ports/inbound"
+	receptionisthttp "business-central-backend/internal/receptionist/adapters/inbound/http"
 	reportshttp "business-central-backend/internal/reports/adapters/inbound/http"
 	reportsinbound "business-central-backend/internal/reports/ports/inbound"
 	serviceshttp "business-central-backend/internal/services/adapters/inbound/http"
@@ -72,6 +73,7 @@ type Dependencies struct {
 	Synchronization synchronizationinbound.Synchronization
 	Telegram        telegraminbound.Telegram
 	CORSOrigin      string
+	Receptionist    *receptionisthttp.Handler
 }
 
 func New(db *pgxpool.Pool, dependencies Dependencies) *API {
@@ -127,8 +129,14 @@ func NewWithDocs(db *pgxpool.Pool, dependencies Dependencies, docsRoot string) *
 	api.auth.RegisterPublicRoutes(v1)
 	api.telegram.RegisterPublicRoutes(v1)
 	api.bundle.RegisterRoutes(v1)
+	if dependencies.Receptionist != nil {
+		dependencies.Receptionist.RegisterPublicRoutes(v1)
+	}
 
 	protected := v1.Group("", api.authenticate)
+	if dependencies.Receptionist != nil {
+		dependencies.Receptionist.RegisterAdminRoutes(protected)
+	}
 	api.auth.RegisterProtectedRoutes(protected)
 	if api.ai != nil {
 		api.ai.RegisterRoutes(protected)
