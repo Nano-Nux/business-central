@@ -20,12 +20,19 @@ func TestFunctionStateAndCallIDRoundTrip(t *testing.T) {
 		if r.Header.Get("x-goog-api-key") != "key" || r.URL.RawQuery != "" {
 			t.Error("key must be in header")
 		}
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		for _, parameter := range []string{`"not_before"`, `"before"`} {
+			if !strings.Contains(string(body["tools"]), parameter) {
+				t.Errorf("time preference parameter missing from provider schema: %s", parameter)
+			}
+		}
 		if count == 1 {
 			w.Write([]byte(`{"candidates":[{"finishReason":"STOP","content":` + content + `}]}`))
 			return
 		}
-		var body map[string]json.RawMessage
-		json.NewDecoder(r.Body).Decode(&body)
 		if !strings.Contains(string(body["contents"]), "opaque-signature") || !strings.Contains(string(body["contents"]), `"id":"call-1"`) {
 			t.Error("lost opaque call state")
 		}

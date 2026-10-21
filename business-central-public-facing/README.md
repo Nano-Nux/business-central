@@ -45,3 +45,12 @@ Operational merchant workflows and authenticated operations belong exclusively t
 ## Public AI support and real appointments
 
 The floating **Ask Nanonux** launcher and demo CTAs share the `ReceptionistWidget` conversation. Approved product/support answers and tool-driven availability come from the existing Go backend. Visitors choose an available time, supply contact details and explicitly confirm before booking. Pending outcomes preserve the booking request ID across retries and reloads. Session capabilities use tab-scoped session storage. The previous simulated demo/sandbox success screen is replaced; no automatic sandbox provisioning is promised. Set `NEXT_PUBLIC_API_URL` before building and configure/enable reception in Admin. See [backend setup and boundaries](../business-central-backend/internal/receptionist/README.md).
+
+Chat messages appear immediately while the AI reply is pending. Availability is
+grouped by business-local date with time ranges and timezone. Selecting a time
+in chat or the booking panel opens contact details directly without asking for
+the date/time again. **Change time** retains contact details and resets consent.
+Expired/unavailable offers return to time selection with the details preserved;
+uncertain bookings retain the same request for reconciliation. Visitors can
+continue chatting after confirmation. Model text is rendered safely as text,
+with basic Markdown markers and escaped entities cleaned up for readability.

@@ -8,6 +8,7 @@ import {
   Conversation,
   ReceptionistError,
   Slot,
+  receptionistText,
   receptionistRequest,
 } from "@/lib/receptionist";
 
@@ -23,6 +24,75 @@ function displayTime(value: string, timezone: string) {
     timeStyle: "short",
     timeZone: timezone,
   }).format(new Date(value));
+}
+
+function dateInTimezone(value: string, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((p) => p.type === type)!.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function SlotOptions({
+  slots,
+  timezone,
+  disabled,
+  onChoose,
+}: {
+  slots: Slot[];
+  timezone: string;
+  disabled: boolean;
+  onChoose: (slot: Slot) => void;
+}) {
+  const days = new Map<string, Slot[]>();
+  for (const slot of slots) {
+    const day = dateInTimezone(slot.start, timezone);
+    const group = days.get(day) || [];
+    if (!group.some((item) => item.start === slot.start)) group.push(slot);
+    days.set(day, group);
+  }
+  const time = (value: string) =>
+    new Intl.DateTimeFormat(undefined, {
+      timeZone: timezone,
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(value));
+  return (
+    <div className="mt-3 space-y-3" aria-label="Available appointment times">
+      <p className="text-xs text-slate-500">Times in {timezone}</p>
+      {[...days].map(([day, options]) => (
+        <div key={day}>
+          <p className="mb-2 text-xs font-medium">
+            {new Intl.DateTimeFormat(undefined, {
+              timeZone: timezone,
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }).format(new Date(options[0].start))}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {options.map((slot) => (
+              <button
+                key={slot.start}
+                type="button"
+                disabled={disabled}
+                onClick={() => onChoose(slot)}
+                aria-label={`${displayTime(slot.start, timezone)} to ${time(slot.end)}`}
+                className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs text-slate-800 hover:border-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+              >
+                {time(slot.start)} – {time(slot.end)}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function ReceptionistWidget({
@@ -41,6 +111,9 @@ export default function ReceptionistWidget({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [optimisticMessageId, setOptimisticMessageId] = useState<string | null>(
+    null,
+  );
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [checkedDate, setCheckedDate] = useState("");
@@ -53,13 +126,19 @@ export default function ReceptionistWidget({
   });
   const [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState<BookingRequest | null>(null);
+  const [staleOffers, setStaleOffers] = useState<string[]>([]);
   const loading = useRef<Promise<void> | null>(null);
   const log = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const bookingPanel = useRef<HTMLDivElement>(null);
   const shown = open || isOpen;
   const showBooking = bookingMode || isOpen;
   const activeBooking = conversation?.bookings?.find(
     (b) => b.status === "CONFIRMED" || b.status === "PENDING",
+  );
+  const latestOffer = conversation?.messages.findLast(
+    (item) => item.role === "assistant",
   );
 
   const initialize = useCallback(() => {
@@ -145,11 +224,17 @@ export default function ReceptionistWidget({
     if (shown) closeButton.current?.focus();
   }, [shown]);
   useEffect(() => {
+    if (shown && showBooking && chosen && !pending) {
+      bookingPanel.current?.scrollTo({ top: 0 });
+      nameInput.current?.focus();
+    }
+  }, [shown, showBooking, chosen, pending]);
+  useEffect(() => {
     log.current?.scrollTo({
       top: log.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [conversation]);
+  }, [conversation, busy, showBooking]);
   const close = useCallback(() => {
     setOpen(false);
     setBookingMode(false);
@@ -175,7 +260,26 @@ export default function ReceptionistWidget({
   }
   async function send(e: FormEvent) {
     e.preventDefault();
-    if (!session || !message.trim() || busy) return;
+    if (!session || !conversation || !message.trim() || busy) return;
+    const content = message.trim();
+    const optimisticId = `pending-${crypto.randomUUID()}`;
+    const previousUserCount = conversation.messages.filter(
+      (item) => item.role === "user",
+    ).length;
+    setOptimisticMessageId(optimisticId);
+    setConversation({
+      ...conversation,
+      messages: [
+        ...conversation.messages,
+        {
+          id: optimisticId,
+          role: "user",
+          content,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
+    setMessage("");
     setBusy(true);
     setError("");
     try {
@@ -183,13 +287,28 @@ export default function ReceptionistWidget({
         await receptionistRequest<Conversation>(
           `/conversations/${session.id}/messages`,
           session,
-          { message },
+          { message: content },
         ),
       );
-      setMessage("");
+      setOptimisticMessageId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not send message.");
-      await refresh().catch(() => {});
+      try {
+        const latest = await receptionistRequest<Conversation>(
+          `/conversations/${session.id}`,
+          session,
+        );
+        setConversation(latest);
+        setOptimisticMessageId(null);
+        // A failed AI reply may still have persisted the visitor's message.
+        if (
+          latest.messages.filter((item) => item.role === "user").length ===
+          previousUserCount
+        )
+          setMessage(content);
+      } catch {
+        // Keep the local message visible without claiming it was delivered.
+      }
     } finally {
       setBusy(false);
     }
@@ -258,6 +377,20 @@ export default function ReceptionistWidget({
         setPending(null);
         sessionStorage.removeItem(pendingKey(session.id));
       }
+      if (
+        e instanceof ReceptionistError &&
+        ["SLOT_EXPIRED", "SLOT_UNAVAILABLE", "BOOKING_FAILED"].includes(e.code)
+      ) {
+        setChosen(null);
+        setConfirmed(false);
+        setSlots([]);
+        setCheckedDate("");
+        setStaleOffers(
+          conversation?.messages
+            .filter((item) => item.slots?.length)
+            .map((item) => item.id) || [],
+        );
+      }
       setError(
         e instanceof Error
           ? e.message
@@ -268,10 +401,26 @@ export default function ReceptionistWidget({
       setBusy(false);
     }
   }
-  function choose(slot: Slot) {
+  function choose(slot: Slot, offeredSlots: Slot[] = slots) {
     if (activeBooking || pending) return;
+    setDate(dateInTimezone(slot.start, timezone));
+    setSlots(offeredSlots);
+    setCheckedDate("");
     setChosen(slot);
     setConfirmed(false);
+    setError("");
+    setBookingMode(true);
+  }
+  function openBooking() {
+    if (
+      !chosen &&
+      !pending &&
+      latestOffer?.slots?.length &&
+      !staleOffers.includes(latestOffer.id)
+    ) {
+      setDate(dateInTimezone(latestOffer.slots[0].start, timezone));
+      setSlots(latestOffer.slots);
+    }
     setBookingMode(true);
   }
 
@@ -309,6 +458,8 @@ export default function ReceptionistWidget({
           </header>
           <div className="flex border-b border-slate-100 p-2 text-xs">
             <button
+              disabled={busy}
+              aria-pressed={!showBooking}
               className="flex-1 rounded p-2 hover:bg-slate-100"
               onClick={() => {
                 setOpen(true);
@@ -319,8 +470,10 @@ export default function ReceptionistWidget({
               Chat
             </button>
             <button
+              disabled={busy}
+              aria-pressed={showBooking}
               className="flex flex-1 items-center justify-center gap-2 rounded p-2 hover:bg-slate-100"
-              onClick={() => setBookingMode(true)}
+              onClick={openBooking}
             >
               <CalendarDays size={15} /> Book a call
             </button>
@@ -332,10 +485,15 @@ export default function ReceptionistWidget({
           </p>
           <div
             ref={log}
+            hidden={
+              !!conversation &&
+              showBooking &&
+              activeBooking?.status !== "CONFIRMED"
+            }
             role="log"
             aria-live="polite"
             aria-label="Conversation"
-            className="min-h-24 flex-1 space-y-3 overflow-y-auto p-4 max-h-[36dvh]"
+            className="min-h-24 flex-1 space-y-3 overflow-y-auto p-4 max-h-[50dvh]"
           >
             {!conversation && (
               <p className="text-sm text-slate-500">
@@ -356,26 +514,32 @@ export default function ReceptionistWidget({
                       ? "Booking update"
                       : "Nanonux AI"}
                 </p>
-                <p className="whitespace-pre-wrap break-words">{m.content}</p>
-                {!!m.slots?.length && !activeBooking && !pending && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {m.slots.map((s) => (
-                      <button
-                        key={s.start}
-                        disabled={busy}
-                        onClick={() => choose(s)}
-                        className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs"
-                      >
-                        {displayTime(s.start, timezone)}
-                      </button>
-                    ))}
-                  </div>
+                <p className="whitespace-pre-wrap break-words">
+                  {m.role === "user" ? m.content : receptionistText(m.content)}
+                </p>
+                {m.id === optimisticMessageId && (
+                  <p className="mt-1 text-[10px] opacity-70">
+                    {busy ? "Sending…" : "Delivery unconfirmed"}
+                  </p>
                 )}
+                {!!m.slots?.length &&
+                  m.id === latestOffer?.id &&
+                  !staleOffers.includes(m.id) &&
+                  !activeBooking &&
+                  !pending &&
+                  !showBooking && (
+                    <SlotOptions
+                      slots={m.slots}
+                      timezone={timezone}
+                      disabled={busy}
+                      onChoose={(slot) => choose(slot, m.slots)}
+                    />
+                  )}
               </article>
             ))}
             {busy && (
               <p role="status" className="text-xs text-slate-500">
-                Working…
+                {optimisticMessageId ? "Nanonux AI is replying…" : "Working…"}
               </p>
             )}
           </div>
@@ -424,7 +588,15 @@ export default function ReceptionistWidget({
           {showBooking &&
             conversation &&
             activeBooking?.status !== "CONFIRMED" && (
-              <div className="max-h-[40dvh] overflow-y-auto border-t border-slate-100 p-4">
+              <div
+                ref={bookingPanel}
+                className="max-h-[60dvh] overflow-y-auto border-t border-slate-100 p-4"
+              >
+                <h3 className="mb-2 text-sm font-semibold">
+                  {chosen || pending
+                    ? "Confirm your call"
+                    : "Choose a time for your call"}
+                </h3>
                 <p className="mb-3 text-xs text-slate-500">
                   Appointment times are shown in {timezone}.
                 </p>
@@ -435,7 +607,7 @@ export default function ReceptionistWidget({
                   </p>
                 ) : (
                   <>
-                    {!pending && (
+                    {!pending && !chosen && (
                       <form
                         onSubmit={findSlots}
                         className="flex items-end gap-2"
@@ -464,26 +636,19 @@ export default function ReceptionistWidget({
                         </button>
                       </form>
                     )}
-                    {checkedDate && !slots.length && (
+                    {!chosen && checkedDate && !slots.length && (
                       <p className="mt-2 text-xs">
                         No available appointments for this date. Please choose
                         another day.
                       </p>
                     )}
-                    {!pending && (
-                      <div className="my-3 flex flex-wrap gap-2">
-                        {slots.map((s) => (
-                          <button
-                            key={s.start}
-                            onClick={() => choose(s)}
-                            disabled={busy}
-                            aria-pressed={chosen?.start === s.start}
-                            className={`rounded-lg border px-2 py-1 text-xs ${chosen?.start === s.start ? "border-emerald-600 bg-emerald-50" : "border-slate-300"}`}
-                          >
-                            {displayTime(s.start, timezone)}
-                          </button>
-                        ))}
-                      </div>
+                    {!pending && !chosen && !!slots.length && (
+                      <SlotOptions
+                        slots={slots}
+                        timezone={timezone}
+                        disabled={busy}
+                        onChoose={(slot) => choose(slot)}
+                      />
                     )}
                     {(chosen || pending) && (
                       <form onSubmit={book} className="space-y-3">
@@ -494,6 +659,20 @@ export default function ReceptionistWidget({
                           )}{" "}
                           ({timezone})
                         </p>
+                        {!pending && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              setChosen(null);
+                              setConfirmed(false);
+                              setError("");
+                            }}
+                            className="text-xs font-medium text-emerald-700 underline"
+                          >
+                            Change time
+                          </button>
+                        )}
                         {pending ? (
                           <p className="text-sm">
                             Your booking is awaiting confirmation. Retry this
@@ -504,6 +683,7 @@ export default function ReceptionistWidget({
                             <label className="block text-xs">
                               Name
                               <input
+                                ref={nameInput}
                                 required
                                 maxLength={120}
                                 autoComplete="name"
@@ -594,33 +774,34 @@ export default function ReceptionistWidget({
                 )}
               </div>
             )}
-          {!showBooking && conversation && (
-            <form
-              onSubmit={send}
-              className="flex gap-2 border-t border-slate-100 p-3"
-            >
-              <label className="sr-only" htmlFor="receptionist-message">
-                Your message
-              </label>
-              <input
-                id="receptionist-message"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                maxLength={4000}
-                placeholder="Ask about Business Central…"
-                className={inputClass}
-                disabled={busy}
-                required
-              />
-              <button
-                disabled={busy || !message.trim()}
-                className={buttonClass}
-                aria-label="Send message"
+          {(!showBooking || activeBooking?.status === "CONFIRMED") &&
+            conversation && (
+              <form
+                onSubmit={send}
+                className="flex gap-2 border-t border-slate-100 p-3"
               >
-                <Send size={16} />
-              </button>
-            </form>
-          )}
+                <label className="sr-only" htmlFor="receptionist-message">
+                  Your message
+                </label>
+                <input
+                  id="receptionist-message"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  maxLength={4000}
+                  placeholder="Ask about Business Central…"
+                  className={inputClass}
+                  disabled={busy}
+                  required
+                />
+                <button
+                  disabled={busy || !message.trim()}
+                  className={buttonClass}
+                  aria-label="Send message"
+                >
+                  <Send size={16} />
+                </button>
+              </form>
+            )}
           {conversation && (
             <button
               disabled={busy || !!pending}
@@ -631,6 +812,13 @@ export default function ReceptionistWidget({
                 setChosen(null);
                 setPending(null);
                 setSlots([]);
+                setStaleOffers([]);
+                setDate("");
+                setCheckedDate("");
+                setConfirmed(false);
+                setDetails({ name: "", email: "", company: "", notes: "" });
+                setMessage("");
+                setOptimisticMessageId(null);
                 setError("");
               }}
               className="border-t border-slate-100 p-2 text-[11px] text-slate-500 hover:text-slate-900"

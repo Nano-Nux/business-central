@@ -40,7 +40,19 @@ const settings = {
   oauth_configured: true,
 };
 
-async function publicMock(page: Page, uncertain = false) {
+async function publicMock(
+  page: Page,
+  uncertain = false,
+  messageOptions: {
+    wait?: Promise<void>;
+    fail?: "before" | "after";
+    slots?: (typeof slot)[];
+    bookingError?: string;
+    reply?: string;
+    timezone?: string;
+    disconnected?: boolean;
+  } = {},
+) {
   const conversation = {
     id,
     name: "",
@@ -64,11 +76,25 @@ async function publicMock(page: Page, uncertain = false) {
     if (method === "OPTIONS") return route.fulfill({ status: 204, headers });
     const respond = (data: unknown) =>
       route.fulfill({ json: { data }, headers });
-    if (path.endsWith("/status")) return respond(settings);
+    if (path.endsWith("/status"))
+      return respond({
+        ...settings,
+        timezone: messageOptions.timezone || settings.timezone,
+        calendar_connected: !messageOptions.disconnected,
+      });
     if (path.endsWith("/conversations") && method === "POST")
       return respond({ conversation, token: "a".repeat(43) });
     expect(request.headers().authorization).toBe(`Bearer ${"a".repeat(43)}`);
     if (path.endsWith("/messages")) {
+      await messageOptions.wait;
+      if (messageOptions.fail === "before")
+        return route.fulfill({
+          status: 503,
+          headers,
+          json: {
+            error: { code: "UNAVAILABLE", message: "Please try again." },
+          },
+        });
       const { message } = request.postDataJSON();
       conversation.messages.push(
         { ...greeting, id: "visitor-message", role: "user", content: message },
@@ -76,15 +102,28 @@ async function publicMock(page: Page, uncertain = false) {
           ...greeting,
           id: "reply",
           content:
+            messageOptions.reply ||
             "Business Central supports POS. Select a time to arrange a demo.",
-          slots: [slot],
+          slots: messageOptions.slots || [slot],
         } as typeof greeting,
       );
+      if (messageOptions.fail === "after") return route.abort("failed");
       return respond(conversation);
     }
-    if (path.endsWith("/slots")) return respond([slot]);
+    if (path.endsWith("/slots")) return respond(messageOptions.slots || [slot]);
     if (path.endsWith("/bookings")) {
       requests.push(request.postDataJSON());
+      if (messageOptions.bookingError)
+        return route.fulfill({
+          status: 409,
+          headers,
+          json: {
+            error: {
+              code: messageOptions.bookingError,
+              message: "Please choose an available time again.",
+            },
+          },
+        });
       if (uncertain && requests.length === 1) return route.abort("failed");
       conversation.bookings = [
         { ...booking, id: String(requests[0].request_id) },
@@ -110,10 +149,79 @@ async function fillBooking(page: Page) {
   await page.getByRole("checkbox").check();
 }
 
+test("chat shows the visitor message before a delayed AI response without duplicates", async ({
+  page,
+}) => {
+  let release!: () => void;
+  const wait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await publicMock(page, false, { wait });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Open Nanonux AI support chat" })
+    .click();
+  await expect(page.getByText(greeting.content)).toBeVisible();
+  const content = "Can you show me POS tomorrow?";
+  await page.getByLabel("Your message").fill(content);
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
+  try {
+    await expect(
+      page.getByRole("log").getByText(content, { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Your message")).toHaveValue("");
+    await expect(page.getByText("Nanonux AI is replying…")).toBeVisible();
+    await expect(
+      page.getByText("Business Central supports POS.", { exact: false }),
+    ).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(
+    page.getByText("Business Central supports POS.", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("log").getByText(content, { exact: true }),
+  ).toHaveCount(1);
+  await expect(page.getByText("Sending…", { exact: true })).toHaveCount(0);
+});
+
+for (const fail of ["before", "after"] as const) {
+  test(`chat reconciles a failed request ${fail} the message is saved`, async ({
+    page,
+  }) => {
+    await publicMock(page, false, { fail });
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Open Nanonux AI support chat" })
+      .click();
+    await expect(page.getByText(greeting.content)).toBeVisible();
+    const content = "Help me choose a POS";
+    await page.getByLabel("Your message").fill(content);
+    await page
+      .getByRole("button", { name: "Send message", exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole("region", {
+          name: "Nanonux Business Central AI receptionist",
+        })
+        .getByRole("alert"),
+    ).toBeVisible();
+    await expect(page.getByLabel("Your message")).toBeEnabled();
+    await expect(page.getByLabel("Your message")).toHaveValue(
+      fail === "before" ? content : "",
+    );
+    await expect(
+      page.getByRole("log").getByText(content, { exact: true }),
+    ).toHaveCount(fail === "before" ? 0 : 1);
+  });
+}
+
 test("public chat uses persisted support replies and displays selectable tool slots", async ({
   page,
 }) => {
-  await publicMock(page);
+  const mock = await publicMock(page);
   await page.goto("/");
   await page
     .getByRole("button", { name: "Open Nanonux AI support chat" })
@@ -126,9 +234,159 @@ test("public chat uses persisted support replies and displays selectable tool sl
   ).toBeVisible();
   await page.getByRole("button", { name: /Oct 21, 2026/ }).click();
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
+  await expect(page.getByLabel("Preferred date")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Check times", exact: true }),
+  ).toHaveCount(0);
   await expect(
     page.getByText("Appointment times are shown in Asia/Bangkok."),
   ).toBeVisible();
+  await page.getByLabel("Name", { exact: true }).fill("Visitor");
+  await page.getByLabel("Email", { exact: true }).fill("visitor@example.com");
+  expect(mock.requests).toHaveLength(0);
+  await expect(
+    page.getByRole("button", { name: "Confirm appointment", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("button", { name: "Confirm appointment", exact: true })
+    .click();
+  await expect(
+    page.getByText("Appointment confirmed", { exact: true }),
+  ).toBeVisible();
+  expect(mock.requests).toHaveLength(1);
+  expect(mock.requests[0].start).toBe(slot.start);
+  await expect(page.getByLabel("Your message")).toBeVisible();
+});
+
+test("changing a chat-selected time keeps contact details and the selected business-local date", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const morning = {
+    start: "2026-10-21T00:30:00Z",
+    end: "2026-10-21T01:00:00Z",
+  };
+  await publicMock(page, false, {
+    slots: [morning],
+    timezone: "America/Los_Angeles",
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Open Nanonux AI support chat" })
+    .click();
+  await page.getByLabel("Your message").fill("Can we discuss the packages?");
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
+  await page.getByRole("button", { name: /Oct 20, 2026/ }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Visitor");
+  await page.getByLabel("Email", { exact: true }).fill("visitor@example.com");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Change time", exact: true }).click();
+  await expect(page.getByLabel("Preferred date")).toHaveValue("2026-10-20");
+  await page.getByRole("button", { name: /Oct 20, 2026/ }).click();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Visitor");
+  await expect(page.getByLabel("Email", { exact: true })).toHaveValue(
+    "visitor@example.com",
+  );
+  await expect(page.getByRole("checkbox")).not.toBeChecked();
+  await expect(page.getByLabel("Preferred date")).toHaveCount(0);
+  await page.screenshot({
+    path: "test-results/receptionist-contact-details.png",
+  });
+});
+
+for (const bookingError of ["SLOT_EXPIRED", "SLOT_UNAVAILABLE"]) {
+  test(`${bookingError} returns to available-time selection and keeps contact details`, async ({
+    page,
+  }) => {
+    await publicMock(page, false, { bookingError });
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Open Nanonux AI support chat" })
+      .click();
+    await expect(page.getByText(greeting.content)).toBeVisible();
+    await fillBooking(page);
+    await page
+      .getByRole("button", { name: "Confirm appointment", exact: true })
+      .click();
+    await expect(page.getByLabel("Preferred date")).toHaveValue("2026-10-21");
+    await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Check times", exact: true })
+      .click();
+    await page.getByRole("button", { name: /Oct 21, 2026/ }).click();
+    await expect(page.getByLabel("Name", { exact: true })).toHaveValue(
+      "Visitor",
+    );
+    await expect(page.getByRole("checkbox")).not.toBeChecked();
+  });
+}
+
+test("walkthrough CTA opens scheduling, explains an empty date and can return to chat", async ({
+  page,
+}) => {
+  await publicMock(page, false, { slots: [] });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Schedule a Walkthrough", exact: true })
+    .click();
+  await page.getByLabel("Preferred date").fill("2026-10-21");
+  await page.getByRole("button", { name: "Check times", exact: true }).click();
+  await expect(
+    page.getByText("No available appointments for this date.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Confirm appointment", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await expect(page.getByLabel("Your message")).toBeVisible();
+  await expect(page.getByText(greeting.content)).toBeVisible();
+});
+
+test("disconnected calendar offers chat without a dead-end booking form", async ({
+  page,
+}) => {
+  await publicMock(page, false, { disconnected: true });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Schedule a Walkthrough", exact: true })
+    .click();
+  await expect(
+    page.getByText("Online booking is not connected yet.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Preferred date")).toHaveCount(0);
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await expect(page.getByLabel("Your message")).toBeVisible();
+});
+
+test("model formatting is readable text and never executes HTML", async ({
+  page,
+}) => {
+  await publicMock(page, false, {
+    reply:
+      "**Choose a time below.**&#x20;&lt;img src=x onerror=window.receptionistInjected=true&gt;",
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Open Nanonux AI support chat" })
+    .click();
+  await page.getByLabel("Your message").fill("A call please");
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(
+    page
+      .getByRole("log")
+      .getByText(
+        "Choose a time below. <img src=x onerror=window.receptionistInjected=true>",
+        { exact: true },
+      ),
+  ).toBeVisible();
+  await expect(page.getByRole("log").locator("img")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => Object.hasOwn(window, "receptionistInjected")),
+  ).toBe(false);
 });
 test("visitor must confirm details before a real booking result is shown", async ({
   page,

@@ -63,6 +63,27 @@ publishing/verification as required by Google for the intended deployment.
 - The visitor selects an offered slot, supplies name/email and optional business
   and notes, and explicitly consents before the backend booking operation runs.
   The LLM cannot create events from an instruction embedded in chat text.
+- Routine AI replies are brief and conversational, ask one question at a time,
+  and follow a booking request without qualification questions. Date reasoning
+  uses the current business-local time. The model is told that availability is
+  already displayed as time buttons, so it should not repeat a list of times or
+  describe a separate booking form. Selecting a button opens contact details
+  with the chosen time retained. Empty availability is distinguished from a
+  provider failure; neither creates or confirms an appointment.
+- Each chat turn also supplies trusted schedule/connection context, the latest
+  offered times with their expiry state, and booking references/status in the
+  booking's timezone. Follow-ups and corrections can refer to these records.
+  The availability tool accepts optional business-local `not_before`/`before`
+  time windows; only matching complete appointments become selectable offers.
+  Repeated identical tool checks are cached within the turn, refined preferences
+  replace earlier options for the same date, and offers are deduplicated/sorted.
+  Existing pending/confirmed bookings block another offer in that conversation.
+  Tool errors distinguish invalid preferences, calendar failures, and existing
+  bookings. If the model fails after a tool check, a server-generated reply
+  preserves verified offers or explains the actual recovery action. Model
+  guidance covers ambiguity, changed preferences, interrupted scheduling,
+  timezone questions and team handoff for unsupported requests. It does not
+  add cancellation/rescheduling operations or claim a handoff was performed.
 - Appointments are offered at configured duration intervals in the business
   timezone, strictly more than one hour ahead, up to 60 calendar days ahead.
   Both Google's busy intervals (including per-calendar errors) and local pending
@@ -126,7 +147,16 @@ test role; its database user must be allowed to create both. It tests the real
 migration and RLS under a restricted role, visitor isolation, encrypted OAuth
 state/token storage, full tool and booking flow, lost Google response recovery,
 idempotency, pending reservations, history/detail queries, budgets and expiry.
-Adapters use HTTP test servers; no real Google event or LLM call is made by tests.
+By default, adapters use HTTP test servers; tests make no real Google event or
+LLM calls.
+
+The optional `TestLiveReceptionistConversationScenarios` evaluation uses real
+Gemini with synthetic conversations and a simulated calendar. It checks a
+date-only follow-up, an afternoon preference, and pending-booking handling;
+it never creates a real appointment. Set `RECEPTIONIST_LIVE_EVAL_KEY` (and
+optionally `RECEPTIONIST_LIVE_EVAL_MODEL`), then run
+`go test -count=1 -v ./internal/receptionist/application -run TestLiveReceptionistConversationScenarios`.
+It is skipped by default; normal unit/integration tests use simulated providers.
 
 Provider references: [Gemini tool calling](https://ai.google.dev/gemini-api/docs/function-calling),
 [Google OAuth](https://developers.google.com/identity/protocols/oauth2/web-server),
