@@ -42,6 +42,43 @@ Operational merchant workflows and authenticated operations belong exclusively t
 - `npm run start` — Run production server
 - `npm run lint` — Run ESLint across application code
 
+## Privacy, terms and Google OAuth verification
+
+Public, server-rendered `/privacy-policy` and `/terms-of-service` pages identify
+Nanonux and its approved contact `nanonux808@gmail.com`. Both are linked from the
+homepage footer, the receptionist notice, each other and the sitemap. Page
+metadata has its own canonical URL. No account, Google sign-in or API access is
+required to read either page. Set `NEXT_PUBLIC_SITE_URL` to the live HTTPS
+homepage before building and register these exact live URLs in Google Auth
+platform Branding. Verify domain ownership and keep OAuth branding consistent
+with Nanonux Business Central / `business-central-receptionist`.
+
+The content reflects the current implementation: administrator-only Calendar
+connection, visitor-confirmed booking, free Gemini processing, admin transcript
+review, browser session storage, encrypted refresh credentials, manual deletion
+requests, and no automatic transcript purge. Keep disclosures synchronized with
+data-flow changes. The public contact must be monitored, and deletion/access
+requests need an operational process; text alone does not implement deletion.
+
+**Verification blocker with the current free-Gemini design:** the backend sends
+Calendar-derived availability, booking state and references to Gemini. Google's
+unpaid Gemini terms permit model improvement/human review and prohibit submitting
+sensitive, confidential or personal information. Workspace API policy restricts
+Google-data transfers for generalized AI training. Do not add a categorical
+no-training/Limited Use compliance claim while this conflict remains. Before
+verification, isolate Google API data and personal booking details from free AI
+processing, use an appropriately contracted no-training service, or disable the
+affected AI integration. Review arbitrary visitor chat separately for personal
+data. Free Gemini also has regional restrictions (including paid-service
+requirements for EEA/UK/Switzerland). The pages disclose current behavior; they
+are not evidence of Google approval, a compliance certification or a guarantee
+that verification will pass.
+
+Sources: [Google API user data policy](https://developers.google.com/terms/api-services-user-data-policy),
+[Workspace API policy](https://developers.google.com/workspace/workspace-api-user-data-developer-policy),
+[Gemini API terms](https://ai.google.dev/gemini-api/terms),
+[OAuth production readiness](https://developers.google.com/identity/protocols/oauth2/production-readiness/policy-compliance).
+
 ## Public AI support and real appointments
 
 The floating **Ask Nanonux** launcher and demo CTAs share the `ReceptionistWidget` conversation. Approved product/support answers and tool-driven availability come from the existing Go backend. Visitors choose an available time, supply contact details and explicitly confirm before booking. Pending outcomes preserve the booking request ID across retries and reloads. Session capabilities use tab-scoped session storage. The previous simulated demo/sandbox success screen is replaced; no automatic sandbox provisioning is promised. Set `NEXT_PUBLIC_API_URL` before building and configure/enable reception in Admin. See [backend setup and boundaries](../business-central-backend/internal/receptionist/README.md).
