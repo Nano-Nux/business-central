@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { CalendarDays, MessageCircle, Send, X } from "lucide-react";
 import {
   BookingRequest,
@@ -481,7 +482,25 @@ export default function ReceptionistWidget({
           <p className="px-4 py-2 text-[11px] text-slate-500">
             You’re chatting with AI. Conversations and contact details are saved
             for Nanonux support review. Please don’t share passwords or payment
-            details.
+            details.{" "}
+            <Link
+              href="/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              Privacy Policy
+            </Link>
+            {" · "}
+            <Link
+              href="/terms-of-service"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              Terms of Service
+            </Link>
+            .
           </p>
           <div
             ref={log}
